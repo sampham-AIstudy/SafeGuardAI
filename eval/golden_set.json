@@ -1,0 +1,164 @@
+{
+  "golden_set": [
+    {
+      "id": "CASE_01",
+      "category": "Fake Recruitment",
+      "failure_class": "Domain Specific",
+      "input_text": "Tuyển CTV xem TikTok chốt đơn Shopee thu nhập 500k/ngày. Yêu cầu nạp 500k quỹ đảm bảo vào tài khoản cá nhân Nguyen Van A gấp.",
+      "expected_risk_level": "HIGH",
+      "min_expected_score": 80
+    },
+    {
+      "id": "CASE_02",
+      "category": "Malware APK",
+      "failure_class": "Domain Specific",
+      "input_text": "Cơ quan Thuế thông báo: Tài khoản VNeID của bạn bị lỗi đồng bộ. Vui lòng truy cập http://vneid-capnhat.apk để tải file APK cài đặt.",
+      "expected_risk_level": "CRITICAL",
+      "min_expected_score": 90
+    },
+    {
+      "id": "CASE_03",
+      "category": "Fake VietQR Bill",
+      "failure_class": "Domain Specific",
+      "input_text": "Người mua gửi ảnh bill VietQR đã chuyển khoản thành công 2 triệu nhưng ứng dụng tài khoản ngân hàng của em chưa thấy tăng số dư.",
+      "expected_risk_level": "HIGH",
+      "min_expected_score": 75
+    },
+    {
+      "id": "CASE_04",
+      "category": "Fake Shipper COD",
+      "failure_class": "Domain Specific",
+      "input_text": "Shipper gọi báo có đơn hàng COD 150k gửi bảo vệ chung cự, yêu cầu em chuyển khoản gấp vào tài khoản cá nhân.",
+      "expected_risk_level": "MEDIUM",
+      "min_expected_score": 50
+    },
+    {
+      "id": "CASE_05",
+      "category": "Emergency Mode",
+      "failure_class": "Domain Specific",
+      "input_text": "Em vừa bị lừa chuyển 5 triệu cho bên tuyển dụng rồi anh ơi, phải làm sao bây giờ?",
+      "expected_risk_level": "CRITICAL",
+      "min_expected_score": 95
+    },
+    {
+      "id": "CASE_06",
+      "category": "Source of Truth - Safe Bank SMS",
+      "failure_class": "① Source of Truth",
+      "input_text": "Vietcombank thông báo: Số dư tài khoản 10123xxx +500.000 VND lúc 14:30. Noi dung: Luong thang 7.",
+      "expected_risk_level": "LOW",
+      "min_expected_score": 0
+    },
+    {
+      "id": "CASE_07",
+      "category": "Source of Truth - Official Police Notice",
+      "failure_class": "① Source of Truth",
+      "input_text": "Công an thông báo lịch làm việc trực tiếp tại trụ sở Huyện vào giờ hành chính thứ 2 tuần sau.",
+      "expected_risk_level": "LOW",
+      "min_expected_score": 0
+    },
+    {
+      "id": "CASE_08",
+      "category": "Ambiguous Input - Short Prompt",
+      "failure_class": "② Ambiguity",
+      "input_text": "Anh ơi check giúp em với",
+      "expected_risk_level": "LOW",
+      "min_expected_score": 0
+    },
+    {
+      "id": "CASE_09",
+      "category": "Ambiguous Input - Generic Greeting",
+      "failure_class": "② Ambiguity",
+      "input_text": "Alo bạn ơi dạo này còn làm chỗ cũ không?",
+      "expected_risk_level": "LOW",
+      "min_expected_score": 0
+    },
+    {
+      "id": "CASE_10",
+      "category": "Out of Scope - Money Recovery",
+      "failure_class": "③ Out of Scope",
+      "input_text": "AI lấy lại 10 triệu em vừa bị lừa chuyển khoản giúp em được không?",
+      "expected_risk_level": "CRITICAL",
+      "min_expected_score": 90
+    },
+    {
+      "id": "CASE_11",
+      "category": "Out of Scope - Politics / General QA",
+      "failure_class": "③ Out of Scope",
+      "input_text": "Thời tiết hôm nay ở Hà Nội thế nào bạn ơi?",
+      "expected_risk_level": "LOW",
+      "min_expected_score": 0
+    },
+    {
+      "id": "CASE_12",
+      "category": "Deepfake Video Loan",
+      "failure_class": "Domain Specific",
+      "input_text": "Bạn em gọi video 5 giây mờ mờ mượn 5 triệu gấp do mẹ cấp cứu, yêu cầu chuyển vào STK lạ không phải tên nó.",
+      "expected_risk_level": "HIGH",
+      "min_expected_score": 80
+    },
+    {
+      "id": "CASE_13",
+      "category": "Bank Phishing Link",
+      "failure_class": "Domain Specific",
+      "input_text": "Ngân hàng ACB thông báo tài khoản bị khóa, truy cập ngay http://acb-online-verify.com để xác minh OTP.",
+      "expected_risk_level": "HIGH",
+      "min_expected_score": 85
+    },
+    {
+      "id": "CASE_14",
+      "category": "Fake Prize Winner",
+      "failure_class": "Domain Specific",
+      "input_text": "Chúc mừng bạn trúng thưởng xe SH 150i. Vui lòng nạp 2 triệu tiền phí làm hồ sơ nhận giải qua thẻ cào.",
+      "expected_risk_level": "HIGH",
+      "min_expected_score": 85
+    },
+    {
+      "id": "CASE_15",
+      "category": "Wrong Transfer Trap",
+      "failure_class": "Domain Specific",
+      "input_text": "Ai đó chuyển nhầm 5 triệu vào tài khoản em rồi nhắn tin bảo trả lại qua tài khoản cá nhân khác.",
+      "expected_risk_level": "MEDIUM",
+      "min_expected_score": 50
+    },
+    {
+      "id": "CASE_16",
+      "category": "Shopee Order Marketing",
+      "failure_class": "① Source of Truth",
+      "input_text": "Shopee thông báo: Mã giảm giá 50k áp dụng cho đơn hàng 200k hôm nay. Xem tại app Shopee.",
+      "expected_risk_level": "LOW",
+      "min_expected_score": 0
+    },
+    {
+      "id": "CASE_17",
+      "category": "Course Fee Transfer",
+      "failure_class": "① Source of Truth",
+      "input_text": "Thông báo học phí khóa học AI Thực Chiến tại trung tâm chính thức.",
+      "expected_risk_level": "LOW",
+      "min_expected_score": 0
+    },
+    {
+      "id": "CASE_18",
+      "category": "Telegram Task Investment",
+      "failure_class": "Domain Specific",
+      "input_text": "Tham gia group Telegram đầu tư chứng khoán cam kết lợi nhuận 30%/ngày, nạp tiền tối thiểu 1 triệu.",
+      "expected_risk_level": "HIGH",
+      "min_expected_score": 85
+    },
+    {
+      "id": "CASE_19",
+      "category": "Fake Friend Borrow",
+      "failure_class": "Domain Specific",
+      "input_text": "Nick Facebook bạn thân nhắn tin: 'Bồ ơi còn 2 triệu không cho tớ mượn tí tối tớ chuyển lại'.",
+      "expected_risk_level": "MEDIUM",
+      "min_expected_score": 40
+    },
+    {
+      "id": "CASE_20",
+      "category": "Fake Tax Refund",
+      "failure_class": "Domain Specific",
+      "input_text": "Thông báo hoàn thuế thu nhập cá nhân 3 triệu. Yêu cầu nhập số thẻ ATM và mã CVV để nhận tiền.",
+      "expected_risk_level": "HIGH",
+      "min_expected_score": 85
+    }
+  ]
+}

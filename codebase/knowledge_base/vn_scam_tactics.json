@@ -1,0 +1,115 @@
+{
+  "scam_tactics": [
+    {
+      "id": "SCAM_01",
+      "category": "Fake Recruitment / CTV Shopee TikTok",
+      "title": "Tuyển CTV chốt đơn / xem TikTok nhận tiền - Yêu cầu nạp quỹ đảm bảo",
+      "red_flags": [
+        "yêu cầu nạp tiền",
+        "nạp quỹ đảm bảo",
+        "chuyển khoản trước",
+        "lương cao bất thường",
+        "tài khoản cá nhân",
+        "hối thúc làm nhiệm vụ"
+      ],
+      "risk_breakdown": {
+        "advance_payment_request": 0.40,
+        "fake_recruitment_pattern": 0.20,
+        "personal_bank_account": 0.15,
+        "urgency_pressure": 0.10,
+        "historical_pattern_match": 0.15
+      },
+      "recommendations": [
+        "Không chuyển tiền dưới bất kỳ hình thức nào.",
+        "Không cung cấp ảnh chụp CCCD / CMND.",
+        "Cảnh giác với các việc làm nạp tiền nhận hoa hồng."
+      ]
+    },
+    {
+      "id": "SCAM_02",
+      "category": "Fake VNeID / Tax Authority Malware APK",
+      "title": "Giả mạo Công an / Cục Thuế yêu cầu cài file APK VNeID giả mạo",
+      "red_flags": [
+        "tải file apk",
+        "link lạ đuôi .apk",
+        "công an gọi điện",
+        "cục thuế cập nhật thông tin",
+        "hướng dẫn cài ngoài app store",
+        "cấp quyền truy cập accessibility"
+      ],
+      "risk_breakdown": {
+        "apk_malware_file": 0.50,
+        "authority_impersonation": 0.25,
+        "third_party_link": 0.15,
+        "urgency_pressure": 0.10
+      },
+      "recommendations": [
+        "Tuyệt đối KHÔNG bấm vào đường link đuôi .apk.",
+        "Chỉ cài ứng dụng VNeID từ CH Play hoặc App Store chính thức.",
+        "Công an và Cơ quan Thuế KHÔNG BAO GIỜ làm việc qua điện thoại yêu cầu cài phần mềm."
+      ]
+    },
+    {
+      "id": "SCAM_03",
+      "category": "Fake VietQR Bill / Bank Transfer Trap",
+      "title": "Ảnh VietQR bill chuyển khoản giả / Chuyển nhầm tiền bẫy tín dụng đen",
+      "red_flags": [
+        "bill chuyển tiền thành công nhưng tài khoản chưa tăng",
+        "font chữ bill bị lệch",
+        "yêu cầu chuyển lại tiền nhầm qua link lạ",
+        "hối thúc trả lại tiền ngay"
+      ],
+      "risk_breakdown": {
+        "fake_bill_visual_anomaly": 0.45,
+        "unconfirmed_bank_balance": 0.30,
+        "black_credit_trap": 0.15,
+        "urgency_pressure": 0.10
+      },
+      "recommendations": [
+        "Chỉ tin tưởng vào số dư tăng thật sự trên ứng dụng Internet Banking cá nhân.",
+        "Nếu nhận tiền chuyển nhầm, hãy làm việc trực tiếp tại chi nhánh ngân hàng, không chuyển trả qua cá nhân."
+      ]
+    },
+    {
+      "id": "SCAM_04",
+      "category": "Fake Shipper COD",
+      "title": "Giả mạo Shipper giao hàng COD - Yêu cầu chuyển khoản tiền đơn nhận hộ",
+      "red_flags": [
+        "shipper gọi giao hàng nhưng không nhớ mua",
+        "gửi hàng ở bảo vệ yêu cầu chuyển khoản",
+        "số tiền nhỏ vài chục đến vài trăm ngàn để tạo cảm giác dễ dãi"
+      ],
+      "risk_breakdown": {
+        "unknown_order_cod": 0.40,
+        "remote_payment_request": 0.30,
+        "urgency_shipper_call": 0.15,
+        "small_amount_psychology": 0.15
+      },
+      "recommendations": [
+        "Kiểm tra lại lịch sử đơn hàng trên ứng dụng Shopee/Lazada/Tiki trước khi chuyển tiền.",
+        "Nhờ bảo vệ hoặc người nhà kiểm tra trực tiếp kiện hàng."
+      ]
+    },
+    {
+      "id": "SCAM_05",
+      "category": "Deepfake Voice / Video Loan Request",
+      "title": "Deepfake video call / Giả mạo người thân hối thúc vay tiền khẩn cấp",
+      "red_flags": [
+        "video call vài giây mờ nhòe đứt đoạn",
+        "mượn tiền gấp do viện phí/tai nạn",
+        "yêu cầu chuyển vào tài khoản người thứ 3",
+        "tên tài khoản ngân hàng khác tên người thân"
+      ],
+      "risk_breakdown": {
+        "third_party_bank_account": 0.45,
+        "deepfake_video_glitch": 0.25,
+        "emergency_medical_excuse": 0.15,
+        "urgency_pressure": 0.15
+      },
+      "recommendations": [
+        "Gọi điện thoại thông thường (sim trực tiếp) đến số người thân để xác minh.",
+        "Tuyệt đối không chuyển tiền vào tài khoản lạ không đứng tên người thân."
+      ]
+    }
+  ]
+}

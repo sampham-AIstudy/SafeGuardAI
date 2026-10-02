@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeGuard AI — Digital Security Assistant</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-layout">
+        <!-- ── SIDEBAR ── -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-box"><img src="/assets/AIScamavatar.jpg" class="brand-avatar-img"
+                        alt="SafeGuard AI Logo"></div>
+                <div class="logo-text">
+                    <span class="app-title">SafeGuard AI</span>
+                    <span class="app-version">v1.0 Enterprise</span>
+                </div>
+            </div>
+
+            <button class="btn-new-chat" id="btnNewChat">
+                <span>＋</span> New Chat
+            </button>
+
+            <div class="sidebar-section history-section">
+                <div class="section-label">Gần đây</div>
+                <div class="session-list" id="sessionList">
+                    <!-- Session items rendered by JS -->
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="user-profile-card">
+                    <div class="user-avatar-badge">PS</div>
+                    <div class="user-info">
+                        <div class="user-name">Pham Sam</div>
+                        <div class="user-plan">PRO</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- ── MAIN VIEWPORT ── -->
+        <main class="main-content">
+
+            <!-- Scrollable Chat Stream Container -->
+            <div class="chat-viewport" id="chatViewport">
+                <!-- Landing view shown when chat is empty -->
+                <div class="landing-view" id="landingView">
+                    <div class="landing-hero">
+                        <div class="hero-logo"><img src="/assets/AIScamavatar.jpg" class="landing-avatar-img"
+                                alt="SafeGuard AI"></div>
+                        <h1 class="hero-title">SafeGuard AI</h1>
+                        <p class="hero-subtitle">
+                            Trợ lý Vệ sĩ Số — Phân tích lừa đảo trực tuyến tại Việt Nam.<br>
+                            Powered by Multi-Agent AI · RAG · PhishVN 51K+ Records
+                        </p>
+                    </div>
+
+                    <div class="suggestion-grid">
+                        <div class="suggestion-card"
+                            data-prompt="Tuyển CTV xem TikTok chốt đơn Shopee thu nhập 500k/ngày. Yêu cầu nạp 500k quỹ đảm bảo vào tài khoản cá nhân Nguyen Van A để kích hoạt tài khoản gấp.">
+                            <span class="card-icon">🔍</span>
+                            <div class="card-text">
+                                <h3>Kiểm tra tin nhắn nghi vấn</h3>
+                                <p>Phân tích SMS, Zalo, FB tuyển CTV/chốt đơn</p>
+                            </div>
+                        </div>
+                        <div class="suggestion-card"
+                            data-prompt="Cán bộ Cục Thuế thông báo: Tài khoản VNeID bị lỗi. Truy cập http://vneid-capnhat.apk để cập nhật.">
+                            <span class="card-icon">🌐</span>
+                            <div class="card-text">
+                                <h3>Đối soát Link / Domain</h3>
+                                <p>Kiểm tra URL nghi vấn malware, phishing</p>
+                            </div>
+                        </div>
+                        <div class="suggestion-card"
+                            data-prompt="Gửi ảnh bill VietQR đã chuyển khoản thành công 2 triệu nhưng tài khoản ngân hàng chưa tăng số dư.">
+                            <span class="card-icon">💳</span>
+                            <div class="card-text">
+                                <h3>Xác thực Bill VietQR</h3>
+                                <p>Phân tích hoá đơn nghi vấn fake bill chuyển khoản</p>
+                            </div>
+                        </div>
+                        <div class="suggestion-card"
+                            data-prompt="Em vừa bị lừa chuyển 5 triệu cho tài khoản lừa đảo tuyển dụng rồi anh ơi, phải làm sao?">
+                            <span class="card-icon">🚨</span>
+                            <div class="card-text">
+                                <h3>Kích hoạt Emergency Protocol</h3>
+                                <p>Quy trình khẩn cấp 1'-30' khi vừa bị lừa tiền</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Stream Messages (rendered by JS) -->
+                <div class="messages-container" id="messagesContainer"></div>
+            </div>
+
+
+
+            <!-- ── BOTTOM CHAT BAR & FILE ATTACHMENT ── -->
+            <div class="input-area">
+                <!-- Model Selector Dropdown Trigger & Popup -->
+                <div class="model-selector-wrapper">
+                    <button class="model-selector-btn" id="modelSelectorBtn" type="button">
+                        <span class="model-name-text">SafeGuard Agent 3.5</span>
+                        <span class="model-badge">Pro</span>
+                        <span class="dropdown-chevron">˅</span>
+                    </button>
+
+                    <div class="model-dropdown-menu hidden" id="modelDropdownMenu">
+                        <div class="model-option active" data-model="gemini">
+                            <div class="model-option-header">
+                                <span class="model-title">SafeGuard Agent 3.5</span>
+                                <span class="badge-tag pro">Pro</span>
+                                <span class="check-icon">✓</span>
+                            </div>
+                            <div class="model-desc">Tool-Calling & Agentic Multi-Agent Pipeline</div>
+                        </div>
+
+                        <div class="model-option" data-model="groq">
+                            <div class="model-option-header">
+                                <span class="model-title">Groq Llama 3.3 70B</span>
+                                <span class="badge-tag fast">Fast</span>
+                                <span class="check-icon"></span>
+                            </div>
+                            <div class="model-desc">NHANH NHẤT ~300ms — Tối ưu cho phản hồi tức thì</div>
+                        </div>
+
+                        <div class="model-option" data-model="mistral">
+                            <div class="model-option-header">
+                                <span class="model-title">Mistral Large</span>
+                                <span class="check-icon"></span>
+                            </div>
+                            <div class="model-desc">Xử lý tiếng Việt chuyên sâu & nhận diện ngữ cảnh</div>
+                        </div>
+
+                        <div class="model-option" data-model="offline">
+                            <div class="model-option-header">
+                                <span class="model-title">Offline Guard</span>
+                                <span class="check-icon"></span>
+                            </div>
+                            <div class="model-desc">Phân tích rule-based & RAG cục bộ (Offline)</div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="attached-file-preview hidden" id="filePreview">
+                    <span class="file-icon">📎</span>
+                    <span class="file-name" id="fileNameText">image.png</span>
+                    <button class="btn-remove-file" id="btnRemoveFile">✕</button>
+                </div>
+
+                <div class="input-container" id="inputContainer">
+                    <label class="btn-attach" title="Đính kèm bằng chứng (Ảnh SMS/Bill/Zalo, tệp tài liệu)">
+                        📎
+                        <input type="file" id="fileInput" accept="image/*, .txt, .json, .csv" style="display:none;">
+                    </label>
+
+                    <textarea id="chatInput" placeholder="Nhập tin nhắn, đường link hoặc tình huống nghi vấn lừa đảo..."
+                        rows="1"></textarea>
+
+                    <button class="btn-send" id="btnSend" title="Gửi tin nhắn">
+                        ↑
+                    </button>
+                </div>
+                <div class="disclaimer-text">SafeGuard AI — AI có thể sai sót - vui lòng kiểm tra kĩ</div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ── IMAGE LIGHTBOX MODAL ── -->
+    <div class="image-lightbox-modal hidden" id="imageLightboxModal">
+        <div class="lightbox-backdrop" id="lightboxBackdrop"></div>
+        <div class="lightbox-content">
+            <button class="lightbox-close-btn" id="lightboxCloseBtn" title="Đóng (Esc)">✕</button>
+            <img src="" id="lightboxImage" alt="Evidence Preview Large">
+            <div class="lightbox-caption" id="lightboxCaption">Bằng chứng hình ảnh</div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
