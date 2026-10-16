@@ -407,3 +407,6 @@ def peel(
         inner=inner[:MAX_INNER_URLS],
         flags=list(dict.fromkeys(flags)),
     )
+
+
+peel_url = peel

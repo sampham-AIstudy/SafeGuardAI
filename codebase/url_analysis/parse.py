@@ -167,6 +167,11 @@ def _compute_registrable_domain(
     return ".".join(labels[-2:])
 
 
+def compute_registrable_domain(host: str) -> str:
+    """Public helper to calculate registrable domain for a host."""
+    return _compute_registrable_domain(host, get_combined_suffixes())
+
+
 def parse_url(raw: str) -> ParsedUrl:
     """
     Parse a URL simulating browser (WHATWG) behavior safely and linearly.
@@ -330,7 +335,7 @@ def parse_url(raw: str) -> ParsedUrl:
                         port = None
                     else:
                         port = port_val
-                        if port_val not in (80, 443, 8080, 8443):
+                        if port_val not in (80, 443):
                             flags.append("NON_STANDARD_PORT")
                 else:
                     flags.append("INVALID_HOST")
@@ -463,6 +468,13 @@ def parse_url(raw: str) -> ParsedUrl:
                     sub_labels = [p for p in sub_part.split(".") if p]
                     if len(sub_labels) >= 4:
                         flags.append("DEEP_SUBDOMAIN")
+
+            # Check INVALID_TLD
+            if effective_host and "." in effective_host:
+                tld_cand = effective_host.split(".")[-1].lower()
+                valid_tlds = {t.lower() for t in load_url_lists().get("valid_tlds", [])}
+                if valid_tlds and tld_cand not in valid_tlds and not tld_cand.isdigit():
+                    flags.append("INVALID_TLD")
 
     # 13. Backslash confusion check
     if has_backslash:

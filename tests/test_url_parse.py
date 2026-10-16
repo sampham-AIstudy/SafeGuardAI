@@ -142,14 +142,18 @@ class TestUrlParse:
         assert p_https.port is None
         assert "NON_STANDARD_PORT" not in p_https.flags
 
-    def test_allowed_alternate_ports(self):
+    def test_alternate_ports_flagged(self):
         p8080 = parse_url("http://example.com:8080/test")
         assert p8080.port == 8080
-        assert "NON_STANDARD_PORT" not in p8080.flags
+        assert "NON_STANDARD_PORT" in p8080.flags
 
         p8443 = parse_url("https://example.com:8443/test")
         assert p8443.port == 8443
-        assert "NON_STANDARD_PORT" not in p8443.flags
+        assert "NON_STANDARD_PORT" in p8443.flags
+
+        pip_8080 = parse_url("http://103.2.3.4:8080/x")
+        assert pip_8080.port == 8080
+        assert "NON_STANDARD_PORT" in pip_8080.flags
 
     def test_non_standard_ports_flagged(self):
         p8888 = parse_url("http://example.com:8888/test")
