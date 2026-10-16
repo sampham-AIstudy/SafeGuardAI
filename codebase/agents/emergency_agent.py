@@ -33,7 +33,13 @@ class EmergencyAgent:
         re.IGNORECASE
     )
 
-    # Negation strictly adjacent to verb: (chưa|không|suýt|may mà|nếu|đừng|chớ)
+    # Surprised / shock idioms that contain 'không'/'chẳng' but do NOT negate the action
+    NON_NEGATING_IDIOMS = re.compile(
+        r"(?<!\w)(?:không\s+ngờ|khong\s+ngo|chẳng\s+ngờ|chang\s+ngo|không\s+biết|khong\s+biet|không\s+hiểu\s+sao|khong\s+hieu\s+sao|không\s+thể\s+tin|khong\s+the\s+tin)(?!\w)",
+        re.IGNORECASE
+    )
+
+    # Negation strictly adjacent to verb (max 2 words directly before matched verb): (chưa|không|suýt|may mà|nếu|đừng|chớ)
     # Excludes: sợ, so, cho, dung, tranh
     NEGATION_PATTERN = re.compile(
         r"(?<!\w)(?:chưa|không|suýt|may\s+mà|may\s+quá|nếu|đừng|chớ)(?!\w)",
@@ -41,6 +47,18 @@ class EmergencyAgent:
     )
     NEGATION_PATTERN_FOLDED = re.compile(
         r"(?<!\w)(?:chua|khong|suyt|may\s+ma|may\s+qua|neu)(?!\w)",
+        re.IGNORECASE
+    )
+
+    # Warning or third-person reporting exclusion for 'bị lừa ...' patterns (Task D2-b)
+    WARNING_OR_REPORTING_PATTERN = re.compile(
+        r"(?<!\w)(?:đừng|(?<!tuyen )dung|cảnh\s+báo|canh\s+bao|phòng\s+tránh|phong\s+tranh|phòng\s+chống|phong\s+chong|nhiều\s+người|nhieu\s+nguoi|người\s+phụ\s+nữ|nguoi\s+phu\s+nu|người\s+đàn\s+ông|nguoi\s+dan\s+ong|bạn\s+nào|ban\s+nao|ai\s+bị|ai\s+bi|tránh\s+bị|tranh\s+bi|không\s+bị|khong\s+bi|học\s+cách|hoc\s+cach|công\s+an|cong\s+an)(?!\w)",
+        re.IGNORECASE
+    )
+
+    # Valid subject preceding 'bị lừa ...': speaker or family relative (Task D2-b)
+    SUBJECT_BEFORE_BI = re.compile(
+        r"(?:^|[\s,.!?;:])(?:tôi|toi|mình|minh|em|con|mẹ|me|bố|bo|ba|má|ma|anh|chị|chi|ông|ong|bà|cô|co|chú|chu|bạn\s+tôi|ban\s+toi|ông\s+ngoại|bà\s+ngoại|ông\s+nội|bà\s+nội|anh\s+tôi|chị\s+tôi|em\s+tôi|mẹ\s+tôi|bố\s+tôi|con\s+tôi)(?:\s+(?:vừa|vua|đã|da|lỡ|lo|trót|trot))?\s*$",
         re.IGNORECASE
     )
 
@@ -97,7 +115,7 @@ class EmergencyAgent:
         re.compile(r"(?<!\w)(?:da|lo|trot|vua)\s+(?:cai|tai)\s+[^.\n]{0,30}?(?:\.apk|apk|app\s+la|ma\s+doc)(?!\w)", re.IGNORECASE),
     ]
 
-    # Inherent emergency transfers (explicit regret or scammer destination)
+    # Inherent emergency transfers (explicit regret, accidental transfer, or scammer destination)
     INHERENT_EMERGENCY_TRANSFER_PATTERNS = [
         re.compile(
             r"(?<!\w)(?:lỡ|trót)\s+(?:chuyển(?:\s+khoản|\s+tiền)?|nạp(?:\s+tiền)?|gửi\s+tiền|đưa\s+tiền)\s+[^.\n]{0,35}?(?:\d+|triệu|tr|k|tiền|cho\s+(?:kẻ|bên|đối\s+tượng|scam|nó|người\s+lạ))(?!\w)",
@@ -109,6 +127,11 @@ class EmergencyAgent:
         ),
         re.compile(r"(?<!\w)(?:lỡ|trót)\s*chuyển\s+(?:khoản|tiền)\s+rồi(?!\w)", re.IGNORECASE),
         re.compile(r"(?<!\w)(?:lo|trot)\s*chuyen\s+(?:khoan|tien)\s+roi(?!\w)", re.IGNORECASE),
+        # Accidental transfer directly to scammer destination (Task D2-c)
+        re.compile(
+            r"(?<!\w)(?:chuyển\s+nhầm|chuyen\s+nham)\s+[^.\n]{0,35}?\bcho\s+(?:kẻ|ke|bên|ben|đối\s+tượng|doi\s+tuong|scam|nó|no|người\s+lạ|nguoi\s+la)\b",
+            re.IGNORECASE
+        ),
     ]
 
     # Neutral past transfers: only trigger emergency when victim/scam clue is present
@@ -141,6 +164,19 @@ class EmergencyAgent:
         if last_punct != -1:
             preceding = preceding[last_punct + 1:]
         return preceding
+
+    def _is_negated(self, preceding: str, neg_pat) -> bool:
+        """
+        Check if preceding text negates the emergency verb.
+        Negation only counts within at most 2 words immediately before the matched verb,
+        ignoring surprise/shock idioms like 'không ngờ', 'không hiểu sao', 'không thể tin'.
+        """
+        cleaned = self.NON_NEGATING_IDIOMS.sub("", preceding)
+        words = cleaned.strip().split()
+        if not words:
+            return False
+        immediate_window = " ".join(words[-2:])
+        return bool(neg_pat.search(immediate_window))
 
     def check_trigger(self, text: str) -> dict:
         if not text:
@@ -178,7 +214,27 @@ class EmergencyAgent:
             for pat in self.DIRECT_VICTIM_PATTERNS:
                 for match in pat.finditer(text_variant):
                     preceding = self._extract_clause_window(text_variant, match.start(), 25)
-                    if neg_pat.search(preceding):
+                    matched_str = match.group(0).lower()
+
+                    # For 'bị lừa ...' / 'bị hack mất tiền' patterns:
+                    # check warning/reporting and subject requirement (Task D2-b)
+                    if matched_str.startswith(("bị", "bi")):
+                        warn_lower = re.sub(r"(?i)\bgiả\s+danh\s+công\s+an\b", "", variants.lower)
+                        warn_folded = re.sub(r"(?i)\bgia\s+danh\s+cong\s+an\b", "", variants.folded)
+                        has_warning = bool(
+                            self.WARNING_OR_REPORTING_PATTERN.search(warn_lower)
+                            or self.WARNING_OR_REPORTING_PATTERN.search(warn_folded)
+                        )
+                        if has_warning:
+                            continue
+
+                        pre_stripped = self.NON_NEGATING_IDIOMS.sub("", preceding).strip()
+                        is_truncated_start = (pre_stripped == "")
+                        is_valid_subject = bool(self.SUBJECT_BEFORE_BI.search(pre_stripped))
+                        if not (is_truncated_start or is_valid_subject):
+                            continue
+
+                    if self._is_negated(preceding, neg_pat):
                         continue
                     is_emergency = True
                     break
@@ -193,7 +249,7 @@ class EmergencyAgent:
                 for pat in self.INHERENT_EMERGENCY_TRANSFER_PATTERNS:
                     for match in pat.finditer(text_variant):
                         preceding = self._extract_clause_window(text_variant, match.start(), 25)
-                        if neg_pat.search(preceding):
+                        if self._is_negated(preceding, neg_pat):
                             continue
                         is_emergency = True
                         break
@@ -213,7 +269,7 @@ class EmergencyAgent:
                     for pat in self.NEUTRAL_TRANSFER_PATTERNS:
                         for match in pat.finditer(text_variant):
                             preceding = self._extract_clause_window(text_variant, match.start(), 25)
-                            if neg_pat.search(preceding):
+                            if self._is_negated(preceding, neg_pat):
                                 continue
                             is_emergency = True
                             break

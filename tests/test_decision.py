@@ -142,3 +142,22 @@ def test_decision_agent_risk_score_prevents_general_chat(decision_agent):
     assert res["risk_level"] == "HIGH"
 
 
+def test_decision_agent_mutation_13_has_image_prevents_general_chat(decision_agent):
+    """
+    (Mutation 13 Test) Image presence check in DecisionAgent:
+    When user input is a pure greeting ('chào') with low risk score (0),
+    having an attached image (has_image=True) MUST prevent classification as general_chat.
+    Dropping 'not has_image' condition causes this test to fail.
+    """
+    res = decision_agent.evaluate_decision(
+        risk_score=0,
+        confidence_info={"confidence_score": 90, "confidence_level": "HIGH"},
+        explainable_info={"risk_breakdown": []},
+        emergency_info={"is_emergency": False},
+        user_text="chào",
+        has_image=True,
+    )
+    assert res["intent_type"] != "general_chat", f"Mutation 13: has_image=True falsely returned general_chat: {res}"
+
+
+

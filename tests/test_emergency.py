@@ -125,6 +125,26 @@ EMERGENCY_TEST_CASES = [
         True,
         "Negation in previous sentence does not negate emergency in next sentence",
     ),
+    (
+        "Không ngờ tôi bị lừa mất 20 triệu",
+        True,
+        "D2-a: Non-negating idiom 'không ngờ' before victim transfer",
+    ),
+    (
+        "Tôi không hiểu sao mình bị lừa mất 20 triệu",
+        True,
+        "D2-a: Non-negating idiom 'không hiểu sao' before victim transfer",
+    ),
+    (
+        "Chuyển nhầm cho kẻ lừa đảo 15 triệu rồi",
+        True,
+        "D2-c: Accidental transfer to scammer destination",
+    ),
+    (
+        "Chị ơi em chưa kịp nghĩ đã chuyển 20 triệu cho kẻ lừa đảo rồi",
+        True,
+        "D2-c: Preceding temporal clause 'chưa kịp nghĩ' does not negate transfer",
+    ),
 
     # ── NEGATION & NEAR-MISS CASES (MUST BE FALSE) ──
     (
@@ -273,6 +293,31 @@ EMERGENCY_TEST_CASES = [
         False,
         "Neutral tuition transfer without scam clues",
     ),
+    (
+        "Đừng để bị lừa mất tiền nhé mẹ",
+        False,
+        "D2-b: Warning/advice with 'Đừng để'",
+    ),
+    (
+        "Người phụ nữ bị lừa mất 2 tỷ, công an cảnh báo",
+        False,
+        "D2-b: Third-person report with 'Người phụ nữ', 'công an cảnh báo'",
+    ),
+    (
+        "Cảnh báo: nhiều người bị lừa mất tiền vì link này",
+        False,
+        "D2-b: Warning alert with 'Cảnh báo: nhiều người'",
+    ),
+    (
+        "Bạn nào bị lừa mất tiền thì gọi 113",
+        False,
+        "D2-b: Conditional / inquiry with 'Bạn nào'",
+    ),
+    (
+        "Tôi muốn học cách phòng tránh bị lừa mất tiền",
+        False,
+        "D2-b: Educational request with 'học cách phòng tránh'",
+    ),
 ]
 
 
@@ -340,3 +385,53 @@ def test_word_boundary_and_single_syllable_mutation_resistance(emergency_agent):
         assert res["is_emergency"] is False, (
             f"Word boundary / single-syllable mutation detected on: '{text}'"
         )
+
+
+def test_emergency_mutation_1_distant_negation_resistance(emergency_agent):
+    """
+    (Mutation 1 Test) Negation far away (>2 words) must NOT turn off emergency.
+    If the negation window is widened beyond 2 words or ignores clause boundaries,
+    this genuine emergency report will falsely evaluate to False.
+    """
+    cases = [
+        "Chưa ai biết nên tôi sợ lắm, tôi đã chuyển 20 triệu cho kẻ lừa đảo",
+        "Chưa ai biết tôi đã chuyển 20 triệu cho kẻ lừa đảo",
+    ]
+    for text in cases:
+        res = emergency_agent.check_trigger(text)
+        assert res["is_emergency"] is True, f"Mutation 1: Distant negation incorrectly shut off emergency: '{text}'"
+        assert res["risk_level"] == "CRITICAL"
+
+
+
+def test_emergency_mutation_2_word_boundary_resistance(emergency_agent):
+    r"""
+    (Mutation 2 Test) Missing word boundaries (?<!\w) in emergency patterns:
+    Glued words like 'khongchuyen' or 'abclodachuyen' or substrings inside other words
+    must NOT match emergency transfer patterns.
+    """
+    glued_inputs = [
+        "khongchuyen",
+        "abclodachuyen",
+        "Toi abclodachuyen 20 trieu cho ke lua dao",
+        "hom nay tochuyen khoan thanh cong",
+    ]
+    for text in glued_inputs:
+        res = emergency_agent.check_trigger(text)
+        assert res["is_emergency"] is False, f"Mutation 2: Glued word matched emergency without word boundary: '{text}'"
+
+
+def test_emergency_mutation_4_bank_sms_exclusion_resistance(emergency_agent):
+    """
+    (Mutation 4 Test) Bank notification SMS exclusion:
+    Legitimate transaction SMS notifications (balance change, deposit/transfer success)
+    must NOT trigger emergency, even when containing fee/loan terms without victim loss.
+    """
+    bank_sms_cases = [
+        "Quý khách đã chuyển khoản 5 triệu phí bảo hiểm thành công. SD: 2.000.000đ",
+        "GD: -5.000.000đ lúc 10:21 ND: tien khoan vay",
+    ]
+    for text in bank_sms_cases:
+        res = emergency_agent.check_trigger(text)
+        assert res["is_emergency"] is False, f"Mutation 4: Bank notification SMS wrongly triggered emergency: '{text}'"
+

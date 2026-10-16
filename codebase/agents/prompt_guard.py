@@ -35,16 +35,16 @@ class PromptGuard:
 
     CMD_VERB = (
         r"(?:"
-        r"(?:hãy|giúp|cho|nhờ)\s+(?:(?:tôi|mình|em|anh|chị)\s+)?(?:viết|tạo|soạn|làm|dựng|code|lập\s+trình|lập)|"
-        r"(?<!cách\s)(?:viết|tạo|soạn|làm|dựng|code|lập\s+trình|lập)\s+(?:(?:giúp|cho|hộ|nhờ)\s+)?(?:tôi|mình|em|anh|chị)|"
-        r"(?:hãy\s+)?(?:lập\s+trình|code|soạn|viết|tạo|làm)\s+(?:giúp|cho|hộ|nhờ)?|"
-        r"soạn\s+(?:cho\s+)?(?:tôi|mình|em|anh|chị)?|"
-        r"tạo\s+cho\s+(?:tôi|mình|em|anh|chị)"
+        r"(?:hãy|giúp|cho|nhờ)\s+(?:(?:tôi|mình|em|anh|chị)\s+)?(?:viết|tạo|soạn|làm|dựng|code|lập\s+trình|lập)(?!\s+(?:theo|sao|có\s+phải|không|được|xem))|"
+        r"(?<!cách\s)(?:viết|tạo|soạn|làm|dựng|code|lập\s+trình|lập)(?!\s+(?:theo|sao|có\s+phải|không|được|xem))\s+(?:(?:giúp|cho|hộ|nhờ)\s+)?(?:tôi|mình|em|anh|chị)|"
+        r"(?:hãy\s+)?(?:lập\s+trình|code|soạn|viết)(?!\s+(?:theo|sao|có\s+phải|không|được|xem))\s+(?:giúp|cho|hộ|nhờ)?|"
+        r"(?:làm|tạo)(?!\s+(?:theo|sao|có\s+phải|không|được|xem))\s+(?:giúp|cho|hộ|nhờ|hãy|tôi|mình|em|anh|chị)|"
+        r"soạn\s+(?:cho\s+)?(?:tôi|mình|em|anh|chị)?"
         r")"
     )
 
     TARGET_OBJ = r"(?:kịch\s+bản|tin\s+nhắn|email|trang\s+đăng\s+nhập|trang\s+web|website|trang|link|ứng\s+dụng|app|mã\s+độc|script)"
-    BAD_INTENT = r"(?:lừa\s+đảo|giả\s+danh|giả\s+mạo|phishing|lừa|chiếm\s+đoạt|giả\s+làm|giống\s+hệt|đánh\s+cắp|hack)"
+    BAD_INTENT = r"(?:lừa\s+đảo|giả\s+danh|giả\s+mạo|phishing|lừa|chiếm\s+đoạt|giả\s+làm|giống\s+hệt|đánh\s+cắp|(?<!bị\s)hack)"
 
     PAT_ACTION_REQUEST = re.compile(
         rf"\b{CMD_VERB}\b[^.\n]{{0,40}}?\b{TARGET_OBJ}\b[^.\n]{{0,40}}?\b{BAD_INTENT}\b",
@@ -61,19 +61,19 @@ class PromptGuard:
         re.IGNORECASE
     )
 
-    # Unaccented folded patterns for Task C3(a)
+    # Unaccented folded patterns for Task C3(a) & D1
     CMD_VERB_FOLDED = (
         r"(?:"
-        r"(?:hay|giup|cho|nho)\s+(?:(?:toi|minh|em|anh|chi)\s+)?(?:viet|tao|soan|lam|dung|code|lap\s+trinh|lap)|"
-        r"(?<!cach\s)(?:viet|tao|soan|lam|dung|code|lap\s+trinh|lap)\s+(?:(?:giup|cho|ho|nho)\s+)?(?:toi|minh|em|anh|chi)|"
-        r"(?:hay\s+)?(?:lap\s+trinh|code|soan|viet|tao(?!\s+(?:nhan|bi|thay|co|da|vua|dang|se|muon|can|biet|so|lo))|lam)\s+(?:giup|cho|ho|nho)?|"
-        r"soan\s+(?:cho\s+)?(?:toi|minh|em|anh|chi)?|"
-        r"tao\s+cho\s+(?:toi|minh|em|anh|chi)"
+        r"(?:hay|giup|cho|nho)\s+(?:(?:toi|minh|em|anh|chi)\s+)?(?:viet|tao|soan|lam|dung|code|lap\s+trinh|lap)(?!\s+(?:theo|sao|co\s+phai|khong|duoc|xem))|"
+        r"(?<!cach\s)(?:viet|tao|soan|lam|dung|code|lap\s+trinh|lap)(?!\s+(?:theo|sao|co\s+phai|khong|duoc|xem))\s+(?:(?:giup|cho|ho|nho)\s+)?(?:toi|minh|em|anh|chi)|"
+        r"(?:hay\s+)?(?:lap\s+trinh|code|soan|viet)(?!\s+(?:theo|sao|co\s+phai|khong|duoc|xem))\s+(?:giup|cho|ho|nho)?|"
+        r"(?:lam|tao)(?!\s+(?:theo|sao|co\s+phai|khong|duoc|xem))\s+(?:giup|cho|ho|nho|hay|toi|minh|em|anh|chi)|"
+        r"soan\s+(?:cho\s+)?(?:toi|minh|em|anh|chi)?"
         r")"
     )
 
     TARGET_OBJ_FOLDED = r"(?:kich\s+ban|tin\s+nhan|email|trang\s+dang\s+nhap|trang\s+web|website|trang|link|ung\s+dung|app|ma\s+doc|script)"
-    BAD_INTENT_FOLDED = r"(?:lua\s+dao|gia\s+danh|gia\s+mao|phishing|lua(?!\s+chon)|chiem\s+doat|gia\s+lam|giong\s+het|danh\s+cap|hack)"
+    BAD_INTENT_FOLDED = r"(?:lua\s+dao|gia\s+danh|gia\s+mao|phishing|lua(?!\s+chon)|chiem\s+doat|gia\s+lam|giong\s+het|danh\s+cap|(?<!bi\s)hack)"
 
     PAT_ACTION_REQUEST_FOLDED = re.compile(
         rf"\b{CMD_VERB_FOLDED}\b[^.\n]{{0,40}}?\b{TARGET_OBJ_FOLDED}\b[^.\n]{{0,40}}?\b{BAD_INTENT_FOLDED}\b",
@@ -90,14 +90,25 @@ class PromptGuard:
         re.IGNORECASE
     )
 
-    # Prevention / education exclusion terms for Task C1
+    # English malicious action pattern and exclusion for Task D1
+    PAT_ENGLISH_ACTION = re.compile(
+        r"\b(?:write|create|make|build|generate)\b[^.\n]{0,40}?\b(?:phishing|scam|fake)\b[^.\n]{0,40}?\b(?:email|message|page|site|login)\b",
+        re.IGNORECASE
+    )
+    PAT_ENGLISH_PREVENTION = re.compile(
+        r"\bhow\s+to\s+(?:spot|detect|avoid|report)\b",
+        re.IGNORECASE
+    )
+
+    # Prevention / education exclusion terms for Task C1 & D1
+    # Chấp nhận rủi ro: yêu cầu độc hại có thể lách bằng từ phòng chống trong ±40 ký tự.
     PREVENTION_TERMS = re.compile(
-        r"\b(?:cảnh\s+báo|phòng\s+tránh|phòng\s+chống|tránh|nhận\s+biết|dấu\s+hiệu|tuyên\s+truyền|trả\s+lời|tố\s+cáo|báo\s+cáo|trình\s+báo|không\s+bị|chống|bài\s+học|slide|lớp\s+học|đào\s+tạo)\b",
+        r"\b(?:cảnh\s+báo|phòng\s+tránh|phòng\s+chống|tránh|nhận\s+biết|dấu\s+hiệu|tuyên\s+truyền|trả\s+lời|tố\s+cáo|báo\s+cáo|trình\s+báo|không\s+bị|chống|bài\s+học|slide|lớp\s+học|đào\s+tạo|đừng|báo|phát\s+hiện|hỏi|có\s+phải|nhắc|kiểm\s+tra|nhận\s+diện)\b",
         re.IGNORECASE
     )
 
     PREVENTION_TERMS_FOLDED = re.compile(
-        r"\b(?:canh\s+bao|phong\s+tranh|phong\s+chong|tranh|nhan\s+biet|dau\s+hieu|tuyen\s+truyen|tra\s+loi|to\s+cao|bao\s+cao|trinh\s+bao|khong\s+bi|chong|bai\s+hoc|slide|lop\s+hoc|dao\s+tao)\b",
+        r"\b(?:canh\s+bao|phong\s+tranh|phong\s+chong|tranh|nhan\s+biet|dau\s+hieu|tuyen\s+truyen|tra\s+loi|to\s+cao|bao\s+cao|trinh\s+bao|khong\s+bi|chong|bai\s+hoc|slide|lop\s+hoc|dao\s+tao|dung|bao|phat\s+hien|hoi|co\s+phai|nhac|kiem\s+tra|nhan\s+dien)\b",
         re.IGNORECASE
     )
 
@@ -183,6 +194,24 @@ class PromptGuard:
                         break
                     if malicious_request_detected:
                         break
+
+            if not malicious_request_detected:
+                for m in self.PAT_ENGLISH_ACTION.finditer(variants.clean):
+                    match_start = m.start()
+                    match_end = m.end()
+                    pre_window = variants.clean[max(0, match_start - 40):match_start]
+                    post_window = variants.clean[match_end:min(len(variants.clean), match_end + 40)]
+                    match_str = m.group(0)
+
+                    has_english_prevention = bool(
+                        self.PAT_ENGLISH_PREVENTION.search(pre_window)
+                        or self.PAT_ENGLISH_PREVENTION.search(match_str)
+                        or self.PAT_ENGLISH_PREVENTION.search(post_window)
+                    )
+                    if has_english_prevention:
+                        continue
+                    malicious_request_detected = True
+                    break
 
         if malicious_request_detected:
             return {
