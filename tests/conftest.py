@@ -22,8 +22,30 @@ os.environ["SAFEGUARD_DB"] = "off"
 os.environ["SAFEGUARD_NETWORK"] = "off"
 os.environ["PYTHONIOENCODING"] = "utf-8"
 
+# Safety net: blank every real API key BEFORE any codebase import. python-dotenv does not
+# override variables that already exist, so a developer's .env can never re-enable live LLM /
+# threat-intel calls during tests (gRPC bypasses the Python socket patches below).
+for _key in ("GEMINI_API_KEY", "GROQ_API_KEY", "MISTRAL_API_KEY", "VIRUSTOTAL_API_KEY",
+             "GOOGLE_SAFE_BROWSING_KEY", "URLSCAN_API_KEY"):
+    os.environ[_key] = ""
+
 from codebase.config import get_settings
 get_settings(refresh=True)
+
+
+@pytest.fixture(autouse=True)
+def _force_offline_settings():
+    """Tests that monkeypatch SAFEGUARD_* and call get_settings(refresh=True) must not leak
+    a non-offline settings cache into later tests (it used to make later tests call Gemini)."""
+    os.environ["SAFEGUARD_OFFLINE"] = "1"
+    get_settings(refresh=True)
+    yield
+    os.environ["SAFEGUARD_OFFLINE"] = "1"
+    os.environ["SAFEGUARD_DB"] = "off"
+    os.environ["SAFEGUARD_NETWORK"] = "off"
+    os.environ.pop("SAFEGUARD_LLM_MODE", None)
+    get_settings(refresh=True)
+    assert get_settings().offline, "offline settings were not restored after test"
 
 
 class NetworkBlockedError(RuntimeError):
