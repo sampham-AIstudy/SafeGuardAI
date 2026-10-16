@@ -135,13 +135,65 @@ class Candidate:
     source: str = "text"                 # text | anchor | markdown | qr | ocr | embedded | redirect
     display_text: str | None = None
     is_long: bool = False
+    via: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d = {
             "raw": self.raw,
             "start": self.start,
             "end": self.end,
             "source": self.source,
             "display_text": self.display_text,
             "is_long": self.is_long,
+        }
+        if self.via is not None:
+            d["via"] = self.via
+        return d
+
+
+@dataclass
+class ParsedUrl:
+    raw: str
+    scheme: str
+    userinfo: str
+    display_host: str
+    effective_host: str                  # ASCII/punycode, lowercase
+    effective_host_unicode: str
+    port: int | None
+    path: str
+    query: str
+    fragment: str
+    registrable_domain: str
+    ip: str | None                       # dotted decimal string if IPv4, else None
+    flags: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "raw": self.raw,
+            "scheme": self.scheme,
+            "userinfo": self.userinfo,
+            "display_host": self.display_host,
+            "effective_host": self.effective_host,
+            "effective_host_unicode": self.effective_host_unicode,
+            "port": self.port,
+            "path": self.path,
+            "query": self.query,
+            "fragment": self.fragment,
+            "registrable_domain": self.registrable_domain,
+            "ip": self.ip,
+            "flags": list(self.flags),
+        }
+
+
+@dataclass
+class PeelResult:
+    steps: list[ObfuscationStep] = field(default_factory=list)
+    inner: list[Candidate] = field(default_factory=list)
+    flags: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "steps": [s.to_dict() for s in self.steps],
+            "inner": [c.to_dict() for c in self.inner],
+            "flags": list(self.flags),
         }
