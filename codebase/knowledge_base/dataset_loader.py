@@ -1,6 +1,19 @@
 import os
 import json
+from pathlib import Path
 import pandas as pd
+
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+DEFAULT_DATA_DIR = ROOT_DIR / "data"
+DEFAULT_KB_PATH = Path(__file__).resolve().parent / "vn_scam_tactics.json"
+
+
+import threading
+
+_cache_lock = threading.Lock()
+_phish_vn_cache = {}
+_global_phishing_cache = {}
+
 
 class DatasetLoader:
     """
@@ -9,9 +22,12 @@ class DatasetLoader:
     2. Global Phishing Email & SMS Spam Datasets (CEAS, Enron, Nazario, Nigerian Fraud, SpamAssassin, SMS Spam)
     3. Custom Vietnamese Scam Knowledge Base Tactics (vn_scam_tactics.json)
     """
-    def __init__(self, data_dir="data"):
-        self.data_dir = data_dir
-        self.kb_path = os.path.join("codebase", "knowledge_base", "vn_scam_tactics.json")
+    def __init__(self, data_dir=None):
+        self.data_dir = str(data_dir) if data_dir is not None else str(DEFAULT_DATA_DIR)
+        self.kb_path = str(DEFAULT_KB_PATH)
+        if not os.path.exists(self.data_dir):
+            print(f"[DatasetLoader] [WARNING] Data directory '{self.data_dir}' not found. Threat feeds will operate in offline fallback mode without local CSV datasets.")
+
 
     def load_knowledge_base(self):
         if os.path.exists(self.kb_path):
@@ -22,7 +38,18 @@ class DatasetLoader:
     def load_phish_vn_datasets(self):
         """
         Loads PhishVN datasets (ver1 & ver2) containing 50,000+ localized VN phishing URLs.
+        Thread-safe module-level cache keyed by self.data_dir.
         """
+        with _cache_lock:
+            if self.data_dir in _phish_vn_cache:
+                cached = _phish_vn_cache[self.data_dir]
+                return {
+                    "total_phishing_records": cached["total_phishing_records"],
+                    "phishing_domains": cached["phishing_domains"],
+                    "phishing_urls": cached["phishing_urls"],
+                    "scenarios": cached["scenarios"]
+                }
+
         phishing_domains = set()
         phishing_urls = set()
         scenario_counts = {}
@@ -55,18 +82,31 @@ class DatasetLoader:
                 except Exception as e:
                     print(f"[DatasetLoader] Error loading {csv_path}: {e}")
 
-        return {
+        result = {
             "total_phishing_records": total_records,
             "phishing_domains": phishing_domains,
             "phishing_urls": phishing_urls,
             "scenarios": scenario_counts
+        }
+        with _cache_lock:
+            _phish_vn_cache[self.data_dir] = result
+        return {
+            "total_phishing_records": result["total_phishing_records"],
+            "phishing_domains": result["phishing_domains"],
+            "phishing_urls": result["phishing_urls"],
+            "scenarios": result["scenarios"]
         }
 
     def load_global_phishing_datasets(self):
         """
         Loads international datasets (CEAS, Enron, Nazario, Nigerian Fraud, SpamAssassin, SMS Spam).
         Extracts global keywords & spam patterns.
+        Thread-safe module-level cache keyed by self.data_dir.
         """
+        with _cache_lock:
+            if self.data_dir in _global_phishing_cache:
+                return dict(_global_phishing_cache[self.data_dir])
+
         global_dir = os.path.join(self.data_dir, "phising-email-dataset")
         global_keywords = set()
         total_global_files = 0
@@ -87,11 +127,14 @@ class DatasetLoader:
                     except Exception:
                         pass
 
-        return {
+        result = {
             "total_global_files": total_global_files,
             "has_global_datasets": total_global_files > 0,
             "global_patterns_loaded": len(global_keywords)
         }
+        with _cache_lock:
+            _global_phishing_cache[self.data_dir] = result
+        return dict(result)
 
 if __name__ == "__main__":
     loader = DatasetLoader()

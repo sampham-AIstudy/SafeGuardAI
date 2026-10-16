@@ -30,15 +30,32 @@ class NetworkBlockedError(RuntimeError):
     pass
 
 
-def _blocked_connect(*args, **kwargs):
+_orig_connect = socket.socket.connect
+_orig_create_connection = socket.create_connection
+_orig_getaddrinfo = socket.getaddrinfo
+
+
+def _is_loopback(host):
+    return str(host).lower() in ("127.0.0.1", "localhost", "::1")
+
+
+def _blocked_connect(self, address, *args, **kwargs):
+    host = address[0] if isinstance(address, tuple) and len(address) > 0 else address
+    if _is_loopback(host):
+        return _orig_connect(self, address, *args, **kwargs)
     raise NetworkBlockedError("Network access blocked: socket.connect is forbidden during offline tests")
 
 
-def _blocked_create_connection(*args, **kwargs):
+def _blocked_create_connection(address, *args, **kwargs):
+    host = address[0] if isinstance(address, tuple) and len(address) > 0 else address
+    if _is_loopback(host):
+        return _orig_create_connection(address, *args, **kwargs)
     raise NetworkBlockedError("Network access blocked: socket.create_connection is forbidden during offline tests")
 
 
-def _blocked_getaddrinfo(*args, **kwargs):
+def _blocked_getaddrinfo(host, port, *args, **kwargs):
+    if _is_loopback(host):
+        return _orig_getaddrinfo(host, port, *args, **kwargs)
     raise NetworkBlockedError("Network access blocked: socket.getaddrinfo is forbidden during offline tests")
 
 
@@ -47,6 +64,7 @@ def no_network(monkeypatch):
     monkeypatch.setattr(socket.socket, "connect", _blocked_connect)
     monkeypatch.setattr(socket, "create_connection", _blocked_create_connection)
     monkeypatch.setattr(socket, "getaddrinfo", _blocked_getaddrinfo)
+
 
 
 @pytest.fixture(scope="session")
@@ -67,11 +85,11 @@ def orchestrator(_shared_orchestrator):
     Function-scoped fixture providing the shared orchestrator with isolated state:
     memory history is reset and any mocked attributes restored before and after each test.
     """
-    _shared_orchestrator.memory_agent.history.clear()
+    _shared_orchestrator.memory_agent.reset()
     _shared_orchestrator.db_manager = _shared_orchestrator._orig_db_manager
     _shared_orchestrator.memory_agent.load_history_from_db = _shared_orchestrator.memory_agent._orig_load_history
     yield _shared_orchestrator
-    _shared_orchestrator.memory_agent.history.clear()
+    _shared_orchestrator.memory_agent.reset()
     _shared_orchestrator.db_manager = _shared_orchestrator._orig_db_manager
     _shared_orchestrator.memory_agent.load_history_from_db = _shared_orchestrator.memory_agent._orig_load_history
 

@@ -3,11 +3,17 @@ import sys
 import json
 import re
 
+from pathlib import Path
+
 # Add root project dir to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from codebase.knowledge_base.dataset_loader import DatasetLoader
 from codebase.knowledge_base.db_connect import MySQLManager
+from codebase.text_utils import PhraseMatcher
+
+DEFAULT_KB_PATH = Path(__file__).resolve().parent.parent / "knowledge_base" / "vn_scam_tactics.json"
+
 
 class RAGAgent:
     """
@@ -17,7 +23,8 @@ class RAGAgent:
     Matches query text and extracted URLs/domains against hybrid local & MySQL threat feeds.
     """
     def __init__(self, kb_path=None):
-        self.kb_path = kb_path or os.path.join("codebase", "knowledge_base", "vn_scam_tactics.json")
+        self.kb_path = Path(kb_path) if kb_path else DEFAULT_KB_PATH
+        self._matchers = {}
         self.tactics = self._load_kb()
         self.loader = DatasetLoader()
         self.phish_data = self.loader.load_phish_vn_datasets()
@@ -27,29 +34,39 @@ class RAGAgent:
     def _load_kb(self):
         if os.path.exists(self.kb_path):
             with open(self.kb_path, "r", encoding="utf-8") as f:
-                return json.load(f).get("scam_tactics", [])
+                tactics = json.load(f).get("scam_tactics", [])
+                for idx, tactic in enumerate(tactics):
+                    tid = tactic.get("id") or str(idx)
+                    phrases = tactic.get("trigger_phrases") or tactic.get("red_flags", [])
+                    self._matchers[tid] = PhraseMatcher(phrases)
+                return tactics
         return []
 
     def search(self, query_text):
         matched_tactics = []
         matched_flags = []
         matched_phish_domains = []
+        query_text = query_text or ""
         query_lower = query_text.lower()
 
-        # 1. Match Scam Tactics Knowledge Base (VN Scams)
-        for tactic in self.tactics:
-            tactic_hits = 0
-            for flag in tactic.get("red_flags", []):
-                if flag.lower() in query_lower:
-                    tactic_hits += 1
-                    if flag not in matched_flags:
-                        matched_flags.append(flag)
-
+        # 1. Match Scam Tactics Knowledge Base (VN Scams) using PhraseMatcher
+        for idx, tactic in enumerate(self.tactics):
+            tid = tactic.get("id") or str(idx)
+            matcher = self._matchers.get(tid)
+            if matcher:
+                hits = matcher.findall(query_text)
+            else:
+                hits = [flag for flag in tactic.get("red_flags", []) if flag.lower() in query_lower]
+            tactic_hits = len(hits)
             if tactic_hits > 0:
+                for hit in hits:
+                    if hit not in matched_flags:
+                        matched_flags.append(hit)
+                denom = len(tactic.get("trigger_phrases", [])) or len(tactic.get("red_flags", [])) or 1
                 matched_tactics.append({
                     "tactic": tactic,
                     "matched_count": tactic_hits,
-                    "score": round(tactic_hits / len(tactic.get("red_flags", [1])), 2)
+                    "score": round(tactic_hits / denom, 2)
                 })
 
         # Sort by matched score descending
@@ -77,13 +94,16 @@ class RAGAgent:
 
         # 3. Fallback / Complement with In-memory PhishVN Blacklist Domains
         phish_domains = self.phish_data.get("phishing_domains", set())
-        for domain in phish_domains:
-            if domain and len(domain) > 4 and domain in query_lower:
-                if domain not in matched_phish_domains:
-                    matched_phish_domains.append(domain)
-                    flag_str = f"Tên miền lừa đảo NCSC/ChongLuaDao: {domain}"
-                    if flag_str not in matched_flags:
-                        matched_flags.append(flag_str)
+        # Optimization: Only run substring match when query contains '.'
+        if "." in query_lower:
+            for domain in phish_domains:
+                if domain and len(domain) > 4 and domain in query_lower:
+                    if domain not in matched_phish_domains:
+                        matched_phish_domains.append(domain)
+                        flag_str = f"Tên miền lừa đảo NCSC/ChongLuaDao: {domain}"
+                        if flag_str not in matched_flags:
+                            matched_flags.append(flag_str)
+
 
         # 4. Match Global Phishing Patterns (English / Global Email & SMS Spam)
         global_indicators = ["wire transfer", "verify account now", "lottery winner", "nigerian prince", "account locked"]

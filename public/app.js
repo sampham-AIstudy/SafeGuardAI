@@ -7,7 +7,10 @@ document.addEventListener("DOMContentLoaded", () => {
     let activeSessionId = `session_${Date.now()}`;
     let attachedFileBase64 = null;
     let attachedFileName = "";
+    let fileReadingPromise = null;
     let isProcessing = false;
+    const IMAGE_SRC_REGEX = /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/;
+
 
     // DOM Elements
     const btnNewChat = document.getElementById("btnNewChat");
@@ -132,11 +135,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const lightboxCaption = document.getElementById("lightboxCaption");
 
         function openLightbox(src, altText) {
-            if (!lightboxModal || !lightboxImage) return;
-            lightboxImage.src = src;
+            if (!lightboxModal || !lightboxImage || !src) return;
+            const trimmedSrc = String(src).trim();
+            if (!IMAGE_SRC_REGEX.test(trimmedSrc)) return;
+            lightboxImage.src = trimmedSrc;
             if (lightboxCaption) lightboxCaption.textContent = altText || "Bằng chứng hình ảnh";
             lightboxModal.classList.remove("hidden");
         }
+
 
         function closeLightbox() {
             if (lightboxModal) lightboxModal.classList.add("hidden");
@@ -194,27 +200,38 @@ document.addEventListener("DOMContentLoaded", () => {
     // Handle Selected / Dropped File
     function handleFileSelection(file) {
         if (!file) return;
+        if (!file.type.startsWith("image/")) {
+            alert("Chỉ chấp nhận tệp hình ảnh (PNG, JPEG, GIF, WEBP). Vui lòng chọn tệp ảnh hợp lệ.");
+            clearAttachedFile();
+            return;
+        }
+
         attachedFileName = file.name;
         if (fileNameText) fileNameText.textContent = file.name;
         if (filePreview) filePreview.classList.remove("hidden");
 
-        if (file.type.startsWith("image/")) {
+        fileReadingPromise = new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => {
                 attachedFileBase64 = e.target.result;
+                resolve(attachedFileBase64);
+            };
+            reader.onerror = (e) => {
+                attachedFileBase64 = null;
+                reject(e);
             };
             reader.readAsDataURL(file);
-        } else {
-            attachedFileBase64 = null;
-        }
+        });
     }
 
     function clearAttachedFile() {
         attachedFileBase64 = null;
         attachedFileName = "";
+        fileReadingPromise = null;
         if (fileInput) fileInput.value = "";
         if (filePreview) filePreview.classList.add("hidden");
     }
+
 
     // Load Session list from MySQL API
     async function loadSessions() {
@@ -256,7 +273,7 @@ document.addEventListener("DOMContentLoaded", () => {
         loadSessions();
 
         try {
-            const res = await fetch(`/api/history?session_id=${sessionId}`);
+            const res = await fetch(`/api/history?session_id=${encodeURIComponent(sessionId)}`);
             if (res.ok) {
                 const history = await res.json();
                 if (history && history.length > 0) {
@@ -282,6 +299,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Send Message
     async function sendMessage() {
+        if (fileReadingPromise) {
+            try {
+                await fileReadingPromise;
+            } catch (err) {
+                console.error("Lỗi khi đọc file ảnh:", err);
+            }
+            fileReadingPromise = null;
+        }
+
         const userText = chatInput.value.trim();
         if ((!userText && !attachedFileBase64) || isProcessing) return;
 
@@ -304,9 +330,8 @@ document.addEventListener("DOMContentLoaded", () => {
         chatInput.value = "";
         clearAttachedFile();
 
-        // 2. Animate Multi-Agent Steps
+        // 2. Show thinking indicator
         showThinkingWidget();
-        await animateThinkingSteps();
 
         // 3. Call REST API /api/analyze
         try {
@@ -350,8 +375,11 @@ document.addEventListener("DOMContentLoaded", () => {
         row.className = "message-row user";
         
         let imgHtml = "";
-        if (imageBase64) {
-            imgHtml = `<img src="${imageBase64}" class="chat-attached-img" alt="Attached evidence">`;
+        if (imageBase64 && typeof imageBase64 === "string") {
+            const trimmedImg = imageBase64.trim();
+            if (IMAGE_SRC_REGEX.test(trimmedImg)) {
+                imgHtml = `<img src="${trimmedImg}" class="chat-attached-img" alt="Attached evidence">`;
+            }
         }
 
         row.innerHTML = `
@@ -376,46 +404,40 @@ document.addEventListener("DOMContentLoaded", () => {
 
         let html = `<div class="message-avatar"><img src="/assets/AIScamavatar.jpg" class="chatbot-avatar-img" alt="SafeGuard AI"></div><div class="message-content">`;
 
-        // Render Thought Accordion
-        const toolCallsMade = (res.tool_calls_made && res.tool_calls_made.length > 0) ? res.tool_calls_made : [
-            { tool: "emergency_check", desc: "Kiểm tra tình huống khẩn cấp (Emergency Protocol)" },
-            { tool: "intent_router", desc: "Phân loại kịch bản lừa đảo & dạng tin nhắn" },
-            { tool: "url_threat_intel", desc: "Tra cứu VirusTotal, Google SafeBrowsing & PhishTank" },
-            { tool: "ocr_extract", desc: "Trích xuất chữ & phân tích dấu hiệu trên ảnh" },
-            { tool: "rag_search", desc: "Đối soát 51,362 bản ghi vector database PhishVN" },
-            { tool: "memory_escalation", desc: "Đánh giá mức độ leo thang rủi ro qua lịch sử" },
-            { tool: "confidence_eval", desc: "Tính ma trận điểm rủi ro & độ tin cậy AI" }
-        ];
+        // Render Thought Accordion ONLY when real tool calls were returned by server
+        const toolCallsMade = (res.tool_calls_made && Array.isArray(res.tool_calls_made)) ? res.tool_calls_made : [];
+        if (toolCallsMade.length > 0) {
+            const latencySec = res.latency_ms ? (res.latency_ms / 1000).toFixed(1) : "0.0";
+            const toolCount = toolCallsMade.length;
 
-        const latencySec = res.latency_ms ? (res.latency_ms / 1000).toFixed(1) : "1.5";
-        const toolCount = toolCallsMade.length;
-
-        html += `
-            <div class="thought-accordion">
-                <button class="thought-header-btn" type="button">
-                    <span class="thought-header-left">
-                        🧠 <b>Đã suy nghĩ trong ${latencySec}s</b> · Đã thực thi ${toolCount} Agentic Tools
-                    </span>
-                    <span class="thought-toggle-icon">▼</span>
-                </button>
-                <div class="thought-details-content">
-        `;
-
-        toolCallsMade.forEach(t => {
-            const toolName = typeof t === "string" ? t : (t.tool || t.name || "agent_tool");
-            const toolDesc = typeof t === "object" && t.desc ? t.desc : `Executed sub-agent [${toolName}]`;
             html += `
-                <div class="thought-log-item">
-                    <span class="thought-log-tag">▶ [${escapeHtml(toolName)}]</span>
-                    <span>${escapeHtml(toolDesc)}</span>
+                <div class="thought-accordion">
+                    <button class="thought-header-btn" type="button">
+                        <span class="thought-header-left">
+                            🧠 <b>Đã suy nghĩ trong ${latencySec}s</b> · Đã thực thi ${toolCount} Agentic Tools
+                        </span>
+                        <span class="thought-toggle-icon">▼</span>
+                    </button>
+                    <div class="thought-details-content">
+            `;
+
+            toolCallsMade.forEach(t => {
+                const toolName = typeof t === "string" ? t : (t.tool || t.name || "agent_tool");
+                const toolDesc = typeof t === "object" && t.desc ? t.desc : `Executed sub-agent [${toolName}]`;
+                html += `
+                    <div class="thought-log-item">
+                        <span class="thought-log-tag">▶ [${escapeHtml(toolName)}]</span>
+                        <span>${escapeHtml(toolDesc)}</span>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
                 </div>
             `;
-        });
+        }
 
-        html += `
-                </div>
-            </div>
-        `;
 
         if (intentType === "general_chat" || intentType === "refusal" || intentType === "need_more_info") {
             html += `<p style="font-size:15px;line-height:1.6;">${escapeHtml(headline)}</p>`;
@@ -429,19 +451,28 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
             const riskLevel = decision.risk_level || "MEDIUM";
             const riskScore = res.risk_score ?? 0;
-            const conf = res.confidence || { confidence_score: 90, confidence_level: "HIGH" };
-            const latency = res.latency_ms || 15;
+            const conf = res.confidence || null;
+            const confScoreText = (conf && conf.confidence_score !== undefined && conf.confidence_score !== null)
+                ? `${escapeHtml(String(conf.confidence_score))}%`
+                : "—";
+            const confLevelText = (conf && conf.confidence_level)
+                ? escapeHtml(String(conf.confidence_level))
+                : "—";
+            const latencyText = (res.latency_ms !== undefined && res.latency_ms !== null)
+                ? `${escapeHtml(String(res.latency_ms))}`
+                : "—";
+            const latencyUnit = (res.latency_ms !== undefined && res.latency_ms !== null) ? "ms" : "";
 
             const iconMap = { "LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🔴", "CRITICAL": "🚨" };
             const icon = iconMap[riskLevel] || "⚪";
 
-            html += `<div class="risk-header">${icon} ${riskLevel} — Risk Score: ${riskScore}%</div>`;
+            html += `<div class="risk-header">${icon} ${escapeHtml(riskLevel)} — Risk Score: ${escapeHtml(String(riskScore))}%</div>`;
             html += `<div class="risk-headline">${escapeHtml(headline)}</div>`;
 
             if (res.emergency && res.emergency.is_emergency) {
                 html += `<div class="emergency-box">🚨 <b>QUY TRÌNH ỨNG PHÓ KHẨN CẤP:</b><br>`;
                 (res.emergency.protocol_steps || []).forEach(step => {
-                    html += `• ⏱️ <b>${step.time_window}</b>: ${escapeHtml(step.action)}<br>`;
+                    html += `• ⏱️ <b>${escapeHtml(step.time_window || '')}</b>: ${escapeHtml(step.action || '')}<br>`;
                 });
                 html += `</div>`;
             }
@@ -450,17 +481,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="metrics-grid">
                     <div class="metric-card">
                         <div class="metric-label">Risk Score</div>
-                        <div class="metric-value">${riskScore}%</div>
+                        <div class="metric-value">${escapeHtml(String(riskScore))}%</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">AI Confidence</div>
-                        <div class="metric-value" style="color:var(--accent);">${conf.confidence_score}%</div>
-                        <div style="font-size:10px;color:var(--text-muted);">${conf.confidence_level}</div>
+                        <div class="metric-value" style="color:var(--accent);">${confScoreText}</div>
+                        <div style="font-size:10px;color:var(--text-muted);">${confLevelText}</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Latency</div>
-                        <div class="metric-value">${latency}</div>
-                        <div style="font-size:10px;color:var(--text-muted);">ms</div>
+                        <div class="metric-value">${latencyText}</div>
+                        <div style="font-size:10px;color:var(--text-muted);">${latencyUnit}</div>
                     </div>
                 </div>
             `;
@@ -540,17 +571,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="message-content thinking-bubble">
                 <div class="thinking-header">
                     <span class="thinking-spinner">🧠</span>
-                    <span class="thinking-title">SafeGuard Multi-Agent đang phân tích...</span>
-                </div>
-                <div class="thinking-steps" id="thinkingSteps">
-                    <div class="step-item active">📋 <b>Planner Agent</b> — Khởi tạo kế hoạch phân tích & nạp bộ nhớ CSDL...</div>
-                    <div class="step-item">🔀 <b>Intent Router Agent</b> — Phân loại kịch bản & nhận diện ý định...</div>
-                    <div class="step-item">🌐 <b>URL Threat Intel</b> — Tra cứu VirusTotal, SafeBrowsing & PhishTank...</div>
-                    <div class="step-item">👁️ <b>OCR & Vision Agent</b> — Trích xuất chữ & phân tích dấu hiệu trên ảnh...</div>
-                    <div class="step-item">📚 <b>RAG Knowledge Agent</b> — Phân tích vector database PhishVN...</div>
-                    <div class="step-item">🧠 <b>Memory Agent</b> — Đánh giá nguy cơ lừa đảo theo lịch sử trò chuyện...</div>
-                    <div class="step-item">⚖️ <b>Risk Assessment Agent</b> — Tính toán điểm rủi ro & độ tin cậy...</div>
-                    <div class="step-item">📝 <b>Response Agent</b> — Tổng hợp báo cáo & lưu nhật ký phân tích...</div>
+                    <span class="thinking-title">SafeGuard AI đang phân tích dữ liệu...</span>
                 </div>
             </div>
         `;
@@ -565,20 +586,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    async function animateThinkingSteps() {
-        const container = document.getElementById("thinkingSteps");
-        if (!container) return;
-        const steps = container.children;
-        for (let i = 0; i < steps.length; i++) {
-            if (!document.getElementById("thinkingRow")) break;
-            for (let j = 0; j < steps.length; j++) {
-                if (j < i) steps[j].className = "step-item done";
-                else if (j === i) steps[j].className = "step-item active";
-                else steps[j].className = "step-item";
-            }
-            await new Promise(r => setTimeout(r, 90));
-        }
-    }
 
     function scrollToBottom() {
         chatViewport.scrollTop = chatViewport.scrollHeight;

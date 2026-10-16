@@ -59,7 +59,7 @@ class SafeGuardOrchestrator:
     # ─────────────────────────────────────────────────────────────────────────
     # PUBLIC ENTRY POINT
     # ─────────────────────────────────────────────────────────────────────────
-    def process_request(self, user_text: str = "", image_input=None, session_id: str = "session_default", image_base64: str = None, persist: bool = True) -> dict:
+    def process_request(self, user_text: str = "", image_input=None, session_id: str = "session_default", image_base64: str = None, persist: bool = True, pil_image=None) -> dict:
         start_time = time.time()
         max_chars = get_settings().max_text_chars
         input_truncated = False
@@ -91,6 +91,7 @@ class SafeGuardOrchestrator:
         injection_detected = bool(guard_eval.get("injection_detected", False))
 
         # ── Step 1: Prepare PIL image ──────────────────────────────────────
+        image_input = image_input or pil_image
         pil_image = None
         if image_input and Image:
             try:
@@ -131,8 +132,10 @@ class SafeGuardOrchestrator:
                 image_base64=image_base64,
                 persist=persist,
                 injection_detected=injection_detected,
-                input_truncated=input_truncated
+                input_truncated=input_truncated,
+                pil_image=pil_image
             )
+
 
         # ══════════════════════════════════════════════════════════════════
         # FALLBACK PATH: Sequential Pipeline (no Gemini API)
@@ -153,7 +156,7 @@ class SafeGuardOrchestrator:
     # ─────────────────────────────────────────────────────────────────────────
     # PATH A: Finalize result from Gemini Agentic Runner
     # ─────────────────────────────────────────────────────────────────────────
-    def _finalize_agentic_result(self, agent_result: dict, user_text: str, session_id: str, start_time: float, image_base64: str = None, persist: bool = True, injection_detected: bool = False, input_truncated: bool = False) -> dict:
+    def _finalize_agentic_result(self, agent_result: dict, user_text: str, session_id: str, start_time: float, image_base64: str = None, persist: bool = True, injection_detected: bool = False, input_truncated: bool = False, pil_image=None) -> dict:
         """
         Post-process the Gemini agentic result:
         - Pull cached tool outputs for structured response
@@ -209,6 +212,18 @@ class SafeGuardOrchestrator:
             )
 
         # ── DecisionAgent: map risk_score → risk_level ───────────────────
+        ocr_extracted = (ocr_result.get("extracted_text") or "").strip()
+        has_image = bool(
+            ocr_result.get("has_image", False)
+            or pil_image
+            or image_base64
+            or (ocr_extracted and ocr_extracted != (user_text or "").strip())
+        )
+        if ocr_extracted and ocr_extracted != (user_text or "").strip():
+            full_text = f"{user_text}\n{ocr_extracted}".strip() if user_text else ocr_extracted
+        else:
+            full_text = user_text
+
         decision_info = self.decision_agent.evaluate_decision(
             risk_score=risk_score,
             confidence_info=confidence_info,
@@ -216,9 +231,10 @@ class SafeGuardOrchestrator:
             emergency_info=emergency_info,
             user_text=user_text,
             real_llm_result=agent_result,
-            has_image=bool(ocr_result.get("has_image", False)),
-            full_text=ocr_result.get("extracted_text") or user_text
+            has_image=has_image,
+            full_text=full_text
         )
+
 
         # Merge LLM recommendations into decision
         llm_recs = agent_result.get("recommendations", [])
@@ -230,7 +246,7 @@ class SafeGuardOrchestrator:
 
         # ── Memory: record interaction ────────────────────────────────────
         self.memory_agent.add_interaction(
-            user_text, decision_info["risk_level"], matched_flags
+            user_text, decision_info["risk_level"], matched_flags, session_id=session_id
         )
 
         if input_truncated:
@@ -288,7 +304,19 @@ class SafeGuardOrchestrator:
 
         # Step 2: Vision / OCR Agent
         ocr_result = self.ocr_agent.process(image_input=pil_image or image_input, raw_text=user_text)
-        full_text = ocr_result["extracted_text"] or user_text
+        ocr_extracted = (ocr_result.get("extracted_text") or "").strip()
+        has_image = bool(
+            ocr_result.get("has_image", False)
+            or pil_image
+            or image_input
+            or image_base64
+            or (ocr_extracted and ocr_extracted != (user_text or "").strip())
+        )
+        if ocr_extracted and ocr_extracted != (user_text or "").strip():
+            full_text = f"{user_text}\n{ocr_extracted}".strip() if user_text else ocr_extracted
+        else:
+            full_text = user_text
+
 
         # Step 3: RAG Agent Knowledge Match
         # Protect against single-token DoS repetitive strings (e.g. 'a'*50000 without spaces/dots)
@@ -298,7 +326,7 @@ class SafeGuardOrchestrator:
         rag_result = self.rag_agent.search(rag_text)
 
         # Step 4: Memory Agent Escalation Check
-        escalation_info = self.memory_agent.analyze_escalation(full_text)
+        escalation_info = self.memory_agent.analyze_escalation(full_text, session_id=session_id)
 
         # Step 5: LLM Fallback (GeminiLLMClient text-only, no tool calling)
         real_llm_result = None
@@ -340,9 +368,6 @@ class SafeGuardOrchestrator:
         else:
             risk_score = emergency_info.get("risk_score", explainable_score)
 
-        if injection_detected:
-            risk_score = max(risk_score, explain_info["risk_score"])
-
         # Evidence-based floor
         breakdown_count = len(explain_info.get("risk_breakdown", []))
         if breakdown_count >= 2:
@@ -365,14 +390,15 @@ class SafeGuardOrchestrator:
             emergency_info=emergency_info,
             user_text=user_text,
             real_llm_result=real_llm_result,
-            has_image=bool(ocr_result.get("has_image", False)),
+            has_image=has_image,
             full_text=full_text
         )
+
 
         if real_llm_result and real_llm_result.get("recommendations"):
             decision_info["recommendations"].extend(real_llm_result["recommendations"])
 
-        self.memory_agent.add_interaction(full_text, decision_info["risk_level"], rag_result["matched_flags"])
+        self.memory_agent.add_interaction(full_text, decision_info["risk_level"], rag_result["matched_flags"], session_id=session_id)
         elapsed_ms = round((time.time() - start_time) * 1000, 2)
 
         if persist and self.db_manager.is_connected:

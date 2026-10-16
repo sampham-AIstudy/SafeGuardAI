@@ -4,6 +4,14 @@
       "id": "SCAM_01",
       "category": "Fake Recruitment / CTV Shopee TikTok",
       "title": "Tuyển CTV chốt đơn / xem TikTok nhận tiền - Yêu cầu nạp quỹ đảm bảo",
+      "trigger_phrases": [
+        "tuyển cộng tác viên",
+        "chốt đơn shopee",
+        "nạp quỹ đảm bảo",
+        "làm nhiệm vụ nạp tiền",
+        "đóng phí để nhận thưởng",
+        "nạp tiền nhận hoa hồng"
+      ],
       "red_flags": [
         "yêu cầu nạp tiền",
         "nạp quỹ đảm bảo",
@@ -29,6 +37,14 @@
       "id": "SCAM_02",
       "category": "Fake VNeID / Tax Authority Malware APK",
       "title": "Giả mạo Công an / Cục Thuế yêu cầu cài file APK VNeID giả mạo",
+      "trigger_phrases": [
+        "cài vneid qua link",
+        "tải ứng dụng apk qua link",
+        "tải phần mềm cục thuế qua link",
+        "cài đặt dịch vụ công qua link",
+        "định danh mức 2 qua link",
+        "cung cấp mã otp định danh"
+      ],
       "red_flags": [
         "tải file apk",
         "link lạ đuôi .apk",
@@ -53,6 +69,14 @@
       "id": "SCAM_03",
       "category": "Fake VietQR Bill / Bank Transfer Trap",
       "title": "Ảnh VietQR bill chuyển khoản giả / Chuyển nhầm tiền bẫy tín dụng đen",
+      "trigger_phrases": [
+        "quét mã qr để nhận hoàn tiền",
+        "hoàn trả tiền chuyển nhầm qua link",
+        "bấm link nhận lại tiền chuyển nhầm",
+        "xác nhận chuyển khoản qua link",
+        "ảnh chụp bill chuyển tiền giả",
+        "chuyển nhầm tiền bẫy tín dụng"
+      ],
       "red_flags": [
         "bill chuyển tiền thành công nhưng tài khoản chưa tăng",
         "font chữ bill bị lệch",
@@ -74,6 +98,14 @@
       "id": "SCAM_04",
       "category": "Fake Shipper COD",
       "title": "Giả mạo Shipper giao hàng COD - Yêu cầu chuyển khoản tiền đơn nhận hộ",
+      "trigger_phrases": [
+        "chuyển khoản nhận hộ",
+        "gửi bảo vệ yêu cầu chuyển khoản",
+        "chuyển khoản thanh toán đơn hàng gửi",
+        "thanh toán cod qua link",
+        "bấm link nhận hàng bưu cục",
+        "giao hàng shopee yêu cầu chuyển khoản"
+      ],
       "red_flags": [
         "shipper gọi giao hàng nhưng không nhớ mua",
         "gửi hàng ở bảo vệ yêu cầu chuyển khoản",
@@ -94,6 +126,14 @@
       "id": "SCAM_05",
       "category": "Deepfake Voice / Video Loan Request",
       "title": "Deepfake video call / Giả mạo người thân hối thúc vay tiền khẩn cấp",
+      "trigger_phrases": [
+        "nhờ chuyển tiền vào tài khoản lạ",
+        "gọi video giật lag mượn tiền",
+        "chuyển tiền gấp vào số tài khoản này",
+        "mượn tiền chuyển vào tài khoản khác",
+        "chuyển tiền viện phí vào tài khoản",
+        "deepfake video mượn tiền"
+      ],
       "red_flags": [
         "video call vài giây mờ nhòe đứt đoạn",
         "mượn tiền gấp do viện phí/tai nạn",

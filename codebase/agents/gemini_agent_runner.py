@@ -333,8 +333,10 @@ class GeminiAgentRunner:
                 return result
 
             elif tool_name == "check_memory":
+                sess_id = self._tool_results_cache.get("_session_id", "session_default")
                 result = self.agents["memory"].analyze_escalation(
-                    tool_args.get("current_text", "")
+                    tool_args.get("current_text", ""),
+                    session_id=sess_id
                 )
                 self._tool_results_cache["memory"] = result
                 return result
@@ -458,7 +460,7 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
             return None
 
         # Reset cache for this run
-        self._tool_results_cache = {}
+        self._tool_results_cache = {"_session_id": session_id}
         if pil_image:
             self._tool_results_cache["_pil_image"] = pil_image
 
