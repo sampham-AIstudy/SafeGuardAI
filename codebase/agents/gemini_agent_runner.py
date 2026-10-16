@@ -16,6 +16,8 @@ try:
 except ImportError:
     pass
 
+from codebase.config import get_settings, get_api_key
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # GEMINI TOOL DECLARATIONS
@@ -246,7 +248,7 @@ class GeminiAgentRunner:
                 }
         """
         self.agents = agents
-        self.api_key = os.environ.get("GEMINI_API_KEY", "")
+        self.api_key = get_api_key("GEMINI_API_KEY")
         self.model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
         self.genai = None
         self.is_active = False
@@ -254,7 +256,13 @@ class GeminiAgentRunner:
         self._init_sdk()
 
     def _init_sdk(self):
-        if self.api_key and self.api_key not in ("YOUR_GEMINI_API_KEY_HERE", ""):
+        settings = get_settings()
+        if settings.offline or settings.llm_mode == "off":
+            self.is_active = False
+            print("[GeminiAgentRunner] [INFO] Offline/LLM disabled by settings — will use sequential fallback.")
+            return
+
+        if self.api_key:
             try:
                 import warnings
                 warnings.filterwarnings("ignore", category=FutureWarning)
@@ -712,9 +720,9 @@ if __name__ == "__main__":
     })
 
     test_cases = [
-        "chào bạn",
-        "Tuyển CTV xem TikTok chốt đơn Shopee thu nhập 500k/ngày. Yêu cầu nạp 500k quỹ đảm bảo.",
-        "[Vietcombank] Tai khoan cua ban bi khoa. Vui long xac minh tai https://vietcombank-bankingvn.com"
+        "Xin chào, hệ thống có thể giúp tôi phòng chống lừa đảo thế nào?",
+        "Cảnh báo: Bạn vừa trúng thưởng xe máy SH, vui lòng gửi phí trước bạ 2 triệu để nhận giải.",
+        "Thông báo hệ thống: Vui lòng kiểm tra lại thiết bị đăng nhập lạ."
     ]
 
     for msg in test_cases:

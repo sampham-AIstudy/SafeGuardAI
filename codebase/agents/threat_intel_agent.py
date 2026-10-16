@@ -13,6 +13,8 @@ try:
 except ImportError:
     pass
 
+from codebase.config import get_settings, get_api_key
+
 
 class ThreatIntelAgent:
     """
@@ -34,9 +36,14 @@ class ThreatIntelAgent:
     TIMEOUT = 8  # seconds per API call
 
     def __init__(self):
-        self.vt_key = os.environ.get("VIRUSTOTAL_API_KEY", "")
-        self.gsb_key = os.environ.get("GOOGLE_SAFE_BROWSING_KEY", "")
-        self.urlscan_key = os.environ.get("URLSCAN_API_KEY", "")
+        settings = get_settings()
+        self.vt_key = get_api_key("VIRUSTOTAL_API_KEY")
+        self.gsb_key = get_api_key("GOOGLE_SAFE_BROWSING_KEY")
+        self.urlscan_key = get_api_key("URLSCAN_API_KEY")
+
+        if settings.offline or not settings.network_enabled:
+            print("[ThreatIntelAgent] [INFO] ThreatIntel disabled (offline or network disabled).")
+            return
 
         active = []
         if self.vt_key:
@@ -66,6 +73,18 @@ class ThreatIntelAgent:
             url = "https://" + url
 
         domain = self._extract_domain(url)
+        settings = get_settings()
+        if settings.offline or not settings.network_enabled:
+            return {
+                "url": url,
+                "domain": domain,
+                "is_malicious": False,
+                "malicious_sources": 0,
+                "sources_checked": [],
+                "verdict_summary": "Offline / mạng bị tắt",
+                "details": {}
+            }
+
         results = {}
         sources_checked = []
 
@@ -130,6 +149,16 @@ class ThreatIntelAgent:
         Newly registered domains (< 30 days) are high risk.
         """
         domain = domain.strip().lower()
+        settings = get_settings()
+        if settings.offline or not settings.network_enabled:
+            return {
+                "domain": domain,
+                "is_suspicious": False,
+                "age_days": None,
+                "registrar": None,
+                "urlscan_verdict": None
+            }
+
         result = {
             "domain": domain,
             "is_suspicious": False,
@@ -360,6 +389,10 @@ class ThreatIntelAgent:
     # ─────────────────────────────────────────────────────────────────────────
     def _check_phishtank(self, url: str) -> dict:
         """Query PhishTank API — no key required, public endpoint."""
+        settings = get_settings()
+        if settings.offline or not settings.network_enabled:
+            return {"is_malicious": False, "source": "phishtank", "note": "offline"}
+
         try:
             encoded_url = urllib.parse.quote(url, safe="")
             api_url = "https://checkurl.phishtank.com/checkurl/"

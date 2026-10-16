@@ -417,11 +417,18 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
         `;
 
-        if (intentType === "general_chat") {
+        if (intentType === "general_chat" || intentType === "refusal" || intentType === "need_more_info") {
             html += `<p style="font-size:15px;line-height:1.6;">${escapeHtml(headline)}</p>`;
+            if (decision.recommendations && decision.recommendations.length > 0) {
+                html += `<ul style="font-size:13px;line-height:1.6;margin:8px 0 0 18px;color:var(--text-secondary);">`;
+                decision.recommendations.forEach(rec => {
+                    html += `<li>${escapeHtml(rec)}</li>`;
+                });
+                html += `</ul>`;
+            }
         } else {
             const riskLevel = decision.risk_level || "MEDIUM";
-            const riskScore = res.risk_score || 50;
+            const riskScore = res.risk_score ?? 0;
             const conf = res.confidence || { confidence_score: 90, confidence_level: "HIGH" };
             const latency = res.latency_ms || 15;
 

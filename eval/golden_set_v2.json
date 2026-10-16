@@ -1,0 +1,1487 @@
+{
+  "_note": "Mọi domain/URL trong dataset này chỉ là chuỗi thử nghiệm giả định phục vụ benchmark, KHÔNG được truy cập hoặc kết nối trực tiếp.",
+  "golden_set": [
+    {
+      "id": "CASE_01",
+      "category": "Fake Recruitment",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "Tuyển CTV xem TikTok chốt đơn Shopee thu nhập 500k/ngày. Yêu cầu nạp 500k quỹ đảm bảo vào tài khoản cá nhân Nguyen Van A gấp.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 80,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "ADVANCE_FEE",
+        "RECRUITMENT_SCAM"
+      ],
+      "tags": [
+        "v1_baseline",
+        "recruitment"
+      ],
+      "source": "golden_v1",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_02",
+      "category": "Malware APK",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Cơ quan Thuế thông báo: Tài khoản VNeID của bạn bị lỗi đồng bộ. Vui lòng truy cập http://vneid-capnhat.apk để tải file APK cài đặt.",
+      "expected_risk_level": "CRITICAL",
+      "expected_is_scam": true,
+      "min_expected_score": 90,
+      "max_expected_score": 99,
+      "expected_signals": [
+        "APK_DOWNLOAD",
+        "GOV_IMPERSONATION"
+      ],
+      "tags": [
+        "v1_baseline",
+        "apk",
+        "gov"
+      ],
+      "source": "golden_v1",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_03",
+      "category": "Fake VietQR Bill",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "Người mua gửi ảnh bill VietQR đã chuyển khoản thành công 2 triệu nhưng ứng dụng tài khoản ngân hàng của em chưa thấy tăng số dư.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "FAKE_RECEIPT"
+      ],
+      "tags": [
+        "v1_baseline",
+        "vietqr"
+      ],
+      "source": "golden_v1",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_04",
+      "category": "Fake Shipper COD",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Shipper gọi báo có đơn hàng COD 150k gửi bảo vệ chung cự, yêu cầu em chuyển khoản gấp vào tài khoản cá nhân.",
+      "expected_risk_level": "MEDIUM",
+      "expected_is_scam": true,
+      "min_expected_score": 50,
+      "max_expected_score": 74,
+      "expected_signals": [
+        "SHIPPER_COD"
+      ],
+      "tags": [
+        "v1_baseline",
+        "shipper"
+      ],
+      "source": "golden_v1",
+      "split": "test"
+    },
+    {
+      "id": "CASE_05",
+      "category": "Emergency Mode",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "Em vừa bị lừa chuyển 5 triệu cho bên tuyển dụng rồi anh ơi, phải làm sao bây giờ?",
+      "expected_risk_level": "CRITICAL",
+      "expected_is_scam": true,
+      "min_expected_score": 95,
+      "max_expected_score": 99,
+      "expected_signals": [
+        "EMERGENCY_TRIGGER"
+      ],
+      "tags": [
+        "v1_baseline",
+        "emergency"
+      ],
+      "source": "golden_v1",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_06",
+      "category": "Source of Truth - Safe Bank SMS",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Vietcombank thông báo: Số dư tài khoản 10123xxx +500.000 VND lúc 14:30. Noi dung: Luong thang 7.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 30,
+      "expected_signals": [
+        "OFFICIAL_DOMAIN"
+      ],
+      "tags": [
+        "v1_baseline",
+        "benign",
+        "bank"
+      ],
+      "source": "golden_v1",
+      "split": "test"
+    },
+    {
+      "id": "CASE_07",
+      "category": "Source of Truth - Official Police Notice",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Công an thông báo lịch làm việc trực tiếp tại trụ sở Huyện vào giờ hành chính thứ 2 tuần sau.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 25,
+      "expected_signals": [
+        "OFFICIAL_NOTICE"
+      ],
+      "tags": [
+        "v1_baseline",
+        "benign",
+        "gov"
+      ],
+      "source": "golden_v1",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_08",
+      "category": "Ambiguous Input - Short Prompt",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "Anh ơi check giúp em với",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 25,
+      "expected_signals": [
+        "SHORT_PROMPT"
+      ],
+      "tags": [
+        "v1_baseline",
+        "ambiguous"
+      ],
+      "source": "golden_v1",
+      "split": "test"
+    },
+    {
+      "id": "CASE_09",
+      "category": "Ambiguous Input - Generic Greeting",
+      "channel": "facebook",
+      "lang_variant": "standard_vi",
+      "input_text": "Alo bạn ơi dạo này còn làm chỗ cũ không?",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 20,
+      "expected_signals": [
+        "CASUAL_CHAT"
+      ],
+      "tags": [
+        "v1_baseline",
+        "ambiguous"
+      ],
+      "source": "golden_v1",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_10",
+      "category": "Out of Scope - Money Recovery",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "AI lấy lại 10 triệu em vừa bị lừa chuyển khoản giúp em được không?",
+      "expected_risk_level": "CRITICAL",
+      "expected_is_scam": true,
+      "min_expected_score": 90,
+      "max_expected_score": 99,
+      "expected_signals": [
+        "EMERGENCY_TRIGGER",
+        "RECOVERY_SCAM_RISK"
+      ],
+      "tags": [
+        "v1_baseline",
+        "emergency"
+      ],
+      "source": "golden_v1",
+      "split": "test"
+    },
+    {
+      "id": "CASE_11",
+      "category": "Out of Scope - Politics / General QA",
+      "channel": "facebook",
+      "lang_variant": "standard_vi",
+      "input_text": "Thời tiết hôm nay ở Hà Nội thế nào bạn ơi?",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 10,
+      "expected_signals": [
+        "GENERAL_QA"
+      ],
+      "tags": [
+        "v1_baseline",
+        "benign"
+      ],
+      "source": "golden_v1",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_12",
+      "category": "Deepfake Video Loan",
+      "channel": "facebook",
+      "lang_variant": "standard_vi",
+      "input_text": "Bạn em gọi video 5 giây mờ mờ mượn 5 triệu gấp do mẹ cấp cứu, yêu cầu chuyển vào STK lạ không phải tên nó.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 80,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "DEEPFAKE_BORROW"
+      ],
+      "tags": [
+        "v1_baseline",
+        "deepfake"
+      ],
+      "source": "golden_v1",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_13",
+      "category": "Bank Phishing Link",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Ngân hàng ACB thông báo tài khoản bị khóa, truy cập ngay http://acb-online-verify.com để xác minh OTP.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 85,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "COMBOSQUAT_BRAND",
+        "OTP_REQUEST"
+      ],
+      "tags": [
+        "v1_baseline",
+        "phishing",
+        "bank"
+      ],
+      "source": "golden_v1",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_14",
+      "category": "Fake Prize Winner",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Chúc mừng bạn trúng thưởng xe SH 150i. Vui lòng nạp 2 triệu tiền phí làm hồ sơ nhận giải qua thẻ cào.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 85,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "PRIZE_FEE"
+      ],
+      "tags": [
+        "v1_baseline",
+        "prize"
+      ],
+      "source": "golden_v1",
+      "split": "test"
+    },
+    {
+      "id": "CASE_15",
+      "category": "Wrong Transfer Trap",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Ai đó chuyển nhầm 5 triệu vào tài khoản em rồi nhắn tin bảo trả lại qua tài khoản cá nhân khác.",
+      "expected_risk_level": "MEDIUM",
+      "expected_is_scam": true,
+      "min_expected_score": 50,
+      "max_expected_score": 74,
+      "expected_signals": [
+        "WRONG_TRANSFER"
+      ],
+      "tags": [
+        "v1_baseline",
+        "banking"
+      ],
+      "source": "golden_v1",
+      "split": "test"
+    },
+    {
+      "id": "CASE_16",
+      "category": "Shopee Order Marketing",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Shopee thông báo: Mã giảm giá 50k áp dụng cho đơn hàng 200k hôm nay. Xem tại app Shopee.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 25,
+      "expected_signals": [
+        "OFFICIAL_PROMOTION"
+      ],
+      "tags": [
+        "v1_baseline",
+        "benign",
+        "ecommerce"
+      ],
+      "source": "golden_v1",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_17",
+      "category": "Course Fee Transfer",
+      "channel": "email",
+      "lang_variant": "standard_vi",
+      "input_text": "Thông báo học phí khóa học AI Thực Chiến tại trung tâm chính thức.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 25,
+      "expected_signals": [
+        "TUITION_NOTICE"
+      ],
+      "tags": [
+        "v1_baseline",
+        "benign"
+      ],
+      "source": "golden_v1",
+      "split": "test"
+    },
+    {
+      "id": "CASE_18",
+      "category": "Telegram Task Investment",
+      "channel": "telegram",
+      "lang_variant": "standard_vi",
+      "input_text": "Tham gia group Telegram đầu tư chứng khoán cam kết lợi nhuận 30%/ngày, nạp tiền tối thiểu 1 triệu.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 85,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "INVESTMENT_PROMISE"
+      ],
+      "tags": [
+        "v1_baseline",
+        "investment"
+      ],
+      "source": "golden_v1",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_19",
+      "category": "Fake Friend Borrow",
+      "channel": "facebook",
+      "lang_variant": "standard_vi",
+      "input_text": "Nick Facebook bạn thân nhắn tin: 'Bồ ơi còn 2 triệu không cho tớ mượn tí tối tớ chuyển lại'.",
+      "expected_risk_level": "MEDIUM",
+      "expected_is_scam": true,
+      "min_expected_score": 40,
+      "max_expected_score": 70,
+      "expected_signals": [
+        "FRIEND_BORROW"
+      ],
+      "tags": [
+        "v1_baseline",
+        "borrow"
+      ],
+      "source": "golden_v1",
+      "split": "test"
+    },
+    {
+      "id": "CASE_20",
+      "category": "Fake Tax Refund",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Thông báo hoàn thuế thu nhập cá nhân 3 triệu. Yêu cầu nhập số thẻ ATM và mã CVV để nhận tiền.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 85,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "CARD_CVV_THEFT"
+      ],
+      "tags": [
+        "v1_baseline",
+        "tax"
+      ],
+      "source": "golden_v1",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_21",
+      "category": "URL Defang Colon Bracket",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Thông báo: Tài khoản ACB của bạn cần xác thực lại tại https[:]//acb-online-verify[.]com để tránh bị gián đoạn.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "DEFANGED",
+        "COMBOSQUAT_BRAND"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "defang"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_22",
+      "category": "URL Userinfo Brand Decoy",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Vietcombank cảnh báo đăng nhập bất thường. Truy cập ngay https://vietcombank.com.vn@vcb-secure-portal.xyz/login để bảo vệ tài khoản.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 80,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "USERINFO_BRAND_DECOY"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "userinfo"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_23",
+      "category": "URL Userinfo Port Bypass",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Cảnh báo bảo mật VCB: Đăng nhập ngay tại https://vietcombank.com.vn:443@vcb-login-verify.xyz/login để hủy lệnh chuyển tiền.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 80,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "USERINFO_BRAND_DECOY"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "userinfo"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "test"
+    },
+    {
+      "id": "CASE_24",
+      "category": "URL Backslash Confusion",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Thông báo khẩn từ Vietcombank: Cập nhật thông tin tại https://vcb-xacthuc-portal.top\\@vietcombank.com.vn/ trước 24h.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "BACKSLASH_CONFUSION"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "backslash"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_25",
+      "category": "URL Homoglyph Cyrillic I",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Kiểm tra bảo mật tài khoản Vietcombank tại https://vіetcombank.com.vn/login ngay để tránh khóa thẻ.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 80,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "HOMOGLYPH_BRAND"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "homoglyph"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "test"
+    },
+    {
+      "id": "CASE_26",
+      "category": "URL Homoglyph Greek Omicron",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "Shopee tặng bạn voucher 500k mua sắm dịp lễ! Nhận quà tại https://shοpee.vn/qua ngay hôm nay.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "HOMOGLYPH_BRAND"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "homoglyph"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_27",
+      "category": "URL Homoglyph Cyrillic O",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "ZaloPay tặng bạn gói quà trị giá 1 triệu đồng. Xác nhận tại https://zalо.me/verify để nhận thưởng.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "HOMOGLYPH_BRAND"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "homoglyph"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "test"
+    },
+    {
+      "id": "CASE_28",
+      "category": "URL Typosquat Sh0pee",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Chúc mừng quý khách trúng thưởng từ Shopee! Truy cập https://sh0pee.vn/nhan-qua để nhận giải.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "TYPOSQUAT_BRAND"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "typosquat"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_29",
+      "category": "URL Typosquat Vietcornbank",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Vietcombank trân trọng thông báo: Cập nhật hạn mức giao dịch trực tuyến tại https://vietcornbank.com.vn ngay.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "TYPOSQUAT_BRAND"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "typosquat"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "test"
+    },
+    {
+      "id": "CASE_30",
+      "category": "URL Combosquat MoMo",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "MoMo hoàn tiền 200k cho giao dịch gần nhất của bạn. Bấm vào https://momo-hoantien-online.vip để rút tiền.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "COMBOSQUAT_BRAND",
+        "SUSPICIOUS_TLD"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "combosquat"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_31",
+      "category": "URL Obfuscated Decimal IP",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Hệ thống ngân hàng yêu cầu xác minh danh tính qua cổng bảo mật: http://2130706433/login",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "IP_OBFUSCATED"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "ip"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "test"
+    },
+    {
+      "id": "CASE_32",
+      "category": "URL Obfuscated Hex IP",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Thông báo khóa thẻ tín dụng. Để mở lại thẻ quý khách đăng nhập tại http://0x5DB8D822/bank",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "IP_OBFUSCATED"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "ip"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_33",
+      "category": "URL Shortener Bitly",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Ngân hàng VCB thông báo tài khoản bị tạm khóa do vi phạm. Mở khóa ngay tại bit.ly/3Vcb-KhoaTK",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "SHORTENER"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "shortener"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "test"
+    },
+    {
+      "id": "CASE_34",
+      "category": "URL Open Redirect Google",
+      "channel": "email",
+      "lang_variant": "standard_vi",
+      "input_text": "Xác thực tài khoản Vietcombank qua link an toàn: https://www.google.com/url?q=https://vcb-verify-portal.xyz/login",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "OPEN_REDIRECT_TRUSTED"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "redirect"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_35",
+      "category": "URL Open Redirect Facebook",
+      "channel": "facebook",
+      "lang_variant": "standard_vi",
+      "input_text": "Nhận thưởng tri ân Shopee tại liên kết: https://l.facebook.com/l.php?u=https%3A%2F%2Fshopee-hoantien-online.top%2F",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "OPEN_REDIRECT_TRUSTED"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "redirect"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "test"
+    },
+    {
+      "id": "CASE_36",
+      "category": "URL Double Percent Encoding",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Liên kết xác nhận hoàn tiền ngân hàng: https://www.google.com/url?q=https%253A%252F%252Fvcb-verify-online.xyz",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "DOUBLE_ENCODING",
+        "OPEN_REDIRECT_TRUSTED"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "encoding"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_37",
+      "category": "URL Zero Width In Host",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Thông báo từ Vietcombank: Kiểm tra biến động số dư tại https://vietcom‍bank-xacminh.com ngay lập tức.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "ZERO_WIDTH",
+        "COMBOSQUAT_BRAND"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "zero_width"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "test"
+    },
+    {
+      "id": "CASE_38",
+      "category": "URL Fullwidth Characters",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "Đăng nhập dịch vụ công tại liên kết sau: ｈｔｔｐｓ：／／ｖｃｂ－ｘａｃｍｉｎｈ．ｃｏｍ",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "FULLWIDTH_OR_ODD_DOT"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "fullwidth"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_39",
+      "category": "URL Fake Gov APK Download",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Bộ Công An yêu cầu người dân đồng bộ định danh mức 2 tại http://dichvucong-gov.vn.app-download-portal.xyz/VNeID.apk",
+      "expected_risk_level": "CRITICAL",
+      "expected_is_scam": true,
+      "min_expected_score": 90,
+      "max_expected_score": 99,
+      "expected_signals": [
+        "APK_DOWNLOAD",
+        "GOV_IMPERSONATION"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "apk",
+        "gov"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "test"
+    },
+    {
+      "id": "CASE_40",
+      "category": "URL Deep Subdomain Impersonation",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Xác thực giao dịch tài khoản Agribank tại http://www.agribank.com.vn.ebanking.chuyen-tien-nhanh.auth-portal.cc/login",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "DEEP_SUBDOMAIN",
+        "SUSPICIOUS_TLD"
+      ],
+      "tags": [
+        "url_obfuscation",
+        "subdomain"
+      ],
+      "source": "synthetic_obfuscated",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_41",
+      "category": "Hard Benign - Official VCB Portal",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Kính mời Quý khách tìm hiểu gói vay mua nhà ưu đãi tại https://vietcombank.com.vn/vi-VN/Ca-nhan hoặc liên hệ chi nhánh gần nhất.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 25,
+      "expected_signals": [
+        "OFFICIAL_DOMAIN"
+      ],
+      "tags": [
+        "hard_benign",
+        "bank"
+      ],
+      "source": "benign_collection",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_42",
+      "category": "Hard Benign - Official Shopee Campaign",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Shopee siêu sale 9.9 đã bắt đầu với hàng ngàn voucher giảm giá: https://shopee.vn/m/9-9?utm_source=sms để săn sale ngay.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 25,
+      "expected_signals": [
+        "OFFICIAL_DOMAIN"
+      ],
+      "tags": [
+        "hard_benign",
+        "ecommerce"
+      ],
+      "source": "benign_collection",
+      "split": "test"
+    },
+    {
+      "id": "CASE_43",
+      "category": "Hard Benign - Official Public Services Portal",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Hồ sơ thủ tục hành chính của bạn đã được tiếp nhận. Tra cứu tiến độ xử lý tại https://dichvucong.gov.vn/p/home/dvc-trang-chu.html",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 20,
+      "expected_signals": [
+        "OFFICIAL_DOMAIN"
+      ],
+      "tags": [
+        "hard_benign",
+        "gov"
+      ],
+      "source": "benign_collection",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_44",
+      "category": "Hard Benign - Official TopCV Recruitment",
+      "channel": "email",
+      "lang_variant": "standard_vi",
+      "input_text": "Xem danh sách việc làm phù hợp với hồ sơ của bạn tại TopCV: https://www.topcv.vn/viec-lam và ứng tuyển ngay.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 25,
+      "expected_signals": [
+        "OFFICIAL_DOMAIN"
+      ],
+      "tags": [
+        "hard_benign",
+        "recruitment"
+      ],
+      "source": "benign_collection",
+      "split": "test"
+    },
+    {
+      "id": "CASE_45",
+      "category": "Hard Benign - Official Garena Gaming",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Cập nhật phiên bản trò chơi Liên Quân Mobile mới nhất tại trang chủ www.garena.vn để nhận trang phục miễn phí.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 25,
+      "expected_signals": [
+        "OFFICIAL_DOMAIN"
+      ],
+      "tags": [
+        "hard_benign",
+        "gaming"
+      ],
+      "source": "benign_collection",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_46",
+      "category": "Hard Benign - Facebook Community Group",
+      "channel": "facebook",
+      "lang_variant": "standard_vi",
+      "input_text": "Mời bạn tham gia nhóm chia sẻ kinh nghiệm lập trình Python Việt Nam tại https://www.facebook.com/groups/123456789",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 20,
+      "expected_signals": [
+        "OFFICIAL_DOMAIN"
+      ],
+      "tags": [
+        "hard_benign",
+        "social"
+      ],
+      "source": "benign_collection",
+      "split": "test"
+    },
+    {
+      "id": "CASE_47",
+      "category": "Hard Benign - Currency Amount Normal Chat",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "Con đã nhận được 500.000đ tiền mẹ gửi hồi sáng rồi nhé, con cảm ơn mẹ nhiều.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 15,
+      "expected_signals": [
+        "CASUAL_FAMILY"
+      ],
+      "tags": [
+        "hard_benign",
+        "amount"
+      ],
+      "source": "benign_collection",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_48",
+      "category": "Hard Benign - Technical Document Reference",
+      "channel": "email",
+      "lang_variant": "standard_vi",
+      "input_text": "Bản cập nhật phần mềm v2.0 đã sẵn sàng. Xem chi tiết trong tệp đính kèm baocao.docx và hướng dẫn cài đặt.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 15,
+      "expected_signals": [
+        "WORK_CHAT"
+      ],
+      "tags": [
+        "hard_benign",
+        "tech"
+      ],
+      "source": "benign_collection",
+      "split": "test"
+    },
+    {
+      "id": "CASE_49",
+      "category": "Hard Benign - Official EVN Bill",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "EVN HANOI thông báo: Tiền điện tháng 9 của khách hàng PD010012345 là 850.000đ. Quý khách vui lòng thanh toán trước ngày 15.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 25,
+      "expected_signals": [
+        "OFFICIAL_UTILITY"
+      ],
+      "tags": [
+        "hard_benign",
+        "utility"
+      ],
+      "source": "benign_collection",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_50",
+      "category": "Hard Benign - University Tuition Announcement",
+      "channel": "email",
+      "lang_variant": "standard_vi",
+      "input_text": "Phòng Đào tạo Trường Đại học Bách Khoa thông báo sinh viên đóng học phí học kỳ 1 qua cổng thông tin sinh viên của nhà trường.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 20,
+      "expected_signals": [
+        "OFFICIAL_EDUCATION"
+      ],
+      "tags": [
+        "hard_benign",
+        "education"
+      ],
+      "source": "benign_collection",
+      "split": "test"
+    },
+    {
+      "id": "CASE_51",
+      "category": "Hard Benign - Police Scam Advisory Warning",
+      "channel": "facebook",
+      "lang_variant": "standard_vi",
+      "input_text": "Công an TP.HCM cảnh báo người dân cẩn trọng trước thủ đoạn lừa đảo cuộc gọi video giả danh cơ quan điều tra để lừa đảo chuyển tiền.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 25,
+      "expected_signals": [
+        "OFFICIAL_WARNING"
+      ],
+      "tags": [
+        "hard_benign",
+        "gov"
+      ],
+      "source": "benign_collection",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_52",
+      "category": "Hard Benign - Friend Weekend Sport Invitation",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "Chiều mai thứ 7 tầm 17h30 đi đá bóng sân Việt Hàn nhé các ông, nhớ mang theo giày và nước uống đầy đủ.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 10,
+      "expected_signals": [
+        "CASUAL_CHAT"
+      ],
+      "tags": [
+        "hard_benign",
+        "chat"
+      ],
+      "source": "benign_collection",
+      "split": "test"
+    },
+    {
+      "id": "CASE_53",
+      "category": "Hard Benign - E-commerce Delivery Complete",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Đơn hàng 230915ABC của bạn đã được giao thành công bởi shipper Nguyễn Văn B. Cảm ơn bạn đã mua sắm cùng Shopee.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 20,
+      "expected_signals": [
+        "OFFICIAL_DELIVERY"
+      ],
+      "tags": [
+        "hard_benign",
+        "delivery"
+      ],
+      "source": "benign_collection",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_54",
+      "category": "Hard Benign - Bank OTP Caution Advice",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Vietcombank khuyến cáo: Ngân hàng tuyệt đối không yêu cầu quý khách cung cấp mã OTP, mật khẩu trong bất kỳ trường hợp nào.",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 25,
+      "expected_signals": [
+        "SECURITY_ADVICE"
+      ],
+      "tags": [
+        "hard_benign",
+        "bank"
+      ],
+      "source": "benign_collection",
+      "split": "test"
+    },
+    {
+      "id": "CASE_55",
+      "category": "Hard Benign - Normal Customer Warranty Inquiry",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "Shop ơi cho em hỏi tai nghe mua tháng trước giờ bị rè một bên thì có được bảo hành đổi mới tại cửa hàng không ạ?",
+      "expected_risk_level": "LOW",
+      "expected_is_scam": false,
+      "min_expected_score": 0,
+      "max_expected_score": 15,
+      "expected_signals": [
+        "SUPPORT_INQUIRY"
+      ],
+      "tags": [
+        "hard_benign",
+        "support"
+      ],
+      "source": "benign_collection",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_56",
+      "category": "Unaccented Bank Phishing",
+      "channel": "sms",
+      "lang_variant": "no_accent",
+      "input_text": "Tai khoan Vietcombank cua quy khach bi khoa do vi pham an ninh. Dang nhap ngay tai https://vcb-xacminh-portal.xyz de mo khoa.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "BANK_ACCOUNT_LOCKED",
+        "COMBOSQUAT_BRAND"
+      ],
+      "tags": [
+        "no_accent",
+        "phishing",
+        "bank"
+      ],
+      "source": "curated_reports",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_57",
+      "category": "Unaccented Recruitment Scam",
+      "channel": "telegram",
+      "lang_variant": "no_accent",
+      "input_text": "Tuyen CTV xem video TikTok luong 500k/ngay thanh toan trong ngay. Yeu cau nop tien quy 300k vao stk 0123456789 de kich hoat tai khoan.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "RECRUITMENT_SCAM",
+        "ADVANCE_FEE"
+      ],
+      "tags": [
+        "no_accent",
+        "recruitment"
+      ],
+      "source": "curated_reports",
+      "split": "test"
+    },
+    {
+      "id": "CASE_58",
+      "category": "Unaccented Police Impersonation",
+      "channel": "zalo",
+      "lang_variant": "no_accent",
+      "input_text": "Cong an quan thong bao ban co lenh bat giam vi lien quan den duong day rua tien xuyen quoc gia. Chuyen tien ngay vao tai khoan tam giu de phuc vu dieu tra.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 80,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "POLICE_IMPERSONATION",
+        "THREAT_COERCION"
+      ],
+      "tags": [
+        "no_accent",
+        "gov"
+      ],
+      "source": "curated_reports",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_59",
+      "category": "Unaccented Prize Fee Scam",
+      "channel": "sms",
+      "lang_variant": "no_accent",
+      "input_text": "Chuc mung so thue bao cua ban da trung thuong xe may SH 150i. Vui long lien he Zalo 0912345678 de nop le phi lam giay to 2 trieu.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "PRIZE_FEE"
+      ],
+      "tags": [
+        "no_accent",
+        "prize"
+      ],
+      "source": "curated_reports",
+      "split": "test"
+    },
+    {
+      "id": "CASE_60",
+      "category": "Unaccented Family Emergency Loan",
+      "channel": "sms",
+      "lang_variant": "no_accent",
+      "input_text": "Me oi con bi mat vi dang nho may ban nhan tin, me chuyen gap 3 trieu vao stk 9876543210 nay de con dong tien nha nhe.",
+      "expected_risk_level": "HIGH",
+      "expected_is_scam": true,
+      "min_expected_score": 75,
+      "max_expected_score": 89,
+      "expected_signals": [
+        "FAMILY_EMERGENCY_IMPERSONATION"
+      ],
+      "tags": [
+        "no_accent",
+        "borrow"
+      ],
+      "source": "curated_reports",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_61",
+      "category": "Vague Recruitment Inquiry",
+      "channel": "telegram",
+      "lang_variant": "standard_vi",
+      "input_text": "Chào bạn, bên mình đang tuyển cộng tác viên xử lý đơn hàng online tại nhà, thời gian linh hoạt, bạn quan tâm thì nhắn tin trao đổi công việc nhé.",
+      "expected_risk_level": "MEDIUM",
+      "expected_is_scam": true,
+      "min_expected_score": 40,
+      "max_expected_score": 65,
+      "expected_signals": [
+        "RECRUITMENT_VAGUE"
+      ],
+      "tags": [
+        "medium_risk",
+        "recruitment",
+        "vague"
+      ],
+      "source": "curated_eval",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_62",
+      "category": "Unsolicited Shortlink Without Context",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Bạn có bưu phẩm chưa nhận tại kho quận 1. Vui lòng bấm vào link để kiểm tra lộ trình giao hàng: https://tinyurl.com/tra-cuu-van-don",
+      "expected_risk_level": "MEDIUM",
+      "expected_is_scam": true,
+      "min_expected_score": 45,
+      "max_expected_score": 70,
+      "expected_signals": [
+        "SHORTENER",
+        "UNSOLICITED_DELIVERY"
+      ],
+      "tags": [
+        "medium_risk",
+        "shortlink",
+        "delivery"
+      ],
+      "source": "curated_eval",
+      "split": "test"
+    },
+    {
+      "id": "CASE_63",
+      "category": "Defanged Link Ambiguous Alert",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Hệ thống ghi nhận giao dịch trực tuyến của bạn. Nếu không phải bạn thực hiện, vui lòng tra cứu tại hxxps://kiemtra-giaodich[.]net",
+      "expected_risk_level": "MEDIUM",
+      "expected_is_scam": true,
+      "min_expected_score": 45,
+      "max_expected_score": 70,
+      "expected_signals": [
+        "DEFANGED",
+        "SUSPICIOUS_LINK"
+      ],
+      "tags": [
+        "medium_risk",
+        "defang",
+        "url_obfuscation"
+      ],
+      "source": "curated_eval",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_64",
+      "category": "Relative Facebook Quick Borrow",
+      "channel": "facebook",
+      "lang_variant": "standard_vi",
+      "input_text": "Em ơi chị đang có việc gấp ở viện mà tài khoản lỗi không chuyển khoản được, em cho chị mượn 1 triệu chiều về chị chuyển khoản lại nhé.",
+      "expected_risk_level": "MEDIUM",
+      "expected_is_scam": true,
+      "min_expected_score": 40,
+      "max_expected_score": 70,
+      "expected_signals": [
+        "FRIEND_BORROW_UNVERIFIED"
+      ],
+      "tags": [
+        "medium_risk",
+        "social_borrow"
+      ],
+      "source": "curated_eval",
+      "split": "test"
+    },
+    {
+      "id": "CASE_65",
+      "category": "Obfuscated Brand In Path Inquiry",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "Khảo sát ý kiến khách hàng nhận voucher mua sắm 100k: https://khao-sat-khach-hang.vip/shopee-voucher",
+      "expected_risk_level": "MEDIUM",
+      "expected_is_scam": true,
+      "min_expected_score": 45,
+      "max_expected_score": 70,
+      "expected_signals": [
+        "SUSPICIOUS_TLD",
+        "BRAND_IN_PATH"
+      ],
+      "tags": [
+        "medium_risk",
+        "survey",
+        "url_obfuscation"
+      ],
+      "source": "curated_eval",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_66",
+      "category": "Secondhand Marketplace Escrow Deposit",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "Em ơi điện thoại iPhone 11 em bán còn không? Có người đang muốn cọc, em gửi trước 100k tiền giữ máy qua link trung gian này nhé.",
+      "expected_risk_level": "MEDIUM",
+      "expected_is_scam": true,
+      "min_expected_score": 40,
+      "max_expected_score": 70,
+      "expected_signals": [
+        "ADVANCE_DEPOSIT_INQUIRY"
+      ],
+      "tags": [
+        "medium_risk",
+        "marketplace"
+      ],
+      "source": "curated_eval",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_67",
+      "category": "Emergency Money Transferred",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "Cứu em với, em vừa lỡ chuyển 20 triệu vào số tài khoản của bên giả danh công an rồi, giờ em phải làm sao để khóa giao dịch?",
+      "expected_risk_level": "CRITICAL",
+      "expected_is_scam": true,
+      "min_expected_score": 90,
+      "max_expected_score": 99,
+      "expected_signals": [
+        "EMERGENCY_TRIGGER",
+        "MONEY_TRANSFERRED"
+      ],
+      "tags": [
+        "emergency",
+        "police_scam",
+        "victim_transferred"
+      ],
+      "source": "curated_eval",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_68",
+      "category": "Emergency OTP Leaked Bank Phishing",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "Tôi vừa bấm vào link https://vietcombank.com.vn@vcb-xacthuc-online.top/login và đã trót nhập mã OTP ngân hàng gửi về rồi, tài khoản vừa bị trừ tiền!",
+      "expected_risk_level": "CRITICAL",
+      "expected_is_scam": true,
+      "min_expected_score": 92,
+      "max_expected_score": 99,
+      "expected_signals": [
+        "EMERGENCY_TRIGGER",
+        "OTP_LEAKED",
+        "USERINFO_BRAND_DECOY"
+      ],
+      "tags": [
+        "emergency",
+        "otp_leaked",
+        "url_obfuscation"
+      ],
+      "source": "curated_eval",
+      "split": "test"
+    },
+    {
+      "id": "CASE_69",
+      "category": "Emergency Malware APK Installed",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Em lỡ tải và cài file dichvucong.apk từ đường link lạ theo lời bên xưng cán bộ thuế rồi, màn hình điện thoại bị đen và máy tự thao tác chuyển tiền!",
+      "expected_risk_level": "CRITICAL",
+      "expected_is_scam": true,
+      "min_expected_score": 95,
+      "max_expected_score": 99,
+      "expected_signals": [
+        "EMERGENCY_TRIGGER",
+        "APK_MALWARE_INSTALLED"
+      ],
+      "tags": [
+        "emergency",
+        "apk_installed",
+        "malware"
+      ],
+      "source": "curated_eval",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_70",
+      "category": "Emergency Task Investment Money Lost",
+      "channel": "telegram",
+      "lang_variant": "standard_vi",
+      "input_text": "Em bị lừa nạp tổng cộng 45 triệu làm nhiệm vụ Shopee trên Telegram rồi anh ơi, giờ họ lại đòi nạp thêm 30 triệu nữa mới cho rút tiền, em hết sạch tiền rồi!",
+      "expected_risk_level": "CRITICAL",
+      "expected_is_scam": true,
+      "min_expected_score": 90,
+      "max_expected_score": 99,
+      "expected_signals": [
+        "EMERGENCY_TRIGGER",
+        "TASK_SCAM_EXTORTION"
+      ],
+      "tags": [
+        "emergency",
+        "task_scam",
+        "money_lost"
+      ],
+      "source": "curated_eval",
+      "split": "test"
+    },
+    {
+      "id": "CASE_71",
+      "category": "Emergency Obfuscated Link Account Takeover",
+      "channel": "sms",
+      "lang_variant": "standard_vi",
+      "input_text": "Tôi vừa nhập mật khẩu và mã OTP vào trang https[:]//bidv-smartbanking[.]xyz theo tin nhắn thông báo, vừa xong tài khoản bị chuyển mất 15 triệu!",
+      "expected_risk_level": "CRITICAL",
+      "expected_is_scam": true,
+      "min_expected_score": 92,
+      "max_expected_score": 99,
+      "expected_signals": [
+        "EMERGENCY_TRIGGER",
+        "ACCOUNT_TAKEOVER",
+        "DEFANGED"
+      ],
+      "tags": [
+        "emergency",
+        "defang",
+        "otp_leaked",
+        "url_obfuscation"
+      ],
+      "source": "curated_eval",
+      "split": "dev"
+    },
+    {
+      "id": "CASE_72",
+      "category": "Emergency Loan App Blackmail After Transfer",
+      "channel": "zalo",
+      "lang_variant": "standard_vi",
+      "input_text": "Em đã chuyển 5 triệu tiền phí bảo hiểm khoản vay theo hướng dẫn qua Zalo, nhưng giờ họ đe dọa tung ảnh danh bạ nếu không chuyển thêm 10 triệu nữa!",
+      "expected_risk_level": "CRITICAL",
+      "expected_is_scam": true,
+      "min_expected_score": 90,
+      "max_expected_score": 99,
+      "expected_signals": [
+        "EMERGENCY_TRIGGER",
+        "LOAN_SCAM_BLACKMAIL"
+      ],
+      "tags": [
+        "emergency",
+        "loan_scam",
+        "blackmail"
+      ],
+      "source": "curated_eval",
+      "split": "test"
+    }
+  ]
+}

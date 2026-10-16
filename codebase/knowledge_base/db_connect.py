@@ -7,6 +7,13 @@ try:
 except ImportError:
     pass
 
+try:
+    from codebase.config import get_settings
+except ImportError:
+    import sys
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+    from codebase.config import get_settings
+
 class MySQLManager:
     """
     MySQL Database Manager for XAMPP / MariaDB integration.
@@ -15,6 +22,7 @@ class MySQLManager:
     Supports Session-based Chat Memory persistence.
     """
     def __init__(self, host=None, user=None, password=None, database=None, port=None):
+        settings = get_settings()
         self.host = host or os.environ.get("MYSQL_HOST", "localhost")
         self.user = user or os.environ.get("MYSQL_USER", "root")
         self.password = password if password is not None else os.environ.get("MYSQL_PASSWORD", "")
@@ -22,6 +30,8 @@ class MySQLManager:
         self.port = int(port or os.environ.get("MYSQL_PORT", 3306))
         self.conn = None
         self.is_connected = False
+        if settings.offline or not settings.db_enabled:
+            return
         self._connect()
         if self.is_connected:
             self._ensure_schema()

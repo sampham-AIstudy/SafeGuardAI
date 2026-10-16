@@ -22,6 +22,7 @@ from codebase.agents.gemini_agent_runner import GeminiAgentRunner
 from codebase.agents.threat_intel_agent import ThreatIntelAgent  # NEW: threat intelligence
 from codebase.agents.prompt_guard import PromptGuard
 from codebase.knowledge_base.db_connect import MySQLManager
+from codebase.config import get_settings
 
 
 class SafeGuardOrchestrator:
@@ -58,28 +59,36 @@ class SafeGuardOrchestrator:
     # ─────────────────────────────────────────────────────────────────────────
     # PUBLIC ENTRY POINT
     # ─────────────────────────────────────────────────────────────────────────
-    def process_request(self, user_text: str = "", image_input=None, session_id: str = "session_default", image_base64: str = None) -> dict:
+    def process_request(self, user_text: str = "", image_input=None, session_id: str = "session_default", image_base64: str = None, persist: bool = True) -> dict:
         start_time = time.time()
+        max_chars = get_settings().max_text_chars
+        input_truncated = False
+        if user_text and len(user_text) > max_chars:
+            user_text = user_text[:max_chars]
+            input_truncated = True
 
         # ── Step 0: Prompt Injection & Safety Guardrail Check ──────────────
         guard_eval = self.prompt_guard.evaluate_input(user_text)
-        if not guard_eval["is_safe"]:
-            print(f"[Orchestrator] Blocked unsafe prompt injection: {guard_eval['reason']}")
+        if not guard_eval.get("is_safe", True):
+            print(f"[Orchestrator] Refused malicious request: {guard_eval.get('reason')}")
             return {
                 "session_id": session_id,
                 "user_input": user_text,
-                "execution_path": "prompt_guard_blocked",
-                "tool_calls_made": [{"tool": "prompt_guard", "desc": "Bao ve an toan & Phong chong Prompt Injection"}],
+                "input_truncated": input_truncated,
+                "execution_path": "prompt_guard_refusal",
+                "tool_calls_made": [{"tool": "prompt_guard", "desc": "Bảo vệ an toàn & Từ chối yêu cầu độc hại"}],
                 "model_used": "security_guardrail",
                 "decision": {
-                    "intent_type": "general_chat",
+                    "intent_type": "refusal",
                     "risk_level": "LOW",
-                    "headline": guard_eval["refusal_message"],
+                    "headline": guard_eval.get("refusal_message", ""),
                     "hitl_disclaimer": "SafeGuard AI Security & Ethics Policy Enforced."
                 },
                 "risk_score": 0,
                 "latency_ms": round((time.time() - start_time) * 1000, 2)
             }
+
+        injection_detected = bool(guard_eval.get("injection_detected", False))
 
         # ── Step 1: Prepare PIL image ──────────────────────────────────────
         pil_image = None
@@ -93,21 +102,25 @@ class SafeGuardOrchestrator:
                 print(f"[Orchestrator] PIL Image open notice: {e}")
 
         # ── Step 1: Hydrate Memory Agent from MySQL ────────────────────────
-        if self.db_manager.is_connected:
+        if persist and self.db_manager.is_connected:
             self.memory_agent.load_history_from_db(self.db_manager, session_id)
 
         # ══════════════════════════════════════════════════════════════════
         # PRIMARY PATH: Gemini Agentic Tool-Calling
         # ══════════════════════════════════════════════════════════════════
-        effective_user_text = user_text
-        if pil_image:
-            effective_user_text = f"{user_text}\n[Người dùng đính kèm ảnh bằng chứng màn hình nghi vấn - BẮT BUỘC gọi ocr_extract() và scan_url_threat_intel() để kiểm tra link/chữ trên ảnh]".strip()
+        agent_result = None
+        if not injection_detected:
+            effective_user_text = user_text
+            if pil_image:
+                effective_user_text = f"{user_text}\n[Người dùng đính kèm ảnh bằng chứng màn hình nghi vấn - BẮT BUỘC gọi ocr_extract() và scan_url_threat_intel() để kiểm tra link/chữ trên ảnh]".strip()
 
-        agent_result = self.agent_runner.run(
-            user_text=effective_user_text,
-            pil_image=pil_image,
-            session_id=session_id
-        )
+            agent_result = self.agent_runner.run(
+                user_text=effective_user_text,
+                pil_image=pil_image,
+                session_id=session_id
+            )
+        else:
+            print("[Orchestrator] ⚠️ Prompt injection detected — bypassing LLM agent runner.")
 
         if agent_result is not None:
             return self._finalize_agentic_result(
@@ -115,7 +128,10 @@ class SafeGuardOrchestrator:
                 user_text=user_text,
                 session_id=session_id,
                 start_time=start_time,
-                image_base64=image_base64
+                image_base64=image_base64,
+                persist=persist,
+                injection_detected=injection_detected,
+                input_truncated=input_truncated
             )
 
         # ══════════════════════════════════════════════════════════════════
@@ -128,13 +144,16 @@ class SafeGuardOrchestrator:
             image_input=image_input,
             session_id=session_id,
             start_time=start_time,
-            image_base64=image_base64
+            image_base64=image_base64,
+            persist=persist,
+            injection_detected=injection_detected,
+            input_truncated=input_truncated
         )
 
     # ─────────────────────────────────────────────────────────────────────────
     # PATH A: Finalize result from Gemini Agentic Runner
     # ─────────────────────────────────────────────────────────────────────────
-    def _finalize_agentic_result(self, agent_result: dict, user_text: str, session_id: str, start_time: float, image_base64: str = None) -> dict:
+    def _finalize_agentic_result(self, agent_result: dict, user_text: str, session_id: str, start_time: float, image_base64: str = None, persist: bool = True, injection_detected: bool = False, input_truncated: bool = False) -> dict:
         """
         Post-process the Gemini agentic result:
         - Pull cached tool outputs for structured response
@@ -167,7 +186,6 @@ class SafeGuardOrchestrator:
         })
         emergency_info = tool_cache.get("emergency", {"is_emergency": False})
 
-        # ── Determine final risk_score ─────────────────────────────────────
         llm_risk = int(agent_result.get("risk_score", 0))
         explainable_risk = int(explain_info.get("risk_score", 0))
 
@@ -197,7 +215,9 @@ class SafeGuardOrchestrator:
             explainable_info=explain_info,
             emergency_info=emergency_info,
             user_text=user_text,
-            real_llm_result=agent_result
+            real_llm_result=agent_result,
+            has_image=bool(ocr_result.get("has_image", False)),
+            full_text=ocr_result.get("extracted_text") or user_text
         )
 
         # Merge LLM recommendations into decision
@@ -213,10 +233,15 @@ class SafeGuardOrchestrator:
             user_text, decision_info["risk_level"], matched_flags
         )
 
+        if input_truncated:
+            decision_info.setdefault("recommendations", []).append(
+                "Nội dung đầu vào vượt quá giới hạn độ dài cho phép (20.000 ký tự) và đã được cắt bớt để xử lý an toàn."
+            )
+
         elapsed_ms = round((time.time() - start_time) * 1000, 2)
 
         # ── MySQL log ─────────────────────────────────────────────────────
-        if self.db_manager.is_connected:
+        if persist and self.db_manager.is_connected:
             self.db_manager.log_user_analysis(
                 user_text=user_text,
                 risk_score=risk_score,
@@ -232,6 +257,7 @@ class SafeGuardOrchestrator:
         return {
             "session_id": session_id,
             "user_input": user_text,
+            "input_truncated": input_truncated,
             "execution_path": "gemini_agentic",
             "tool_calls_made": agent_result.get("tool_calls_made", []),
             "model_used": agent_result.get("model_used", self.agent_runner.model_name),
@@ -251,7 +277,8 @@ class SafeGuardOrchestrator:
     # PATH B: Sequential Fallback Pipeline (original logic, preserved fully)
     # ─────────────────────────────────────────────────────────────────────────
     def _run_sequential_fallback(self, user_text: str, pil_image, image_input,
-                                  session_id: str, start_time: float, image_base64: str = None) -> dict:
+                                  session_id: str, start_time: float, image_base64: str = None, persist: bool = True,
+                                  injection_detected: bool = False, input_truncated: bool = False) -> dict:
         """
         Original 8-step sequential pipeline. Runs when Gemini API is unavailable.
         Preserves all previous behavior exactly.
@@ -264,18 +291,24 @@ class SafeGuardOrchestrator:
         full_text = ocr_result["extracted_text"] or user_text
 
         # Step 3: RAG Agent Knowledge Match
-        rag_result = self.rag_agent.search(full_text)
+        # Protect against single-token DoS repetitive strings (e.g. 'a'*50000 without spaces/dots)
+        rag_text = full_text
+        if len(full_text) > 1000 and " " not in full_text and "." not in full_text:
+            rag_text = full_text[:1000]
+        rag_result = self.rag_agent.search(rag_text)
 
         # Step 4: Memory Agent Escalation Check
         escalation_info = self.memory_agent.analyze_escalation(full_text)
 
         # Step 5: LLM Fallback (GeminiLLMClient text-only, no tool calling)
-        real_llm_result = self.llm_client.analyze_scam(
-            user_text=full_text,
-            matched_flags=rag_result["matched_flags"],
-            ocr_anomalies=ocr_result["anomalies"],
-            pil_image=pil_image
-        )
+        real_llm_result = None
+        if not injection_detected:
+            real_llm_result = self.llm_client.analyze_scam(
+                user_text=full_text,
+                matched_flags=rag_result["matched_flags"],
+                ocr_anomalies=ocr_result["anomalies"],
+                pil_image=pil_image
+            )
 
         # Step 6: Explainable Agent Risk Score
         explain_info = self.explainable_agent.explain(
@@ -285,6 +318,20 @@ class SafeGuardOrchestrator:
             escalation_info=escalation_info
         )
 
+        if injection_detected:
+            if "risk_breakdown" not in explain_info:
+                explain_info["risk_breakdown"] = []
+            explain_info["risk_breakdown"].append({
+                "factor": "Tin chứa câu lệnh thao túng AI (Prompt Injection)",
+                "score": 20
+            })
+            if "reasons" not in explain_info:
+                explain_info["reasons"] = []
+            explain_info["reasons"].append(
+                "Phát hiện dấu hiệu chèn câu lệnh thao túng AI nhằm né tránh kiểm duyệt an toàn."
+            )
+            explain_info["risk_score"] = min(99, explain_info.get("risk_score", 0) + 20)
+
         # Risk score aggregation: MAX of LLM and ExplainableAgent
         explainable_score = explain_info["risk_score"]
         if real_llm_result and "risk_score" in real_llm_result:
@@ -292,6 +339,9 @@ class SafeGuardOrchestrator:
             risk_score = max(llm_score, explainable_score)
         else:
             risk_score = emergency_info.get("risk_score", explainable_score)
+
+        if injection_detected:
+            risk_score = max(risk_score, explain_info["risk_score"])
 
         # Evidence-based floor
         breakdown_count = len(explain_info.get("risk_breakdown", []))
@@ -314,7 +364,9 @@ class SafeGuardOrchestrator:
             explainable_info=explain_info,
             emergency_info=emergency_info,
             user_text=user_text,
-            real_llm_result=real_llm_result
+            real_llm_result=real_llm_result,
+            has_image=bool(ocr_result.get("has_image", False)),
+            full_text=full_text
         )
 
         if real_llm_result and real_llm_result.get("recommendations"):
@@ -323,7 +375,7 @@ class SafeGuardOrchestrator:
         self.memory_agent.add_interaction(full_text, decision_info["risk_level"], rag_result["matched_flags"])
         elapsed_ms = round((time.time() - start_time) * 1000, 2)
 
-        if self.db_manager.is_connected:
+        if persist and self.db_manager.is_connected:
             self.db_manager.log_user_analysis(
                 user_text=full_text,
                 risk_score=risk_score,
@@ -334,6 +386,11 @@ class SafeGuardOrchestrator:
                 session_id=session_id,
                 bot_response=decision_info["headline"],
                 image_base64=image_base64
+            )
+
+        if input_truncated:
+            decision_info.setdefault("recommendations", []).append(
+                "Nội dung đầu vào vượt quá giới hạn độ dài cho phép (20.000 ký tự) và đã được cắt bớt để xử lý an toàn."
             )
 
         tool_calls_log = [
@@ -348,6 +405,7 @@ class SafeGuardOrchestrator:
         return {
             "session_id": session_id,
             "user_input": user_text,
+            "input_truncated": input_truncated,
             "execution_path": "sequential_fallback",
             "tool_calls_made": tool_calls_log,
             "model_used": self.llm_client.model_name if self.llm_client.is_active else "offline",
@@ -367,7 +425,7 @@ class SafeGuardOrchestrator:
 if __name__ == "__main__":
     orchestrator = SafeGuardOrchestrator()
     result = orchestrator.process_request(
-        "Tuyển dụng xem TikTok nạp 500k quỹ chuyển khoản gấp",
+        "Thông báo trúng thưởng xe máy SH, yêu cầu nạp phí hồ sơ gấp",
         session_id="test_session"
     )
     path = result.get("execution_path", "unknown")

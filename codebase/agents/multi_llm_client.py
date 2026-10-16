@@ -13,6 +13,8 @@ try:
 except ImportError:
     Image = None
 
+from codebase.config import get_settings, get_api_key
+
 
 class MultiLLMClient:
     """
@@ -35,9 +37,9 @@ class MultiLLMClient:
 
     def __init__(self):
         # API Keys
-        self.groq_key = os.environ.get("GROQ_API_KEY", "")
-        self.gemini_key = os.environ.get("GEMINI_API_KEY", "")
-        self.mistral_key = os.environ.get("MISTRAL_API_KEY", "")
+        self.groq_key = get_api_key("GROQ_API_KEY")
+        self.gemini_key = get_api_key("GEMINI_API_KEY")
+        self.mistral_key = get_api_key("MISTRAL_API_KEY")
 
         # Model configs
         self.groq_model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
@@ -56,10 +58,15 @@ class MultiLLMClient:
         self._report_active_providers()
 
     def _report_active_providers(self):
+        settings = get_settings()
+        if settings.offline or settings.llm_mode == "off":
+            print("[MultiLLMClient] [INFO] Offline/LLM disabled by settings.")
+            return
+
         providers = []
         if self.groq_key:
             providers.append(f"Groq({self.groq_model})")
-        if self.gemini_key and self.gemini_key not in ("YOUR_GEMINI_API_KEY_HERE", ""):
+        if self.gemini_key:
             providers.append(f"Gemini({self.gemini_model})")
         if self.mistral_key:
             providers.append(f"Mistral({self.mistral_model})")
@@ -78,6 +85,9 @@ class MultiLLMClient:
         Analyze scam content using the best available LLM provider.
         Falls through the routing chain automatically on failure.
         """
+        if not self.is_active:
+            return None
+
         prompt = self._build_prompt(user_text, matched_flags, ocr_anomalies)
 
         # Routing order: Groq → Gemini → Mistral
@@ -104,6 +114,9 @@ class MultiLLMClient:
 
     @property
     def is_active(self) -> bool:
+        settings = get_settings()
+        if settings.offline or settings.llm_mode == "off":
+            return False
         return bool(self.groq_key or self.gemini_key or self.mistral_key)
 
     @property
@@ -219,7 +232,7 @@ KỊCH BẢN LỪA ĐẢO PHỔ BIẾN TẠI VIỆT NAM:
 
 QUY TẮC PHÂN LOẠI & TÍNH ĐIỂM RỦI RO:
 1. Nếu chỉ là chào hỏi xã giao ("chào", "hello", "hi", "bạn là ai") → intent_type = "general_chat", risk_score = 0.
-2. Nếu là thông báo chính thức từ đơn vị uy tín (Vcb tin nhắn thông báo số dư, Shopee thông báo mã giảm giá trên app, công an báo lịch làm việc tại trụ sở, thông báo học phí...) → intent_type = "scam_analysis", risk_score = 0 đến 25 (LOW).
+2. Nếu là thông báo chính thức từ đơn vị uy tín (Vcb tin nhắn thông báo số dư, Shopee thông báo mã giảm giá trên app, công an gửi giấy mời tới cơ quan, thông báo học phí...) → intent_type = "scam_analysis", risk_score = 0 đến 25 (LOW).
 3. Nếu là tin nhắn mượn tiền từ nick quen, tin nhắn shipper báo COD giao bảo vệ, người chuyển nhầm tiền nhờ chuyển lại (chưa có link lạ/chưa có file .apk) → risk_score = 40 đến 60 (MEDIUM).
 4. Nếu là kịch bản tuyển dụng CTV nạp tiền/quỹ, giả mạo website ngân hàng/cơ quan nhà nước → risk_score = 75 đến 89 (HIGH).
 5. Nếu yêu cầu cài file .apk ngoài CH Play hoặc nạn nhân vừa bị lừa mất tiền → risk_score = 90 đến 99 (CRITICAL).
@@ -262,8 +275,8 @@ if __name__ == "__main__":
     print(f"\n[MultiLLMClient] is_active: {client.is_active}")
 
     result = client.analyze_scam(
-        user_text="Tuyển CTV xem TikTok chốt đơn Shopee. Yêu cầu nạp 500k quỹ đảm bảo gấp.",
-        matched_flags=["tuyển dụng", "nạp tiền", "gấp"],
+        user_text="Thông báo trúng thưởng xe máy SH, yêu cầu nạp tiền để làm thủ tục nhận giải",
+        matched_flags=["trúng thưởng", "nạp tiền", "gấp"],
         ocr_anomalies=[]
     )
     if result:
