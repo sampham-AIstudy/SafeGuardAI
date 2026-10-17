@@ -1,10 +1,13 @@
+import collections
 import os
 import json
 import time
 import re
+import threading
 import urllib.request
 import urllib.parse
 import urllib.error
+import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeout
 
 try:
@@ -33,13 +36,19 @@ class ThreatIntelAgent:
     All lookups are timeout-safe and fail gracefully when keys are missing.
     """
 
-    TIMEOUT = 8  # seconds per API call
+    TIMEOUT = 3.0  # seconds per API call (Phase 3 requirement: 3s)
+    CACHE_MAX = 512
+    CACHE_TTL_NORMAL = 21600  # 6 hours (in seconds)
+    CACHE_TTL_ERROR = 60      # 60 seconds for errors / timeouts
 
     def __init__(self):
         settings = get_settings()
         self.vt_key = get_api_key("VIRUSTOTAL_API_KEY")
         self.gsb_key = get_api_key("GOOGLE_SAFE_BROWSING_KEY")
         self.urlscan_key = get_api_key("URLSCAN_API_KEY")
+
+        self._cache: collections.OrderedDict[str, tuple[dict, float]] = collections.OrderedDict()
+        self._cache_lock = threading.Lock()
 
         if settings.offline or not settings.network_enabled:
             print("[ThreatIntelAgent] [INFO] ThreatIntel disabled (offline or network disabled).")
@@ -54,7 +63,29 @@ class ThreatIntelAgent:
             active.append("URLScan.io")
         active.append("PhishTank")  # always available, no key needed
 
-        print(f"[ThreatIntelAgent] ✅ Active sources: {', '.join(active)}")
+        print(f"[ThreatIntelAgent] [OK] Active sources: {', '.join(active)}")
+
+    def _normalize_cache_key(self, url: str) -> str:
+        """Normalize URL for consistent cache lookup while protecting privacy."""
+        if not url:
+            return ""
+        url = url.strip()
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
+        try:
+            parsed = urllib.parse.urlsplit(url)
+            scheme = (parsed.scheme or "https").lower()
+            netloc = (parsed.netloc or "").lower()
+            if "@" in netloc:
+                netloc = netloc.split("@")[-1]
+            if ":" in netloc and not netloc.startswith("["):
+                parts = netloc.split(":")
+                if (scheme == "http" and parts[1] == "80") or (scheme == "https" and parts[1] == "443"):
+                    netloc = parts[0]
+            path = parsed.path.rstrip("/") or "/"
+            return f"{scheme}://{netloc}{path}"
+        except Exception:
+            return url.lower().strip().rstrip("/")
 
     # ─────────────────────────────────────────────────────────────────────────
     # PUBLIC API
@@ -62,13 +93,18 @@ class ThreatIntelAgent:
     def scan_url(self, url: str) -> dict:
         """
         Scan a URL against all available threat intelligence sources in parallel.
-        Returns aggregated verdict with per-source details.
+        Returns aggregated verdict with per-source details and network_actions.
         """
         url = url.strip()
         if not url:
-            return {"error": "Empty URL", "is_malicious": False, "sources_checked": []}
+            return {
+                "error": "Empty URL",
+                "is_malicious": False,
+                "sources_checked": [],
+                "network_actions": []
+            }
 
-        # Normalize URL
+        # Normalize URL scheme
         if not url.startswith(("http://", "https://")):
             url = "https://" + url
 
@@ -82,32 +118,72 @@ class ThreatIntelAgent:
                 "malicious_sources": 0,
                 "sources_checked": [],
                 "verdict_summary": "Offline / mạng bị tắt",
-                "details": {}
+                "details": {},
+                "network_actions": []
             }
+
+        # Check Cache (TTL 6h for normal, 60s for error/timeout)
+        cache_key = self._normalize_cache_key(url)
+        with self._cache_lock:
+            if cache_key in self._cache:
+                cached_val, expires_at = self._cache[cache_key]
+                if time.time() < expires_at:
+                    self._cache.move_to_end(cache_key)
+                    cached_res = dict(cached_val)
+                    # Cache hit: no network calls performed in this run
+                    cached_res["network_actions"] = []
+                    return cached_res
+
+        # Privacy cleanup for external lookups: strip userinfo, query, fragment
+        try:
+            parsed = urllib.parse.urlsplit(url)
+            clean_netloc = domain
+            clean_path = parsed.path if parsed.path else "/"
+            clean_url = urllib.parse.urlunsplit((parsed.scheme or "https", clean_netloc, clean_path, "", ""))
+        except Exception:
+            clean_url = f"https://{domain}/"
 
         results = {}
         sources_checked = []
+        network_actions = []
 
-        # Run all checks in parallel for speed
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        # Run all checks in parallel with ThreadPoolExecutor without 'with' block
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+        try:
             futures = {}
 
             if self.vt_key:
-                futures[executor.submit(self._check_virustotal, url)] = "virustotal"
+                futures[executor.submit(self._check_virustotal, clean_url)] = "virustotal"
+                network_actions.append({"type": "virustotal_lookup", "target": domain})
             if self.gsb_key:
-                futures[executor.submit(self._check_google_safe_browsing, [url])] = "google_safe_browsing"
+                futures[executor.submit(self._check_google_safe_browsing, [clean_url])] = "google_safe_browsing"
+                network_actions.append({"type": "gsb_lookup", "target": domain})
             if self.urlscan_key:
-                futures[executor.submit(self._check_urlscan, url)] = "urlscan"
-            futures[executor.submit(self._check_phishtank, url)] = "phishtank"
+                futures[executor.submit(self._check_urlscan, clean_url)] = "urlscan"
+                network_actions.append({"type": "urlscan_search", "target": domain})
 
-            for future in as_completed(futures, timeout=self.TIMEOUT + 2):
+            futures[executor.submit(self._check_phishtank, clean_url)] = "phishtank"
+            network_actions.append({"type": "phishtank_lookup", "target": domain})
+
+            # Wait with strict timeout (timeout 3.0s)
+            done, not_done = concurrent.futures.wait(futures.keys(), timeout=self.TIMEOUT)
+
+            for future in done:
                 source_name = futures[future]
                 try:
-                    result = future.result(timeout=self.TIMEOUT)
+                    result = future.result()
                     results[source_name] = result
                     sources_checked.append(source_name)
                 except Exception as e:
                     results[source_name] = {"error": str(e), "is_malicious": False}
+
+            for future in not_done:
+                source_name = futures[future]
+                results[source_name] = {"error": "timeout", "is_malicious": False}
+
+        finally:
+            # Immediately shutdown without waiting and cancel any pending/running futures
+            executor.shutdown(wait=False, cancel_futures=True)
 
         # Aggregate verdict
         is_malicious = any(
@@ -133,15 +209,33 @@ class ThreatIntelAgent:
         if results.get("phishtank", {}).get("is_malicious"):
             verdict_parts.append(f"PhishTank: URL có trong database lừa đảo")
 
-        return {
+        # Determine cache TTL: 60s if all failed or timed out, 6h if normal
+        is_error = False
+        if not sources_checked and results:
+            is_error = True
+        elif results and all(v.get("error") for v in results.values()):
+            is_error = True
+
+        ttl = self.CACHE_TTL_ERROR if is_error else self.CACHE_TTL_NORMAL
+
+        res_dict = {
             "url": url,
             "domain": domain,
             "is_malicious": is_malicious,
             "malicious_sources": malicious_count,
             "sources_checked": sources_checked,
             "verdict_summary": " | ".join(verdict_parts) if verdict_parts else "Không phát hiện mối đe dọa",
-            "details": results
+            "details": results,
+            "network_actions": network_actions
         }
+
+        # Store in cache
+        with self._cache_lock:
+            if len(self._cache) >= self.CACHE_MAX:
+                self._cache.popitem(last=False)
+            self._cache[cache_key] = (res_dict, time.time() + ttl)
+
+        return res_dict
 
     def lookup_domain(self, domain: str) -> dict:
         """
@@ -229,10 +323,12 @@ class ThreatIntelAgent:
     # VIRUSTOTAL
     # ─────────────────────────────────────────────────────────────────────────
     def _check_virustotal(self, url: str) -> dict:
-        """Query VirusTotal URL scan API v3."""
+        """Query VirusTotal URL scan API v3 (GET by default, no submit unless VT_SUBMIT=1)."""
+        if not self.vt_key:
+            return {"is_malicious": False, "error": "No API key"}
         try:
             import base64
-            # Encode URL to base64 (VT API v3 format)
+            # Encode URL to base64 (VT API v3 format, without padding '=')
             url_id = base64.urlsafe_b64encode(url.encode()).decode().strip("=")
             api_url = f"https://www.virustotal.com/api/v3/urls/{url_id}"
 
@@ -258,8 +354,10 @@ class ThreatIntelAgent:
 
         except urllib.error.HTTPError as e:
             if e.code == 404:
-                # URL not yet scanned → submit for scanning
-                return self._submit_virustotal(url)
+                # Default: DO NOT submit URL. Only submit when VT_SUBMIT=1.
+                if os.environ.get("VT_SUBMIT") == "1":
+                    return self._submit_virustotal(url)
+                return {"is_malicious": False, "status": "not_found", "message": "URL not scanned"}
             return {"is_malicious": False, "error": f"HTTP {e.code}"}
         except Exception as e:
             return {"is_malicious": False, "error": str(e)}
@@ -291,7 +389,9 @@ class ThreatIntelAgent:
     # GOOGLE SAFE BROWSING
     # ─────────────────────────────────────────────────────────────────────────
     def _check_google_safe_browsing(self, urls: list) -> dict:
-        """Query Google Safe Browsing API v4 for a list of URLs."""
+        """Query Google Safe Browsing API v4 for a list of URLs (only when key valid)."""
+        if not self.gsb_key:
+            return {"is_malicious": False, "error": "No API key"}
         try:
             api_url = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={self.gsb_key}"
             payload = json.dumps({
@@ -329,52 +429,60 @@ class ThreatIntelAgent:
     # URLSCAN.IO
     # ─────────────────────────────────────────────────────────────────────────
     def _check_urlscan(self, url: str) -> dict:
-        """Submit URL to URLScan.io for analysis and get verdict."""
+        """
+        URLScan.io check:
+        - Default: ONLY search existing scans by domain (NO submit, no POST, privacy-preserving).
+        - Submit: ONLY when URLSCAN_SUBMIT=1, with visibility='unlisted', and NO sleep(3).
+        """
+        if not self.urlscan_key:
+            return {"is_malicious": False, "error": "No API key"}
         try:
-            # Submit scan
-            payload = json.dumps({"url": url, "visibility": "public"}).encode()
-            req = urllib.request.Request(
-                "https://urlscan.io/api/v1/scan/",
-                data=payload,
-                headers={
-                    "API-Key": self.urlscan_key,
-                    "Content-Type": "application/json"
-                },
-                method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=self.TIMEOUT) as resp:
-                data = json.loads(resp.read().decode())
+            domain = self._extract_domain(url)
+            if os.environ.get("URLSCAN_SUBMIT") == "1":
+                # Submit scan with visibility 'unlisted'
+                payload = json.dumps({"url": url, "visibility": "unlisted"}).encode()
+                req = urllib.request.Request(
+                    "https://urlscan.io/api/v1/scan/",
+                    data=payload,
+                    headers={
+                        "API-Key": self.urlscan_key,
+                        "Content-Type": "application/json"
+                    },
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=self.TIMEOUT) as resp:
+                    data = json.loads(resp.read().decode())
 
-            uuid = data.get("uuid", "")
-            if not uuid:
-                return {"is_malicious": False, "error": "No scan UUID"}
-
-            # Wait briefly then fetch result
-            time.sleep(3)
-            result_req = urllib.request.Request(
-                f"https://urlscan.io/api/v1/result/{uuid}/",
-                headers={"API-Key": self.urlscan_key}
-            )
-            try:
-                with urllib.request.urlopen(result_req, timeout=self.TIMEOUT) as resp2:
-                    result_data = json.loads(resp2.read().decode())
-                verdicts = result_data.get("verdicts", {}).get("overall", {})
-                return {
-                    "is_malicious": verdicts.get("malicious", False),
-                    "score": verdicts.get("score", 0),
-                    "categories": verdicts.get("categories", []),
-                    "screenshot": result_data.get("task", {}).get("screenshotURL", ""),
-                    "uuid": uuid
-                }
-            except Exception:
-                # Result not ready yet — return pending
+                uuid = data.get("uuid", "")
+                # No time.sleep(3) per Phase 3 requirement
                 return {
                     "is_malicious": False,
-                    "status": "pending",
+                    "status": "submitted",
                     "uuid": uuid,
-                    "result_url": f"https://urlscan.io/result/{uuid}/"
+                    "result_url": f"https://urlscan.io/result/{uuid}/" if uuid else ""
                 }
+            else:
+                # Default: Search existing scans for this domain (search API)
+                encoded = urllib.parse.quote(f"domain:{domain}")
+                req = urllib.request.Request(
+                    f"https://urlscan.io/api/v1/search/?q={encoded}&size=5",
+                    headers={"API-Key": self.urlscan_key}
+                )
+                with urllib.request.urlopen(req, timeout=self.TIMEOUT) as resp:
+                    data = json.loads(resp.read().decode())
 
+                results = data.get("results", [])
+                malicious_count = sum(
+                    1 for r in results
+                    if r.get("verdicts", {}).get("overall", {}).get("malicious", False)
+                )
+                score = max([r.get("verdicts", {}).get("overall", {}).get("score", 0) for r in results], default=0)
+                return {
+                    "is_malicious": malicious_count > 0,
+                    "score": score,
+                    "scan_count": len(results),
+                    "malicious_count": malicious_count
+                }
         except Exception as e:
             return {"is_malicious": False, "error": str(e)}
 
