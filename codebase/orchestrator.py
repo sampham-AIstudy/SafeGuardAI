@@ -144,6 +144,7 @@ class SafeGuardOrchestrator:
         has_image_input = bool(image_input or pil_image or image_base64)
         image_analysis = None
         extra_urls: list[tuple[str, str]] = []
+        has_risky_qr = False
         vietqr_crc_failed = False
         image_to_process = image_input or pil_image
         pil_image = None
@@ -174,6 +175,7 @@ class SafeGuardOrchestrator:
                     classify_qr_payload,
                     parse_vietqr,
                     defang_url,
+                    sanitize_qr_string,
                 )
                 pil_image = open_image_safely(image_to_process) if image_to_process is not None else None
             except Exception as ex:
@@ -192,13 +194,16 @@ class SafeGuardOrchestrator:
                     try:
                         cls = classify_qr_payload(p)
                         kind = cls.get("kind")
-                        if kind == "url":
-                            u = cls.get("url") or p
-                            extra_urls.append((u, "qr"))
-                            image_analysis["qr_urls"].append(defang_url(u))
-                        elif cls.get("risky"):
+                        if cls.get("risky"):
+                            has_risky_qr = True
                             image_analysis["risky_payloads"] += 1
-                            extra_urls.append((p, "qr"))
+                            clean_p = sanitize_qr_string(p, 300)
+                            extra_urls.append((clean_p, "qr"))
+                        elif kind == "url" or cls.get("url"):
+                            u = cls.get("url") or p
+                            clean_u = sanitize_qr_string(u, 300)
+                            extra_urls.append((clean_u, "qr"))
+                            image_analysis["qr_urls"].append(defang_url(clean_u))
                         elif kind == "vietqr":
                             vinfo = parse_vietqr(p)
                             if vinfo is not None:
@@ -289,6 +294,7 @@ class SafeGuardOrchestrator:
                 pil_image=pil_image,
                 extra_urls=extra_urls,
                 image_analysis=image_analysis,
+                has_risky_qr=has_risky_qr,
                 vietqr_crc_failed=vietqr_crc_failed,
                 deadline=deadline,
                 recorder=recorder,
@@ -312,6 +318,7 @@ class SafeGuardOrchestrator:
             input_truncated=input_truncated,
             extra_urls=extra_urls,
             image_analysis=image_analysis,
+            has_risky_qr=has_risky_qr,
             vietqr_crc_failed=vietqr_crc_failed,
             deadline=deadline,
             recorder=recorder,
@@ -387,7 +394,7 @@ class SafeGuardOrchestrator:
         critical_url_codes = {
             "USERINFO_BRAND_DECOY", "HOMOGLYPH_BRAND", "BLACKLIST_HIT",
             "APK_DOWNLOAD", "DATA_OR_JS_URI", "BACKSLASH_CONFUSION",
-            "THREAT_INTEL_MALICIOUS"
+            "THREAT_INTEL_MALICIOUS", "RISKY_QR_PAYLOAD"
         }
         has_critical = bool(crit_codes) or bool(all_signal_codes & critical_url_codes)
         critical_evidence = has_critical
@@ -644,6 +651,7 @@ class SafeGuardOrchestrator:
         pil_image=None,
         extra_urls: list[tuple[str, str]] | None = None,
         image_analysis: dict | None = None,
+        has_risky_qr: bool = False,
         vietqr_crc_failed: bool = False,
         deadline: float | None = None,
         recorder: Any = None,
@@ -758,19 +766,51 @@ class SafeGuardOrchestrator:
             )
 
         critical_evidence = False
-        extra_crit = {"THREAT_INTEL_MALICIOUS"} if (ti_result and ti_result.get("is_malicious")) else None
+        extra_crit = set()
+        if ti_result and ti_result.get("is_malicious"):
+            extra_crit.add("THREAT_INTEL_MALICIOUS")
+        if has_risky_qr:
+            extra_crit.add("RISKY_QR_PAYLOAD")
+
         if get_settings().url_module_enabled or extra_crit:
             risk_score, critical_evidence = self._apply_evidence_floors(
                 risk_score=risk_score,
                 url_report=url_report,
                 explain_info=explain_info,
-                extra_critical_codes=extra_crit
+                extra_critical_codes=extra_crit or None
             )
+
+        if has_risky_qr:
+            if "reasons" not in explain_info:
+                explain_info["reasons"] = []
+            explain_info["reasons"].append("Mã QR chứa lệnh hoặc định dạng rủi ro cao (URI nguy hiểm)")
+            if "risk_breakdown" not in explain_info:
+                explain_info["risk_breakdown"] = []
+            explain_info["risk_breakdown"].append({
+                "factor": "Mã QR chứa lệnh hoặc định dạng rủi ro cao",
+                "code": "RISKY_QR_PAYLOAD",
+                "severity": "critical",
+                "score": 60,
+            })
+            critical_evidence = True
+            risk_score = max(risk_score, 85)
 
         if vietqr_crc_failed:
             if "reasons" not in explain_info:
                 explain_info["reasons"] = []
             explain_info["reasons"].append("Mã VietQR bị chỉnh sửa/không hợp lệ (sai CRC)")
+            if "risk_breakdown" not in explain_info:
+                explain_info["risk_breakdown"] = []
+            explain_info["risk_breakdown"].append({
+                "factor": "Mã VietQR không hợp lệ hoặc bị chỉnh sửa (sai mã kiểm tra CRC)",
+                "code": "VIETQR_CRC_INVALID",
+                "severity": "medium",
+                "score": 30,
+            })
+            risk_score = min(99, risk_score + 30)
+            risk_score = max(risk_score, 45)
+
+        explain_info["risk_score"] = risk_score
 
         decision_info = self.decision_agent.evaluate_decision(
             risk_score=risk_score,
@@ -864,6 +904,7 @@ class SafeGuardOrchestrator:
         input_truncated: bool = False,
         extra_urls: list[tuple[str, str]] | None = None,
         image_analysis: dict | None = None,
+        has_risky_qr: bool = False,
         vietqr_crc_failed: bool = False,
         deadline: float | None = None,
         recorder: Any = None,
@@ -990,14 +1031,51 @@ class SafeGuardOrchestrator:
             risk_score = max(risk_score, 70)
 
         critical_evidence = False
-        extra_crit = {"THREAT_INTEL_MALICIOUS"} if (ti_result and ti_result.get("is_malicious")) else None
+        extra_crit = set()
+        if ti_result and ti_result.get("is_malicious"):
+            extra_crit.add("THREAT_INTEL_MALICIOUS")
+        if has_risky_qr:
+            extra_crit.add("RISKY_QR_PAYLOAD")
+
         if get_settings().url_module_enabled or extra_crit:
             risk_score, critical_evidence = self._apply_evidence_floors(
                 risk_score=risk_score,
                 url_report=url_report,
                 explain_info=explain_info,
-                extra_critical_codes=extra_crit
+                extra_critical_codes=extra_crit or None
             )
+
+        if has_risky_qr:
+            if "reasons" not in explain_info:
+                explain_info["reasons"] = []
+            explain_info["reasons"].append("Mã QR chứa lệnh hoặc định dạng rủi ro cao (URI nguy hiểm)")
+            if "risk_breakdown" not in explain_info:
+                explain_info["risk_breakdown"] = []
+            explain_info["risk_breakdown"].append({
+                "factor": "Mã QR chứa lệnh hoặc định dạng rủi ro cao",
+                "code": "RISKY_QR_PAYLOAD",
+                "severity": "critical",
+                "score": 60,
+            })
+            critical_evidence = True
+            risk_score = max(risk_score, 85)
+
+        if vietqr_crc_failed:
+            if "reasons" not in explain_info:
+                explain_info["reasons"] = []
+            explain_info["reasons"].append("Mã VietQR bị chỉnh sửa/không hợp lệ (sai CRC)")
+            if "risk_breakdown" not in explain_info:
+                explain_info["risk_breakdown"] = []
+            explain_info["risk_breakdown"].append({
+                "factor": "Mã VietQR không hợp lệ hoặc bị chỉnh sửa (sai mã kiểm tra CRC)",
+                "code": "VIETQR_CRC_INVALID",
+                "severity": "medium",
+                "score": 30,
+            })
+            risk_score = min(99, risk_score + 30)
+            risk_score = max(risk_score, 45)
+
+        explain_info["risk_score"] = risk_score
 
         # Step 7: Confidence Agent
         confidence_info = self.confidence_agent.evaluate(
@@ -1005,11 +1083,6 @@ class SafeGuardOrchestrator:
             total_patterns_matched=rag_result["total_patterns_matched"],
             risk_score=risk_score
         )
-
-        if vietqr_crc_failed:
-            if "reasons" not in explain_info:
-                explain_info["reasons"] = []
-            explain_info["reasons"].append("Mã VietQR bị chỉnh sửa/không hợp lệ (sai CRC)")
 
         # Step 8: Decision Agent
         decision_info = self.decision_agent.evaluate_decision(

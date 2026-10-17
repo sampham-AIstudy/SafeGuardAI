@@ -71,8 +71,8 @@ def _build_test_vietqr(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_open_image_safely_valid_and_resize():
-    # Large image: 4500x3000 -> must scale down to max edge 4000
-    img = Image.new("RGBA", (4500, 3000), color=(100, 150, 200, 255))
+    # Large image (11.9MP, under the 12MP cap): 4400x2700 -> scaled so the long edge is 2000 px
+    img = Image.new("RGBA", (4400, 2700), color=(100, 150, 200, 255))
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     raw = buf.getvalue()
@@ -80,9 +80,9 @@ def test_open_image_safely_valid_and_resize():
     opened = open_image_safely(raw)
     assert opened is not None
     assert opened.mode == "RGB"
-    assert max(opened.width, opened.height) <= 4000
-    assert opened.width == 4000
-    assert opened.height == 2666
+    assert max(opened.width, opened.height) <= 2000
+    assert opened.width == 2000
+    assert opened.height in (1227, 1228)  # 2700 * 2000 / 4400
 
 
 def test_open_image_safely_max_bytes():
@@ -189,7 +189,7 @@ def test_parse_vietqr_valid():
     assert parsed["bin"] == "970436"
     assert parsed["bank_name"] == "Vietcombank"
     assert parsed["account"] == "0123456789"
-    assert parsed["masked_account"] == "0123****789"
+    assert parsed["masked_account"] == "01****89"
     assert parsed["amount"] == "150000"
     assert parsed["name"] == "TRAN VAN B"
     assert parsed["memo"] == "DONG TIEN HOC"
@@ -220,7 +220,7 @@ def test_parse_vietqr_masked_account_no_leak():
     parsed = parse_vietqr(qr)
     assert parsed is not None
     masked = parsed["masked_account"]
-    assert masked == "9876****012"
+    assert masked == "98****12"
     assert "987654321012" not in masked
 
 

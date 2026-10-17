@@ -161,7 +161,7 @@ def test_orchestrator_vietqr_parsed_and_json_serializable(orchestrator):
     v = img_an["vietqr"][0]
     assert v["bank_name"] == "Vietcombank"
     assert v["bin"] == "970436"
-    assert v["masked_account"] == "0123****789"
+    assert v["masked_account"] == "01****89"
     # Full account must NOT be present in response
     assert "account" not in v
     assert "0123456789" not in v["masked_account"]
@@ -173,7 +173,7 @@ def test_orchestrator_vietqr_parsed_and_json_serializable(orchestrator):
     # Entire response must be valid JSON serializable
     dumped = json.dumps(res, ensure_ascii=False)
     assert "0123456789" not in dumped
-    assert "0123****789" in dumped
+    assert "01****89" in dumped
 
 
 def test_orchestrator_vietqr_corrupt_crc_adds_reason(orchestrator):

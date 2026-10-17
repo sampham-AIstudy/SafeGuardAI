@@ -298,9 +298,8 @@ def classify_response(
             )
 
     # -------------------------------------------------------------
-    # 8. reCAPTCHA (Guarded against false positives on news/blogs)
+    # 8. reCAPTCHA (Guarded against false positives on normal forms)
     # -------------------------------------------------------------
-    # Genuine reCAPTCHA challenge pages include widgets, api.js, or execution calls
     has_recaptcha_script = (
         "google.com/recaptcha/api.js" in body_lower
         or "google.com/recaptcha/enterprise.js" in body_lower
@@ -314,14 +313,28 @@ def classify_response(
         )
     )
     if has_recaptcha_script or has_recaptcha_widget:
-        return AntiBotResult(
-            vendor="recaptcha",
-            kind="captcha",
-            evidence=["body:recaptcha_widget"],
+        is_normal_form = (
+            len(body_text) > 2048
+            and status not in (403, 429, 503)
+            and any(f_tag in body_lower for f_tag in ("<form", "type=\"password\"", "name=\"email\"", "name=\"username\""))
+            and not any(
+                gate in body_lower
+                for gate in (
+                    "verify you are human", "xác minh bạn là người", "attention required",
+                    "security check", "unusual traffic", "please solve", "bot detection",
+                    "one more step", "access denied", "checking your browser"
+                )
+            )
         )
+        if not is_normal_form:
+            return AntiBotResult(
+                vendor="recaptcha",
+                kind="captcha",
+                evidence=["body:recaptcha_widget"],
+            )
 
     # -------------------------------------------------------------
-    # 9. hCaptcha (Guarded against false positives on news/blogs)
+    # 9. hCaptcha (Guarded against false positives on normal forms)
     # -------------------------------------------------------------
     has_hcaptcha_script = (
         "hcaptcha.com/1/api.js" in body_lower
@@ -335,64 +348,86 @@ def classify_response(
         )
     )
     if has_hcaptcha_script or has_hcaptcha_widget:
-        return AntiBotResult(
-            vendor="hcaptcha",
-            kind="captcha",
-            evidence=["body:hcaptcha_widget"],
+        is_normal_form_h = (
+            len(body_text) > 2048
+            and status not in (403, 429, 503)
+            and any(f_tag in body_lower for f_tag in ("<form", "type=\"password\"", "name=\"email\"", "name=\"username\""))
+            and not any(
+                gate in body_lower
+                for gate in (
+                    "verify you are human", "xác minh bạn là người", "attention required",
+                    "security check", "unusual traffic", "please solve", "bot detection",
+                    "one more step", "access denied", "checking your browser"
+                )
+            )
         )
+        if not is_normal_form_h:
+            return AntiBotResult(
+                vendor="hcaptcha",
+                kind="captcha",
+                evidence=["body:hcaptcha_widget"],
+            )
 
     # -------------------------------------------------------------
     # 10. Generic Bot Protection / Challenge Phrases
     # -------------------------------------------------------------
-    generic_phrases = [
-        "verify you are human",
-        "xác minh bạn là người",
-        "kiểm tra trình duyệt",
-        "bot protection",
-        "enable javascript to continue",
-        "vui lòng bật javascript",
-    ]
-    for phrase in generic_phrases:
-        if phrase in body_lower:
-            # Avoid false positive on news/educational articles mentioning 'bot protection' casually
-            if phrase == "bot protection":
-                is_challenge_context = (
-                    status in (403, 429, 503)
-                    or any(
-                        chk in body_lower
-                        for chk in (
-                            "security check", "ddos", "protected by", "ray id", "verify",
-                            "checking", "under bot protection", "active bot protection",
-                            "cloudflare", "waf", "challenge", "please wait"
+    if len(body_text) < 8192:
+        generic_phrases = [
+            "verify you are human",
+            "xác minh bạn là người",
+            "kiểm tra trình duyệt",
+            "bot protection",
+            "enable javascript to continue",
+            "vui lòng bật javascript",
+        ]
+        for phrase in generic_phrases:
+            if phrase in body_lower:
+                # Avoid false positive on news/educational articles mentioning 'bot protection' casually
+                if phrase == "bot protection":
+                    is_challenge_context = (
+                        status in (403, 429, 503)
+                        or any(
+                            chk in body_lower
+                            for chk in (
+                                "security check", "ddos", "protected by", "ray id",
+                                "checking", "under bot protection", "active bot protection",
+                                "cloudflare", "waf", "challenge", "please wait"
+                            )
                         )
                     )
-                )
-                if not is_challenge_context:
-                    continue
+                    if not is_challenge_context:
+                        continue
 
-            kind = "captcha" if ("xác minh" in phrase or "verify" in phrase) else "challenge"
-            return AntiBotResult(
-                vendor="generic",
-                kind=kind,
-                evidence=[f"body:phrase:{phrase}"],
-            )
+                kind = "captcha" if ("xác minh" in phrase or "verify" in phrase) else "challenge"
+                return AntiBotResult(
+                    vendor="generic",
+                    kind=kind,
+                    evidence=[f"body:phrase:{phrase}"],
+                )
 
     # -------------------------------------------------------------
     # 11. Interstitial rút gọn (Shortener Interstitial)
     # -------------------------------------------------------------
-    interstitial_phrases = [
-        "click to continue",
-        "nhấn để tiếp tục",
-        "skip ad",
-        "adf.ly",
-    ]
-    for iphrase in interstitial_phrases:
-        if iphrase in body_lower:
+    is_reading_prompt = (
+        "click to continue reading" in body_lower
+        or "nhấn để tiếp tục đọc" in body_lower
+        or "continue reading" in body_lower
+    )
+    if not is_reading_prompt:
+        if "adf.ly" in body_lower:
             return AntiBotResult(
                 vendor="generic",
                 kind="interstitial",
-                evidence=[f"body:interstitial:{iphrase}"],
+                evidence=["body:interstitial:adf.ly"],
             )
+        if len(body_text) <= 2048 or any(m in body_lower for m in ("your link is almost ready", "get link", "seconds remaining", "chờ giây")):
+            for iphrase in ("click to continue", "nhấn để tiếp tục", "skip ad"):
+                if iphrase in body_lower:
+                    return AntiBotResult(
+                        vendor="generic",
+                        kind="interstitial",
+                        evidence=[f"body:interstitial:{iphrase}"],
+                    )
 
     # -------------------------------------------------------------
     # 12. Trang chỉ-JS (JS-only redirect / blank page)
@@ -413,12 +448,20 @@ def classify_response(
             and "url=" not in body_lower
         )
         if has_js_redirect or has_empty_meta_refresh:
+            # Check if page is an SPA app shell with a real title
+            m_title = re.search(r"(?i)<title[^>]{0,100}>([^<]{3,100})</title>", body_text)
+            has_app_title = False
+            if m_title:
+                t_str = m_title.group(1).strip().lower()
+                if t_str and not any(ign in t_str for ign in ("redirect", "loading", "chuyển hướng", "please wait")):
+                    has_app_title = True
+
             # Strip script and style tags and contents to check if meaningful visible text exists (linear, no .*)
             cleaned_html = re.sub(r"(?i)<script[^>]{0,100}>[^<]{0,500}</script>", "", body_text)
             cleaned_html = re.sub(r"(?i)<style[^>]{0,100}>[^<]{0,500}</style>", "", cleaned_html)
             text_without_tags = re.sub(r"<[^>]{0,200}>", "", cleaned_html)
             text_without_tags = re.sub(r"\s+", "", text_without_tags)
-            if len(text_without_tags) < 60:
+            if len(text_without_tags) < 60 and not has_app_title:
                 return AntiBotResult(
                     vendor="generic",
                     kind="js_only",

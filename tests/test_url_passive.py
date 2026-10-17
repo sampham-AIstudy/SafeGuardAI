@@ -860,3 +860,97 @@ def test_mutation_offline_bypassed():
     res = intel.domain_age("example.com")
     assert res is None
     fetch_mock.assert_not_called()
+
+
+# ============================================================================
+# Phase 3E-2 Tests: Truncated JSON recovery, RDAP URL format, Probe SSRF
+# ============================================================================
+
+def test_crt_sh_truncated_json_recovery(enable_network_settings):
+    """
+    Nit: crt.sh truncated JSON (> 256KB or connection cut off) is parsed incrementally
+    up to the last valid complete object, rather than discarding all data as None.
+    """
+    # Create valid JSON with 3 objects, then truncate in the middle of 4th object
+    items = [
+        {"entry_timestamp": "2026-01-01T00:00:00", "not_before": "2026-01-01T00:00:00"},
+        {"entry_timestamp": "2026-02-01T00:00:00", "not_before": "2026-02-01T00:00:00"},
+        {"entry_timestamp": "2026-03-01T00:00:00", "not_before": "2026-03-01T00:00:00"},
+    ]
+    truncated_bytes = json.dumps(items).encode("utf-8")[:-1] + b',{"entry_timestamp": "2026-04-01T'  # cut off
+
+    def mock_fetch(url, **kw):
+        return 200, {"content-type": "application/json"}, truncated_bytes
+
+    intel = PassiveIntel(fetch=mock_fetch)
+    res = intel.ct_first_seen("test-domain.top")
+    assert res is not None
+    assert res["cert_count"] == 3
+    assert res["first_seen"] == "2026-01-01T00:00:00+00:00"
+
+
+def test_rdap_url_strictly_formatted(enable_network_settings):
+    """
+    Mutation kill: RDAP lookup must use strictly formatted URL https://rdap.org/domain/{domain}
+    with no extraneous query parameters or altered paths.
+    """
+    requested_urls = []
+
+    def mock_fetch(url, **kw):
+        requested_urls.append(url)
+        return 200, {"content-type": "application/json"}, b'{"events": [{"eventAction": "registration", "eventDate": "2026-01-01T00:00:00Z"}]}'
+
+    intel = PassiveIntel(fetch=mock_fetch)
+    res = intel.domain_age("safe-example.com")
+    assert res is not None
+    assert len(requested_urls) == 1
+    assert requested_urls[0] == "https://rdap.org/domain/safe-example.com"
+
+
+def test_probe_tls_certificate_rejects_domain_resolving_to_private_ip(enable_network_settings, monkeypatch):
+    """
+    Mutation kill: probe_tls_certificate must block domains resolving to private/loopback IP.
+    """
+    def fake_getaddrinfo(host, port, *args, **kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", port))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+
+    res = probe_tls_certificate("evil-private.example", timeout=1.0)
+    assert res is None
+
+
+def test_passive_intel_with_recorder_preserves_data(enable_network_settings):
+    """
+    Nit: Passing a recorder to PassiveIntel.analyze must return a valid analysis dict,
+    not return None accidentally.
+    """
+    from codebase.url_analysis.resolver import NetworkRecorder
+    recorder = NetworkRecorder()
+
+    def mock_fetch(url, **kw):
+        if "rdap.org" in url:
+            return 200, {}, b'{"events": [{"eventAction": "registration", "eventDate": "2026-01-01T00:00:00Z"}]}'
+        elif "crt.sh" in url:
+            return 200, {}, b'[{"entry_timestamp": "2026-01-01T00:00:00", "not_before": "2026-01-01T00:00:00"}]'
+        return 404, {}, b""
+
+    intel = PassiveIntel(fetch=mock_fetch)
+    finding = UrlFinding(
+        raw="https://example.com/test",
+        normalized="https://example.com/test",
+        final_url="https://example.com/test",
+        display_host="example.com",
+        effective_host="example.com",
+        effective_host_unicode="example.com",
+        registrable_domain="example.com",
+        is_official=False,
+        brand_match=None,
+        source="text",
+    )
+    res = intel.analyze(finding, recorder=recorder)
+    assert res is not None
+    assert "domain_age" in res
+    assert res["domain_age"] is not None
+    assert len(recorder.get_actions()) > 0
+

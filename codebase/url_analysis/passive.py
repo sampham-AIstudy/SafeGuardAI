@@ -298,7 +298,6 @@ class PassiveIntel:
 
         if rec_idx is not None:
             recorder.update_status(rec_idx, "ok")
-            return None
 
         status, headers, body_bytes = res
         if status != 200 or not body_bytes:
@@ -313,7 +312,15 @@ class PassiveIntel:
             body_text = body_bytes.decode("utf-8", errors="replace")
             items = json.loads(body_text)
         except Exception:
-            return None
+            # S2: Handle truncated JSON by parsing up to the last complete element
+            last_brace = body_text.rfind("}")
+            if last_brace != -1:
+                try:
+                    items = json.loads(body_text[:last_brace + 1] + "]")
+                except Exception:
+                    return None
+            else:
+                return None
 
         if not isinstance(items, list):
             return None

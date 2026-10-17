@@ -1360,3 +1360,104 @@ def test_injected_transport_sleep_bounded(enable_network_settings):
     assert elapsed <= 0.8
     assert chain.error == "budget_exceeded"
 
+
+# =====================================================================
+# Phase 3E-2: Location normalization, HEAD 200 + GET 302, fetch security
+# =====================================================================
+
+def test_normalize_location_12_variants():
+    """Verify B1 Location normalization across 12 WHATWG variants."""
+    from codebase.url_analysis.resolver import _normalize_location
+
+    cases = [
+        # 1. Same scheme (https), single slash -> relative path on current host
+        ("https:/vietcombank.com.vn", "https://attacker.top/landing", "https://attacker.top/vietcombank.com.vn"),
+        # 2. Same scheme (https), no slash -> relative path on current host
+        ("https:vietcombank.com.vn", "https://attacker.top/landing", "https://attacker.top/vietcombank.com.vn"),
+        # 3. Same scheme (http), single slash -> relative path on current host
+        ("http:/x", "http://attacker.top/a/b", "http://attacker.top/x"),
+        # 4. Same scheme (http), no slash -> relative path on current directory
+        ("http:x", "http://attacker.top/a/", "http://attacker.top/a/x"),
+        # 5. Different scheme (https on http base), no // -> rejected
+        ("https:evil.com", "http://attacker.top/", ""),
+        # 6. Different scheme (http on https base), no // -> rejected
+        ("http:evil.com", "https://attacker.top/", ""),
+        # 7. Triple slash ///+ collapsed to //
+        ("https:///attacker.top/path", "https://example.com/", "https://attacker.top/path"),
+        # 8. Quadruple slash //// collapsed to //
+        ("https:////attacker.top/path", "https://example.com/", "https://attacker.top/path"),
+        # 9. Backslash in scheme separator normalized (double backslash -> //)
+        (r"https:\\attacker.top/path", "https://example.com/", "https://attacker.top/path"),
+        # 10. Root-relative path
+        ("/path/to/resource", "https://example.com/orig", "https://example.com/path/to/resource"),
+        # 11. Relative path without leading slash
+        ("sub/page", "https://example.com/dir/", "https://example.com/dir/sub/page"),
+        # 12. Protocol-relative URL
+        ("//another.top/welcome", "https://example.com/", "https://another.top/welcome"),
+    ]
+
+    for loc, base, expected in cases:
+        got, _ = _normalize_location(loc, base)
+        assert got == expected, f"Failed for loc={loc!r}, base={base!r}: expected {expected!r}, got {got!r}"
+
+
+def test_resolver_head_200_get_302_follows_redirect(enable_network_settings):
+    """
+    S4: When HEAD returns 200 without redirect, GET fallback is performed.
+    If GET returns 302 Found, resolver must follow the redirect to final URL.
+    """
+    def mock_transport(method, scheme, ip, port, host, path, headers, timeout, **kw):
+        if host == "bit.ly":
+            if method == "HEAD":
+                return 200, {"content-type": "text/html"}, b""
+            elif method == "GET":
+                return 302, {"location": "https://vietcombank.com.vn/portal"}, b""
+        elif host == "vietcombank.com.vn":
+            return 200, {"content-type": "text/html"}, b"<html>Final page</html>"
+        return 404, {}, b"not found"
+
+    resolver = SafeRedirectResolver(
+        mode="all",
+        getaddrinfo=lambda h, p, *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", p))],
+        transport=mock_transport,
+    )
+    chain = resolver.resolve("http://bit.ly/test-link")
+    assert chain.final_url == "https://vietcombank.com.vn/portal"
+    assert len(chain.hops) == 2
+    assert chain.hops[0].status == 302
+    assert chain.hops[0].url == "http://bit.ly/test-link"
+    assert chain.hops[1].url == "https://vietcombank.com.vn/portal"
+
+
+def test_resolver_fetch_rejects_https_port_80():
+    """Mutation kill / Nit: resolver fetch rejects https on port 80."""
+    from codebase.url_analysis.resolver import SafeRedirectResolver
+    resolver = SafeRedirectResolver(mode="all")
+    # https://1.1.1.1:80/ must fail security validation and return None
+    res = resolver.fetch("https://1.1.1.1:80/path")
+    assert res is None
+
+
+def test_resolver_fetch_rejects_userinfo():
+    """Mutation kill: resolver fetch rejects URLs containing userinfo credentials."""
+    from codebase.url_analysis.resolver import SafeRedirectResolver
+    resolver = SafeRedirectResolver(mode="all")
+    res = resolver.fetch("http://admin:secret@1.1.1.1/admin")
+    assert res is None
+
+
+def test_resolver_fetch_rejects_private_ip():
+    """Mutation kill: resolver fetch strictly enforces is_public destination."""
+    from codebase.url_analysis.resolver import SafeRedirectResolver
+    resolver = SafeRedirectResolver(mode="all")
+    for priv_url in ("http://127.0.0.1/admin", "http://10.0.0.1/", "http://192.168.1.1/setup"):
+        res = resolver.fetch(priv_url)
+        assert res is None
+
+
+def test_resolver_cleanup_dns_pool():
+    """Nit: test cleanup_dns_pool safely cleans up worker threads."""
+    from codebase.url_analysis.resolver import cleanup_dns_pool
+    cleanup_dns_pool()
+
+

@@ -448,6 +448,290 @@ def test_neg_music_blog_skip_phrase():
     assert res is None
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 16 REALISTIC NEGATIVE SAMPLES (S5b: News, forms, SPAs, tutorials)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_neg_sample_1_news_click_to_continue_reading():
+    body = """
+    <html><head><title>Tin tức thời sự 24h</title></head>
+    <body>
+      <header><nav><a href="/">Trang chủ</a><a href="/kinh-doanh">Kinh doanh</a></nav></header>
+      <article>
+        <h1>Bản tin thị trường tài chính quốc tế ngày hôm nay</h1>
+        <p>Thị trường chứng khoán khởi sắc trong phiên giao dịch đầu tuần với nhiều tín hiệu tích cực.</p>
+        <p>""" + ("Dòng tiền lớn đổ vào nhóm cổ phiếu năng lượng tái tạo và công nghệ sinh học. " * 30) + """</p>
+        <div class="read-more-wrapper"><button class="btn">Click to continue reading</button></div>
+        <p>""" + ("Phân tích chi tiết của các chuyên gia kinh tế hàng đầu khu vực Đông Nam Á. " * 30) + """</p>
+      </article>
+      <footer><p>© 2026 Bản tin thời sự</p></footer>
+    </body></html>
+    """
+    res = classify_response(200, {}, body)
+    assert res is None
+
+
+def test_neg_sample_2_video_streaming_skip_ad():
+    body = """
+    <html><head><title>Video trực tuyến</title></head>
+    <body>
+      <div id="player-container">
+        <video src="stream.mp4"></video>
+        <div class="ad-overlay"><button id="skip-btn">Skip Ad</button></div>
+      </div>
+      <div class="video-info">
+        <h2>Phim tài liệu khoa học tự nhiên vũ trụ</h2>
+        <p>""" + ("Khám phá những bí ẩn của các vì sao xa xôi trong dải ngân hà của chúng ta. " * 40) + """</p>
+      </div>
+    </body></html>
+    """
+    res = classify_response(200, {}, body)
+    assert res is None
+
+
+def test_neg_sample_3_registration_form_with_recaptcha():
+    body = """
+    <html><head><title>Đăng ký tài khoản thành viên</title>
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    </head>
+    <body>
+      <h2>Tạo tài khoản mới</h2>
+      <form action="/register" method="POST">
+        <label>Họ và tên</label><input type="text" name="fullname" value="Nguyen Van A"><br>
+        <label>Email</label><input type="email" name="email" value="user@example.com"><br>
+        <label>Mật khẩu</label><input type="password" name="password"><br>
+        <label>Số điện thoại</label><input type="tel" name="phone"><br>
+        <label>Địa chỉ</label><input type="text" name="address"><br>
+        <div class="g-recaptcha" data-sitekey="6Le-w-fake"></div>
+        <button type="submit">Hoàn tất đăng ký</button>
+      </form>
+      <div class="terms">
+        <p>""" + ("Bằng việc đăng ký, bạn đồng ý với các điều khoản dịch vụ và chính sách bảo mật của chúng tôi. " * 25) + """</p>
+      </div>
+    </body></html>
+    """
+    res = classify_response(200, {}, body)
+    assert res is None
+
+
+def test_neg_sample_4_contact_us_form_with_hcaptcha():
+    body = """
+    <html><head><title>Liên hệ hỗ trợ khách hàng</title>
+    <script src="https://js.hcaptcha.com/1/api.js" async defer></script>
+    </head>
+    <body>
+      <h1>Trung tâm hỗ trợ và giải đáp thắc mắc</h1>
+      <form action="/contact" method="POST">
+        <input type="text" name="company" placeholder="Tên doanh nghiệp">
+        <input type="text" name="name" placeholder="Người liên hệ">
+        <input type="email" name="email" placeholder="Email công việc">
+        <textarea name="message" rows="5">Xin chào, tôi cần báo giá dịch vụ.</textarea>
+        <div class="h-captcha" data-sitekey="10000000-ffff-ffff-ffff-000000000001"></div>
+        <button type="submit">Gửi yêu cầu tư vấn</button>
+      </form>
+      <section>
+        <p>""" + ("Đội ngũ kỹ sư hỗ trợ kỹ thuật trực tuyến 24/7 luôn sẵn sàng hỗ trợ giải đáp mọi thắc mắc. " * 30) + """</p>
+      </section>
+    </body></html>
+    """
+    res = classify_response(200, {}, body)
+    assert res is None
+
+
+def test_neg_sample_5_long_article_discussing_bot_protection_and_verify():
+    # Long article (> 8192 chars) discussing bot protection & verify
+    content = """
+    <html><head><title>Chiến lược bảo mật Web Application Firewall</title></head>
+    <body>
+      <article>
+        <h1>Tìm hiểu các giải pháp Bot Protection hiện đại cho ứng dụng đám mây</h1>
+        <p>Trong thời đại số, bot protection là lớp phòng vệ đầu tiên giúp giảm tải cho máy chủ web.</p>
+        <p>Các hệ thống này thường verify tính hợp lệ của client thông qua HTTP header và TLS fingerprinting.</p>
+        <section>
+    """ + ("<p>Việc triển khai các rào chắn chống tấn công từ chối dịch vụ phân tán cần sự cân nhắc kỹ lưỡng để không làm giảm trải nghiệm của người dùng thực sự.</p>\n" * 90) + """
+        </section>
+      </article>
+    </body></html>
+    """
+    assert len(content) > 8192
+    res = classify_response(200, {}, content)
+    assert res is None
+
+
+def test_neg_sample_6_cybersecurity_news_on_anti_bot_bypass():
+    content = """
+    <html><head><title>Báo cáo An ninh Mạng Quý 3</title></head>
+    <body>
+      <h1>Phân tích các kỹ thuật né tránh hệ thống kiểm duyệt và Captcha</h1>
+      <p>Báo cáo chỉ ra rằng tội phạm mạng liên tục tìm kiếm cách qua mặt các lớp bot challenge phổ biến.</p>
+    """ + ("<p>Các tổ chức tài chính ngân hàng đang tăng cường xác thực đa yếu tố và phân tích hành vi thời gian thực.</p>\n" * 80) + """
+    </body></html>
+    """
+    assert len(content) > 8192
+    res = classify_response(200, {}, content)
+    assert res is None
+
+
+def test_neg_sample_7_minimal_spa_with_title():
+    body = """
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+      <meta charset="utf-8">
+      <title>Bảng điều khiển quản trị hệ thống</title>
+      <link rel="stylesheet" href="/app.css">
+    </head>
+    <body>
+      <div id="root"><header><h1>Trang chủ quản trị</h1></header></div>
+      <script>
+        if (!window.location.hash) { window.location.hash = '#/dashboard'; }
+      </script>
+    </body>
+    </html>
+    """
+    res = classify_response(200, {}, body)
+    assert res is None
+
+
+def test_neg_sample_8_react_landing_page_with_window_location():
+    body = """
+    <!DOCTYPE html>
+    <html><head><title>Sản phẩm SaaS thông minh cho doanh nghiệp</title></head>
+    <body>
+      <div id="app">
+        <h1>Giải pháp chuyển đổi số toàn diện</h1>
+        <p>Tối ưu hóa quy trình làm việc và tự động hóa báo cáo doanh số.</p>
+        <p>""" + ("Khám phá hệ sinh thái sản phẩm công nghệ tiên tiến phục vụ hàng triệu người dùng. " * 20) + """</p>
+      </div>
+      <script>
+        var currentPath = window.location.pathname;
+        console.log("Mounted on path: " + currentPath);
+      </script>
+    </body></html>
+    """
+    res = classify_response(200, {}, body)
+    assert res is None
+
+
+def test_neg_sample_9_ecommerce_product_page():
+    body = """
+    <html><head><title>Điện thoại thông minh Flagship 2026</title></head>
+    <body>
+      <h1>Điện thoại thông minh cấu hình khủng 16GB RAM</h1>
+      <p class="price">Giá ưu đãi: 19.990.000 VNĐ</p>
+      <button class="buy-now">Mua ngay</button>
+      <div class="desc">
+        <p>""" + ("Màn hình OLED 120Hz siêu nét, camera góc rộng cảm biến Sony mới nhất. " * 30) + """</p>
+      </div>
+      <div class="reviews">
+        <h3>Đánh giá từ khách hàng</h3>
+        <p>Sản phẩm rất tốt, đóng gói cẩn thận, giao hàng nhanh chóng.</p>
+      </div>
+    </body></html>
+    """
+    res = classify_response(200, {}, body)
+    assert res is None
+
+
+def test_neg_sample_10_banking_security_tips_page():
+    body = """
+    <html><head><title>Cẩm nang an toàn giao dịch ngân hàng điện tử</title></head>
+    <body>
+      <h1>Khuyến cáo bảo mật tài khoản trực tuyến</h1>
+      <p>Ngân hàng không bao giờ yêu cầu khách hàng cung cấp mã OTP hoặc mật khẩu cá nhân.</p>
+      <p>""" + ("Luôn kiểm tra kỹ địa chỉ trang web trước khi thực hiện giao dịch chuyển tiền. " * 35) + """</p>
+    </body></html>
+    """
+    res = classify_response(200, {}, body)
+    assert res is None
+
+
+def test_neg_sample_11_music_streaming_skip_track_blog():
+    body = """
+    <html><head><title>Tuyển tập nhạc không lời thư giãn</title></head>
+    <body>
+      <h1>Playlist nhạc tập trung làm việc hiệu quả</h1>
+      <p>Nếu bạn muốn skip qua đoạn mở đầu chậm rãi, hãy chuyển thẳng sang bản giao hưởng số 5.</p>
+      <p>""" + ("Giai điệu nhẹ nhàng êm dịu giúp kích thích tư duy sáng tạo và tăng năng suất. " * 30) + """</p>
+    </body></html>
+    """
+    res = classify_response(200, {}, body)
+    assert res is None
+
+
+def test_neg_sample_12_forum_thread_long_discussion():
+    body = """
+    <html><head><title>Diễn đàn công nghệ thông tin</title></head>
+    <body>
+      <h1>Thảo luận về các giải pháp CDN và lưu trữ phân tán</h1>
+      <div class="post">
+        <p>Chào các bạn, mình đang tìm kiếm giải pháp CDN tối ưu chi phí cho trang thương mại điện tử.</p>
+      </div>
+    """ + ("<div class='reply'><p>Theo kinh nghiệm của mình thì nên kết hợp nhiều nhà cung cấp để dự phòng sự cố mạng.</p></div>\n" * 80) + """
+    </body></html>
+    """
+    assert len(body) > 8192
+    res = classify_response(200, {}, body)
+    assert res is None
+
+
+def test_neg_sample_13_python_scraping_educational_guide():
+    body = """
+    <html><head><title>Hướng dẫn lập trình Python căn bản</title></head>
+    <body>
+      <h1>Xử lý dữ liệu web với BeautifulSoup và Requests</h1>
+      <p>Trong bài viết này, chúng ta sẽ học cách phân tích cấu trúc DOM và trích xuất dữ liệu.</p>
+    """ + ("<p>Luôn tuân thủ quy tắc robots.txt và giữ tần suất gửi request hợp lý để không gây quá tải máy chủ.</p>\n" * 80) + """
+    </body></html>
+    """
+    assert len(body) > 8192
+    res = classify_response(200, {}, body)
+    assert res is None
+
+
+def test_neg_sample_14_custom_branded_404_page():
+    body = """
+    <html><head><title>404 Không tìm thấy trang</title></head>
+    <body>
+      <h1>Rất tiếc! Trang bạn đang tìm kiếm không tồn tại</h1>
+      <p>Địa chỉ liên kết có thể đã bị thay đổi hoặc xóa bỏ.</p>
+      <a href="/">Quay về trang chủ</a> | <a href="/sitemap">Sơ đồ trang</a>
+      <p>""" + ("Vui lòng kiểm tra lại đường dẫn hoặc liên hệ ban quản trị để được hỗ trợ. " * 25) + """</p>
+    </body></html>
+    """
+    res = classify_response(404, {}, body)
+    assert res is None
+
+
+def test_neg_sample_15_corporate_about_us_page():
+    body = """
+    <html><head><title>Giới thiệu về tập đoàn công nghệ</title></head>
+    <body>
+      <h1>Lịch sử hình thành và tầm nhìn chiến lược</h1>
+      <p>Được thành lập từ năm 2015, chúng tôi luôn tiên phong trong việc phát triển giải pháp AI.</p>
+      <p>""" + ("Cam kết mang lại giá trị bền vững cho đối tác và cộng đồng doanh nghiệp Việt Nam. " * 30) + """</p>
+      <h3>Đội ngũ sáng lập</h3>
+      <p>Các chuyên gia giàu kinh nghiệm trong lĩnh vực khoa học máy tính và bảo mật thông tin.</p>
+    </body></html>
+    """
+    res = classify_response(200, {}, body)
+    assert res is None
+
+
+def test_neg_sample_16_government_portal_announcement():
+    body = """
+    <html><head><title>Cổng thông tin dịch vụ công trực tuyến</title></head>
+    <body>
+      <h1>Thông báo về việc nâng cấp hệ thống tiếp nhận hồ sơ hành chính</h1>
+      <p>Hệ thống sẽ tạm dừng tiếp nhận hồ sơ trong khung giờ bảo trì từ 22h đến 24h.</p>
+      <p>""" + ("Mọi thắc mắc vui lòng liên hệ tổng đài hỗ trợ người dân và doanh nghiệp theo số hotline. " * 30) + """</p>
+    </body></html>
+    """
+    res = classify_response(200, {}, body)
+    assert res is None
+
+
+
 # ============================================================================
 # REDOS AND PERFORMANCE BENCHMARK
 # ============================================================================

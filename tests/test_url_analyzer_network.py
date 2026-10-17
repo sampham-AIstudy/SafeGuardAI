@@ -532,3 +532,114 @@ def test_shortener_stops_at_non_shortener_with_static_and_passive_analysis():
     assert child.passive_intel is not None
     assert any(s.code == "DOMAIN_NEW" for s in child.signals)
     assert parent.url_risk_score >= child.url_risk_score
+
+
+# ============================================================================
+# Phase 3E-2 Tests: Intermediate hops, Shortener error, Cloaking, Oracle
+# ============================================================================
+
+def test_intermediate_hops_analyzed_as_child_findings():
+    """
+    B1: Intermediate hops (up to 5) must be analyzed as child findings (source='redirect_hop')
+    so that signals from intermediate hops (e.g. attacker.top) are preserved.
+    """
+    shortener_url = "http://bit.ly/hop-test"
+    hop_url = "https://phish-intermediate.top/redir"
+    final_url = "https://portal.vietcombank.com.vn/personal"
+
+    mock_chain = RedirectChain(
+        hops=[
+            Hop(url=shortener_url, status=302, location=hop_url),
+            Hop(url=hop_url, status=302, location=final_url),
+            Hop(url=final_url, status=200),
+        ],
+        final_url=final_url,
+        elapsed_ms=25.0,
+    )
+    resolver = FakeResolver(routes={shortener_url: mock_chain})
+    analyzer = UrlAnalyzer(resolver=resolver)
+
+    finding = analyzer.analyze_url(shortener_url, allow_network=True)
+    assert len(finding.children) >= 2
+    hop_children = [ch for ch in finding.children if ch.source == "redirect_hop"]
+    assert len(hop_children) >= 1
+    assert any("phish-intermediate.top" in ch.effective_host for ch in hop_children)
+
+
+def test_shortener_error_keeps_unverified_after_passive():
+    """
+    S1: Shortener error/timeout keeps verdict 'unverified' and is not downgraded to 'low'/'benign'
+    even after passive intel runs.
+    """
+    shortener_url = "http://bit.ly/hung-link"
+    mock_chain = RedirectChain(
+        hops=[Hop(url=shortener_url, status=0)],
+        final_url=None,
+        error="request_timeout",
+        elapsed_ms=3000.0,
+    )
+    mock_passive = MagicMock()
+    mock_passive.analyze.return_value = {"domain_age": None, "ct": None, "dns_status": "ok"}
+    resolver = FakeResolver(routes={shortener_url: mock_chain})
+    analyzer = UrlAnalyzer(resolver=resolver, passive_intel=mock_passive)
+
+    finding = analyzer.analyze_url(shortener_url, allow_network=True)
+    assert finding.verdict == "unverified"
+    assert finding.url_risk_score <= 39
+    assert "KHÔNG có nghĩa là an toàn" in (finding.signals[-1].message_vi if finding.signals else "") or finding.verdict == "unverified"
+
+
+def test_cloaking_not_triggered_for_official_destination():
+    """
+    S5(a): CLOAKING_SUSPECTED must not trigger when the destination is official
+    (e.g. bit.ly -> vietcombank.com.vn following Cloudflare challenge).
+    """
+    shortener_url = "http://bit.ly/vcb-official"
+    official_dest = "https://portal.vietcombank.com.vn/personal"
+    mock_chain = RedirectChain(
+        hops=[
+            Hop(url=shortener_url, status=302, location=official_dest),
+            Hop(url=official_dest, status=403),
+        ],
+        final_url=official_dest,
+        antibot={
+            "vendor": "cloudflare",
+            "kind": "challenge",
+            "evidence": ["header:cf-mitigated:challenge"],
+        },
+        elapsed_ms=20.0,
+    )
+    resolver = FakeResolver(routes={shortener_url: mock_chain})
+    analyzer = UrlAnalyzer(resolver=resolver)
+
+    finding = analyzer.analyze_url(shortener_url, allow_network=True)
+    # Must NOT have CLOAKING_SUSPECTED
+    assert not any(s.code == "CLOAKING_SUSPECTED" for s in finding.signals)
+    # Score must not be inflated to 65+ by cloaking
+    assert finding.url_risk_score < 65
+
+
+def test_blocked_internal_domain_does_not_leak_private_destination():
+    """
+    Nit: Resolving an internal hostname (corp.internal) that resolves to private IP
+    must not leak 'private_destination' oracle; both domain errors map to NETWORK_UNREACHABLE.
+    """
+    target = "http://bit.ly/corp-intranet"
+    mock_chain = RedirectChain(
+        hops=[Hop(url=target, status=302, location="http://corp.internal/admin")],
+        final_url=None,
+        blocked_reason="private_destination",
+        elapsed_ms=8.0,
+    )
+    resolver = FakeResolver(routes={target: mock_chain})
+    analyzer = UrlAnalyzer(resolver=resolver)
+
+    report = analyzer.analyze_text(f"Check {target}", allow_network=True)
+    assert len(report.findings) > 0
+    finding = report.findings[0]
+    # Signals must NOT leak private_destination or NETWORK_BLOCKED_PRIVATE for domain names
+    assert not any(s.code == "NETWORK_BLOCKED_PRIVATE" for s in finding.signals)
+    assert any(s.code == "NETWORK_UNREACHABLE" for s in finding.signals)
+    unreach_sig = next(s for s in finding.signals if s.code == "NETWORK_UNREACHABLE")
+    assert unreach_sig.evidence == "unreachable"
+

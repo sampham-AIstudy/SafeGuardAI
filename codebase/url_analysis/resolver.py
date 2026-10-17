@@ -132,8 +132,24 @@ class _DNSLookupPool:
             return result_box[0]
         return []
 
+    def shutdown(self, timeout: float = 0.2) -> None:
+        with self.lock:
+            for _ in range(len(self.workers)):
+                self.work_queue.put(None)
+            for w in self.workers:
+                try:
+                    w.join(timeout=timeout)
+                except Exception:
+                    pass
+            self.workers = []
+
 
 _DNS_POOL = _DNSLookupPool()
+
+
+def cleanup_dns_pool(timeout: float = 0.2) -> None:
+    """Clean up module-level DNS worker threads."""
+    _DNS_POOL.shutdown(timeout=timeout)
 
 
 def _is_safe_ip(ip_str: str) -> tuple[bool, str]:
@@ -347,11 +363,15 @@ def _extract_meta_refresh(html: str) -> str | None:
 
 def _normalize_location(raw_loc: str, current_url: str) -> tuple[str, bool]:
     """
-    WHATWG-compliant normalization for redirect Location header (S2):
+    WHATWG-compliant normalization for redirect Location header (B1, S2):
     - Strips C0 control characters and spaces from edges.
     - Removes tab, CR, LF.
     - Replaces backslashes with slashes for http/https.
     - Normalizes leading '//+' to '//' (network-path).
+    - If scheme matches base scheme but lacks '//' -> relative path (e.g. https:/x on https -> stays on host).
+    - Only 'scheme://' is absolute.
+    - If scheme differs from base without '//' ('https:evil.com' on http) -> per WHATWG special scheme,
+      only treated as absolute if it has '//' after '\' -> '/'; otherwise rejected as invalid.
     - Resolves relative/absolute target without RFC 3986 urljoin cloaking.
     - Returns (normalized_url, backslash_confusion_detected).
     """
@@ -372,47 +392,66 @@ def _normalize_location(raw_loc: str, current_url: str) -> tuple[str, bool]:
     if curr_scheme in ("http", "https"):
         loc = loc.replace("\\", "/")
 
+    port_part = (
+        f":{curr_port}"
+        if curr_port and curr_port not in (80, 443)
+        else ""
+    )
+
+    candidate_url = ""
     # Check for network-path reference (//+)
     if loc.startswith("//"):
         loc = re.sub(r"^/+", "//", loc)
         candidate_url = f"{curr_scheme}:{loc}"
     else:
-        cand_p = parse_url(loc)
-        if cand_p.scheme:
-            candidate_url = loc
+        # Check if loc starts with a scheme
+        m = re.match(r"^([a-zA-Z][a-zA-Z0-9+.-]*):(.*)$", loc)
+        if m:
+            scheme = m.group(1).lower()
+            rest = m.group(2)
+            if scheme in ("http", "https"):
+                rest = rest.replace("\\", "/")
+
+            if scheme == curr_scheme:
+                # Same scheme: only absolute if it has '//'
+                if rest.startswith("//"):
+                    rest = re.sub(r"^/+", "//", rest)
+                    candidate_url = f"{scheme}:{rest}"
+                else:
+                    # WHATWG: treated as relative path on current host!
+                    if rest.startswith("/"):
+                        candidate_url = f"{curr_scheme}://{curr_host}{port_part}{rest}"
+                    elif rest.startswith("?") or rest.startswith("#"):
+                        candidate_url = f"{curr_scheme}://{curr_host}{port_part}{curr_path}{rest}"
+                    else:
+                        base_dir = curr_path.rsplit("/", 1)[0] + "/"
+                        candidate_url = f"{curr_scheme}://{curr_host}{port_part}{base_dir}{rest}"
+            else:
+                # Different scheme:
+                if scheme in ("http", "https"):
+                    # WHATWG special scheme: only absolute if it has '//' after '\' -> '/'
+                    if rest.startswith("//"):
+                        rest = re.sub(r"^/+", "//", rest)
+                        candidate_url = f"{scheme}:{rest}"
+                    else:
+                        # Missing '//' for different special scheme => invalid redirect
+                        candidate_url = ""
+                else:
+                    # Non-HTTP special scheme (e.g. javascript:, data:, mailto:)
+                    candidate_url = loc
         elif loc.startswith("/"):
-            port_part = (
-                f":{curr_port}"
-                if curr_port and curr_port not in (80, 443)
-                else ""
-            )
             candidate_url = f"{curr_scheme}://{curr_host}{port_part}{loc}"
         elif loc.startswith("?"):
-            port_part = (
-                f":{curr_port}"
-                if curr_port and curr_port not in (80, 443)
-                else ""
-            )
             candidate_url = f"{curr_scheme}://{curr_host}{port_part}{curr_path}{loc}"
         elif loc.startswith("#"):
-            port_part = (
-                f":{curr_port}"
-                if curr_port and curr_port not in (80, 443)
-                else ""
-            )
             candidate_url = f"{curr_scheme}://{curr_host}{port_part}{curr_path}{loc}"
         else:
             base_dir = curr_path.rsplit("/", 1)[0] + "/"
-            port_part = (
-                f":{curr_port}"
-                if curr_port and curr_port not in (80, 443)
-                else ""
-            )
             candidate_url = f"{curr_scheme}://{curr_host}{port_part}{base_dir}{loc}"
 
     # Detect backslash confusion
     backslash_confusion = False
-    if had_backslash:
+    if had_backslash and candidate_url:
         try:
             rfc_joined = urllib.parse.urljoin(current_url, raw_loc)
             rfc_p = parse_url(rfc_joined)
@@ -894,6 +933,7 @@ class SafeRedirectResolver:
         self.cache_ttl_s = cache_ttl_s
         self.cache_max = cache_max
         self._test_ip_filter = _test_ip_filter
+        self._test_allowed_ports = _test_allowed_ports
         self.allowed_ports = (
             set(_test_allowed_ports)
             if _test_allowed_ports is not None
@@ -1397,7 +1437,13 @@ class SafeRedirectResolver:
                                 self.max_body_bytes,
                                 deadline,
                             )
+                            status = get_status
+                            resp_headers = get_headers
+                            resp_headers_lower = {
+                                str(k).lower(): str(v) for k, v in resp_headers.items()
+                            }
                             body = get_body
+                            raw_location = resp_headers_lower.get("location")
                         except Exception:
                             pass
 
@@ -1462,10 +1508,22 @@ class SafeRedirectResolver:
                     )
                     break
 
-                # Normalize Location per WHATWG (S2)
+                # Normalize Location per WHATWG (B1, S2)
                 next_url, backslash_confusion = _normalize_location(
                     redirect_target, current_url
                 )
+                if not next_url:
+                    error = "invalid_location"
+                    hops.append(
+                        Hop(
+                            url=current_url,
+                            status=status,
+                            location=redirect_target,
+                            ip=pinned_ip,
+                            flags=hop_flags,
+                        )
+                    )
+                    break
                 if backslash_confusion:
                     hop_flags.append("BACKSLASH_CONFUSION")
 
@@ -1609,9 +1667,9 @@ class SafeRedirectResolver:
             if p.userinfo:
                 return None
 
-            # Must be port 443 (or allowed test port)
+            # Must be port 443 (or allowed test port) - HTTPS port 80 is strictly rejected
             port = p.port if p.port is not None else 443
-            if port != 443 and port not in self.allowed_ports:
+            if port != 443 and (self._test_allowed_ports is None or port not in self._test_allowed_ports):
                 return None
 
             host = (p.effective_host or "").lower().rstrip(".")
@@ -1691,6 +1749,10 @@ class SafeRedirectResolver:
                 return status, resp_headers_lower, body
 
         return None
+
+    def close(self) -> None:
+        """Clean up resolver resources and worker threads."""
+        cleanup_dns_pool()
 
 
 def probe_tls_certificate(

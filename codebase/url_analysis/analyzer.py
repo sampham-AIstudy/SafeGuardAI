@@ -293,6 +293,20 @@ class UrlAnalyzer:
             )
         return self._default_passive_intel
 
+    def _is_dest_official(self, url_or_host: str) -> bool:
+        if not url_or_host:
+            return False
+        h = url_or_host
+        if "://" in h or "/" in h:
+            try:
+                p = parse_url(h)
+                h = p.effective_host or p.display_host or h
+            except Exception:
+                pass
+        h = (h or "").lower().strip(".")
+        is_off, _ = self.catalog.is_official(h)
+        return bool(is_off)
+
     def _resolve_finding(
         self,
         finding: UrlFinding,
@@ -319,20 +333,45 @@ class UrlAnalyzer:
             finding.redirect_chain = [
                 h.to_dict() if hasattr(h, "to_dict") else dict(h) for h in chain.hops
             ]
+            if getattr(chain, "error", None) and finding.redirect_chain:
+                finding.redirect_chain[-1]["error"] = chain.error
 
-        # (b) chain.blocked_reason thuộc nhóm đích nội bộ/ip riêng
-        is_private_blocked = False
-        if getattr(chain, "blocked_reason", None):
-            br = str(chain.blocked_reason).lower()
+        # (b) chain.blocked_reason:
+        # NETWORK_BLOCKED_PRIVATE CHỈ khi IP literal / URL trực tiếp trỏ tới địa chỉ riêng!
+        p_target = parse_url(target_url)
+
+        def _is_private_ip(ip_val: str | None) -> bool:
+            if not ip_val:
+                return False
+            ip_val = ip_val.strip("[]")
             if (
-                "private" in br
-                or "loopback" in br
-                or "internal" in br
-                or br in ("blocked_destination", "disallowed_host")
+                ip_val.startswith(("10.", "127.", "192.168.", "169.254.", "0."))
+                or ip_val == "::1"
             ):
-                is_private_blocked = True
+                return True
+            if ip_val.startswith("172."):
+                parts = ip_val.split(".")
+                if len(parts) >= 2 and parts[1].isdigit() and 16 <= int(parts[1]) <= 31:
+                    return True
+            return False
 
-        if is_private_blocked:
+        is_direct_private = _is_private_ip(p_target.ip)
+        if not is_direct_private and getattr(chain, "hops", None):
+            for h in chain.hops:
+                h_loc = getattr(h, "location", None) or (h.get("location") if isinstance(h, dict) else None)
+                if h_loc:
+                    p_loc = parse_url(h_loc)
+                    if _is_private_ip(p_loc.ip):
+                        is_direct_private = True
+                        break
+                h_u = getattr(h, "url", None) or (h.get("url") if isinstance(h, dict) else None)
+                if h_u:
+                    p_hu = parse_url(h_u)
+                    if _is_private_ip(p_hu.ip):
+                        is_direct_private = True
+                        break
+
+        if is_direct_private:
             if not any(s.code == "NETWORK_BLOCKED_PRIVATE" for s in finding.signals):
                 finding.signals.append(
                     UrlSignal(
@@ -340,7 +379,19 @@ class UrlAnalyzer:
                         severity="high",
                         weight=40,
                         message_vi="Đường link dẫn tới địa chỉ mạng nội bộ.",
-                        evidence=f"blocked_reason={chain.blocked_reason}",
+                        evidence="direct_private_ip",
+                    )
+                )
+        elif getattr(chain, "blocked_reason", None):
+            # Tên nội bộ vs DNS lỗi: không lộ oracle private_destination ra ngoài
+            if not any(s.code in ("NETWORK_BLOCKED_PRIVATE", "NETWORK_UNREACHABLE") for s in finding.signals):
+                finding.signals.append(
+                    UrlSignal(
+                        code="NETWORK_UNREACHABLE",
+                        severity="low",
+                        weight=0,
+                        message_vi="Không thể kết nối hoặc phân giải đích đến của liên kết.",
+                        evidence="unreachable",
                     )
                 )
 
@@ -390,6 +441,29 @@ class UrlAnalyzer:
                         s for s in finding.signals if s.code != "BRAND_IN_PATH"
                     ]
 
+            # B1: Phân tích cả host của TỪNG hop trung gian (tối đa 5) như finding con
+            if depth < 2 and hasattr(chain, "hops") and chain.hops:
+                seen_hop_hosts = {
+                    (parse_url(target_url).effective_host or "").lower(),
+                    (parse_url(final_clean).effective_host or "").lower(),
+                }
+                for hop in chain.hops[:5]:
+                    hop_url = getattr(hop, "url", None) if not isinstance(hop, dict) else hop.get("url")
+                    if not hop_url:
+                        continue
+                    h_parsed = parse_url(hop_url)
+                    h_host = (h_parsed.effective_host or "").lower()
+                    if not h_host or h_host in seen_hop_hosts:
+                        continue
+                    seen_hop_hosts.add(h_host)
+                    hop_child = self.analyze_url(
+                        hop_url,
+                        source="redirect_hop",
+                        allow_network=False,
+                        depth=depth + 1,
+                    )
+                    finding.children.append(hop_child)
+
         # (c) chain.antibot có => ANTIBOT_CHALLENGE (weight 10, low, message_vi nêu vendor)
         has_antibot = bool(getattr(chain, "antibot", None))
         if has_antibot:
@@ -405,28 +479,44 @@ class UrlAnalyzer:
                     )
                 )
 
-        # (d) nếu antibot VÀ (brand match HOẶC suspicious TLD HOẶC free hosting HOẶC lure token HOẶC shortener chưa rõ đích HOẶC url_risk >= 20)
-        # => thêm CLOAKING_SUSPECTED (weight 25, medium, message_vi 'trang chặn công cụ kiểm tra tự động và có dấu hiệu giả mạo');
-        # domain OFFICIAL + antibot vẫn 'official' (không cộng);
-        if has_antibot and not finding.is_official:
-            has_brand = bool(finding.brand_match) or any("BRAND" in s.code for s in finding.signals)
+        # (d) CLOAKING_SUSPECTED (S5a):
+        # Đích official => không cloaking
+        is_dest_official = (
+            finding.is_official
+            or any(getattr(ch, "is_official", False) for ch in finding.children)
+            or (bool(finding.final_url) and self._is_dest_official(finding.final_url))
+        )
+        if has_antibot and not is_dest_official:
+            # Chỉ tính yếu tố phụ từ tín hiệu của ĐÍCH / domain, KHÔNG tính chính shortener
+            has_brand = bool(finding.brand_match) or any("BRAND" in s.code for s in finding.signals) or any(
+                bool(getattr(ch, "brand_match", None)) or any("BRAND" in s.code for s in getattr(ch, "signals", []))
+                for ch in finding.children
+            )
             has_susp_tld = self._is_suspicious_tld(
                 finding.effective_host, finding.registrable_domain
-            ) or any(s.code == "SUSPICIOUS_TLD" for s in finding.signals)
+            ) or any(s.code == "SUSPICIOUS_TLD" for s in finding.signals) or any(
+                any(s.code == "SUSPICIOUS_TLD" for s in getattr(ch, "signals", []))
+                for ch in finding.children
+            )
             has_free_host = self._is_free_hosting(
                 finding.effective_host, finding.registrable_domain
-            ) or any(s.code == "FREE_HOSTING" for s in finding.signals)
+            ) or any(s.code == "FREE_HOSTING" for s in finding.signals) or any(
+                any(s.code == "FREE_HOSTING" for s in getattr(ch, "signals", []))
+                for ch in finding.children
+            )
             has_lure = any(
                 s.code in ("LURE_KEYWORD_DOMAIN", "LURE_KEYWORD_PATH")
                 for s in finding.signals
+            ) or any(
+                any(s.code in ("LURE_KEYWORD_DOMAIN", "LURE_KEYWORD_PATH") for s in getattr(ch, "signals", []))
+                for ch in finding.children
             )
             is_shortener_unresolved = any(
                 s.code == "SHORTENER" for s in finding.signals
             ) and (not getattr(chain, "final_url", None) or chain.final_url == target_url)
-            cur_risk = sum(
-                s.weight for s in finding.signals if s.code not in ("ANTIBOT_CHALLENGE", "CLOAKING_SUSPECTED")
-            )
-            has_risk_20 = cur_risk >= 20 or finding.url_risk_score >= 20
+
+            # Đích / children có rủi ro đáng ngờ
+            has_dest_risk = any(getattr(ch, "url_risk_score", 0) >= 30 for ch in finding.children)
 
             if (
                 has_brand
@@ -434,7 +524,7 @@ class UrlAnalyzer:
                 or has_free_host
                 or has_lure
                 or is_shortener_unresolved
-                or has_risk_20
+                or has_dest_risk
             ):
                 if not any(s.code == "CLOAKING_SUSPECTED" for s in finding.signals):
                     finding.signals.append(
@@ -621,10 +711,15 @@ class UrlAnalyzer:
                     pass
 
         # 5. Check antibot combination with DOMAIN_NEW or CERT_NEW:
-        # CLOAKING_SUSPECTED (+25) có thể dùng DOMAIN_NEW/CERT_NEW như yếu tố phụ
+        # CLOAKING_SUSPECTED (+25) có thể dùng DOMAIN_NEW/CERT_NEW như yếu tố phụ (chỉ khi không official)
         has_antibot = any(s.code == "ANTIBOT_CHALLENGE" for s in finding.signals)
         has_new_passive = any(s.code in ("DOMAIN_NEW", "CERT_NEW") for s in finding.signals)
-        if has_antibot and has_new_passive and not finding.is_official:
+        is_dest_official = (
+            finding.is_official
+            or any(getattr(ch, "is_official", False) for ch in finding.children)
+            or (bool(finding.final_url) and self._is_dest_official(finding.final_url))
+        )
+        if has_antibot and has_new_passive and not is_dest_official:
             if not any(s.code == "CLOAKING_SUSPECTED" for s in finding.signals):
                 finding.signals.append(
                     UrlSignal(
@@ -640,15 +735,23 @@ class UrlAnalyzer:
         if finding.is_official:
             finding.url_risk_score = 0
             finding.verdict = "official"
+        elif is_dest_official and not finding.brand_match:
+            finding.url_risk_score = 0
+            finding.verdict = "official"
         else:
             self_risk = min(99, sum(s.weight for s in finding.signals))
             max_child_risk = max((ch.url_risk_score for ch in finding.children), default=0)
             final_risk = max(self_risk, max_child_risk)
             finding.url_risk_score = final_risk
 
+            last_hop = finding.redirect_chain[-1] if getattr(finding, "redirect_chain", None) else None
+            last_err = last_hop.get("error") if isinstance(last_hop, dict) else getattr(last_hop, "error", None)
+
             cannot_read = (
                 any(s.code == "ANTIBOT_CHALLENGE" for s in finding.signals)
-                or (getattr(finding, "redirect_chain", None) and getattr(finding.redirect_chain[-1], "error", None) in ("budget_exceeded", "request_timeout", "dns_timeout", "too_many_hops"))
+                or (last_err in ("budget_exceeded", "request_timeout", "dns_timeout", "too_many_hops"))
+                or any("timeout" in e or "budget" in e for e in getattr(finding, "errors", []))
+                or getattr(finding, "verdict", None) == "unverified"
             )
 
             if final_risk >= 70:

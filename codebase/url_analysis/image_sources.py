@@ -40,7 +40,7 @@ VIETQR_BANKS: dict[str, str] = {
 }
 
 MAX_IMAGE_BYTES = 8_000_000
-MAX_IMAGE_PIXELS = 25_000_000
+MAX_IMAGE_PIXELS = 12_000_000
 MAX_QR_CODES = 8
 MAX_PAYLOAD_LEN = 4096
 
@@ -58,14 +58,32 @@ def defang_url(url: str) -> str:
     return res.replace(".", "[.]")
 
 
+def sanitize_qr_string(val: str | None, max_len: int = 300) -> str:
+    """
+    Sanitize QR payload / text string for display (S8):
+    - Strips C0 control characters (\x00-\x1f, \x7f)
+    - Strips Unicode Bidi override characters
+    - Truncates to max_len chars (default 300)
+    """
+    if not val or not isinstance(val, str):
+        return ""
+    # Strip C0 control characters
+    s = re.sub(r"[\x00-\x1f\x7f]", "", val)
+    # Strip Bidi overrides (\u202A-\u202E, \u2066-\u2069, \u200E, \u200F)
+    s = re.sub(r"[\u202A-\u202E\u2066-\u2069\u200E\u200F]", "", s)
+    return s.strip()[:max_len]
+
+
 def mask_account(account: str | None) -> str | None:
-    """Mask bank account number for UI: 4 initial digits + **** + 3 trailing digits."""
+    """
+    Mask bank account number for UI (S9):
+    Reveals at most 4 digits (2 initial + **** + 2 trailing) for any length >= 6.
+    Never reveals more than 4 digits.
+    """
     if not account:
         return None
     acc = str(account).strip()
-    if len(acc) >= 8:
-        return f"{acc[:4]}****{acc[-3:]}"
-    elif len(acc) > 4:
+    if len(acc) >= 6:
         return f"{acc[:2]}****{acc[-2:]}"
     return "****"
 
@@ -96,7 +114,7 @@ def open_image_safely(
     - Calls img.verify() on a probe copy before reloading
     - Catches DecompressionBombError, OSError, ValueError -> returns None
     - Converts to RGB
-    - Scales down proportionally if long edge > 4000 px
+    - Scales down proportionally if long edge > 2000 px
     """
     if data is None or Image is None:
         return None
@@ -137,8 +155,8 @@ def open_image_safely(
             if img.mode != "RGB":
                 img = img.convert("RGB")
             max_edge = max(img.width, img.height)
-            if max_edge > 4000:
-                scale = 4000.0 / max_edge
+            if max_edge > 2000:
+                scale = 2000.0 / max_edge
                 new_w = max(1, int(img.width * scale))
                 new_h = max(1, int(img.height * scale))
                 resample_filter = getattr(getattr(Image, "Resampling", Image), "LANCZOS", Image.LANCZOS)
@@ -172,10 +190,10 @@ def open_image_safely(
         if img.mode != "RGB":
             img = img.convert("RGB")
 
-        # Step 4: Scale down if long edge > 4000 px (preserving aspect ratio)
+        # Step 4: Scale down if long edge > 2000 px (preserving aspect ratio, S10)
         max_edge = max(img.width, img.height)
-        if max_edge > 4000:
-            scale = 4000.0 / max_edge
+        if max_edge > 2000:
+            scale = 2000.0 / max_edge
             new_w = max(1, int(img.width * scale))
             new_h = max(1, int(img.height * scale))
             resample_filter = getattr(getattr(Image, "Resampling", Image), "LANCZOS", Image.LANCZOS)
@@ -216,6 +234,16 @@ def extract_qr_payloads(
     payloads: list[str] = []
 
     try:
+        # S10: Scale down image so that long edge <= 2000 px BEFORE passing to cv2
+        if hasattr(pil_img, "width") and hasattr(pil_img, "height"):
+            max_d = max(pil_img.width, pil_img.height)
+            if max_d > 2000:
+                scale = 2000.0 / max_d
+                new_w = max(1, int(pil_img.width * scale))
+                new_h = max(1, int(pil_img.height * scale))
+                resample_filter = getattr(getattr(Image, "Resampling", Image), "BILINEAR", getattr(Image, "BILINEAR", None))
+                pil_img = pil_img.resize((new_w, new_h), resample=resample_filter)
+
         arr = np.array(pil_img)
         if arr.size == 0:
             return []
@@ -256,29 +284,37 @@ def extract_qr_payloads(
                         clean_item = retval.strip()[:MAX_PAYLOAD_LEN]
                         if clean_item and clean_item not in payloads:
                             payloads.append(clean_item)
+                            if len(payloads) >= max_codes:
+                                return
             except Exception:
                 pass
 
+        def _can_continue() -> bool:
+            if len(payloads) >= max_codes:
+                return False
+            # S10: Do not start a new variant if remaining time < 0.2s
+            return (time_budget_s - (time.perf_counter() - start_time)) >= 0.2
+
         # Variant 1: Original BGR
         _scan(bgr)
-        if len(payloads) >= max_codes or (time.perf_counter() - start_time) >= time_budget_s:
-            return payloads
+        if not _can_continue():
+            return payloads[:max_codes]
 
         # Variant 2: Grayscale
         _scan(gray)
-        if len(payloads) >= max_codes or (time.perf_counter() - start_time) >= time_budget_s:
-            return payloads
+        if not _can_continue():
+            return payloads[:max_codes]
 
         # Variant 3: Scaled 2x (only if not already huge to preserve time budget)
         max_dim = max(gray.shape[:2])
-        if max_dim <= 1500 and (time.perf_counter() - start_time) < (time_budget_s * 0.7):
+        if max_dim <= 1500 and (time_budget_s - (time.perf_counter() - start_time)) >= 0.5:
             try:
                 scaled_2x = cv2.resize(gray, (0, 0), fx=2.0, fy=2.0, interpolation=cv2.INTER_LINEAR)
                 _scan(scaled_2x)
             except Exception:
                 pass
-        if len(payloads) >= max_codes or (time.perf_counter() - start_time) >= time_budget_s:
-            return payloads
+        if not _can_continue():
+            return payloads[:max_codes]
 
         # Variant 4: Otsu threshold
         try:
@@ -286,8 +322,8 @@ def extract_qr_payloads(
             _scan(otsu)
         except Exception:
             pass
-        if len(payloads) >= max_codes or (time.perf_counter() - start_time) >= time_budget_s:
-            return payloads
+        if not _can_continue():
+            return payloads[:max_codes]
 
         # Variant 5: Inverted
         try:
@@ -299,23 +335,24 @@ def extract_qr_payloads(
     except Exception:
         pass
 
-    return payloads
+    return payloads[:max_codes]
 
 
 def classify_qr_payload(payload: str) -> dict[str, Any]:
     """
-    Classify a decoded QR payload into one of 12 types:
+    Classify a decoded QR payload into one of 12 types (S8):
     - 'vietqr': EMVCo starting with '000201'
     - 'wifi': starting with 'WIFI:'
-    - 'tel': starting with 'tel:'
-    - 'sms': starting with 'sms:' or 'smsto:'
+    - 'tel': starting with 'tel:' (not risky)
+    - 'sms': starting with 'sms:' or 'smsto:' (not risky)
     - 'mailto': starting with 'mailto:'
     - 'geo': starting with 'geo:'
     - 'vcard': starting with 'BEGIN:VCARD'
-    - 'other' with risky=True: 'javascript:' or 'data:'
+    - 'other' with risky=True: 'javascript:', 'data:', 'intent:', 'file:', 'vbscript:',
+      'market:', 'content:', 'ms-*:', 'search-ms:'
     - 'url': 'http(s)://', 'www.', or naked domain with valid TLD / IPv4
     - 'other': unclassified URI scheme
-    - 'text': plain text / notes / unclassified
+    - 'text': plain text (extracts embedded URL if present)
     """
     if not isinstance(payload, str):
         return {"kind": "text", "url": None, "risky": False}
@@ -334,15 +371,18 @@ def classify_qr_payload(payload: str) -> dict[str, Any]:
     if raw.upper().startswith("WIFI:"):
         return {"kind": "wifi", "url": None, "risky": False}
 
-    # 3. Risky URI schemes: javascript: or data:
-    if low.startswith(("javascript:", "data:")):
+    # 3. Risky URI schemes (S8): javascript:, data:, intent:, file:, vbscript:, market:, content:, ms-*:, search-ms:
+    is_ms_scheme = bool(re.match(r"^ms-[a-zA-Z0-9_-]+:", low))
+    if low.startswith((
+        "javascript:", "data:", "intent:", "file:", "vbscript:", "market:", "content:", "search-ms:"
+    )) or is_ms_scheme:
         return {"kind": "other", "url": None, "risky": True}
 
-    # 4. tel:
+    # 4. tel: (not risky)
     if low.startswith("tel:"):
         return {"kind": "tel", "url": None, "risky": False}
 
-    # 5. sms: / smsto:
+    # 5. sms: / smsto: (not risky)
     if low.startswith(("sms:", "smsto:")):
         return {"kind": "sms", "url": None, "risky": False}
 
@@ -367,7 +407,6 @@ def classify_qr_payload(payload: str) -> dict[str, Any]:
         return {"kind": "url", "url": raw, "risky": False}
 
     # 11. Naked domain or IP check
-    # Extract host before delimiter /, ?, #, :
     first_token = re.split(r"[/\\?#:]", raw)[0]
     if "." in first_token and " " not in first_token:
         # Check if IPv4
@@ -391,7 +430,12 @@ def classify_qr_payload(payload: str) -> dict[str, Any]:
     if RE_GENERIC_SCHEME.match(raw) and " " not in raw.split(":", 1)[0]:
         return {"kind": "other", "url": None, "risky": False}
 
-    # 13. Plain text
+    # 13. Plain text - check if text contains an embedded URL (S8)
+    m_url = re.search(r"https?://[^\s<>'\"`]+", raw[:1024])
+    if m_url:
+        found_u = m_url.group(0).rstrip(".,;:!?)'\"")
+        return {"kind": "text", "url": found_u, "risky": False}
+
     return {"kind": "text", "url": None, "risky": False}
 
 
@@ -496,6 +540,8 @@ def parse_vietqr(payload: str) -> dict[str, Any] | None:
 
         bank_name = VIETQR_BANKS.get(bin_code) if bin_code else None
         masked_acc = mask_account(account) if account else None
+        clean_name = sanitize_qr_string(name, 100) if name else None
+        clean_memo = sanitize_qr_string(memo, 200) if memo else None
 
         return {
             "bin": bin_code,
@@ -503,8 +549,8 @@ def parse_vietqr(payload: str) -> dict[str, Any] | None:
             "account": account,
             "masked_account": masked_acc,
             "amount": amount,
-            "name": name,
-            "memo": memo,
+            "name": clean_name,
+            "memo": clean_memo,
             "crc_ok": crc_ok,
         }
     except Exception:
