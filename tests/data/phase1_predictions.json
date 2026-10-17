@@ -1,0 +1,374 @@
+{
+"v1": {
+"CASE_01": [
+"HIGH",
+99
+],
+"CASE_02": [
+"HIGH",
+99
+],
+"CASE_03": [
+"MEDIUM",
+40
+],
+"CASE_04": [
+"MEDIUM",
+50
+],
+"CASE_05": [
+"CRITICAL",
+99
+],
+"CASE_06": [
+"LOW",
+0
+],
+"CASE_07": [
+"LOW",
+30
+],
+"CASE_08": [
+"LOW",
+0
+],
+"CASE_09": [
+"LOW",
+0
+],
+"CASE_10": [
+"CRITICAL",
+99
+],
+"CASE_11": [
+"LOW",
+0
+],
+"CASE_12": [
+"MEDIUM",
+70
+],
+"CASE_13": [
+"HIGH",
+99
+],
+"CASE_14": [
+"HIGH",
+75
+],
+"CASE_15": [
+"MEDIUM",
+50
+],
+"CASE_16": [
+"LOW",
+0
+],
+"CASE_17": [
+"LOW",
+0
+],
+"CASE_18": [
+"HIGH",
+75
+],
+"CASE_19": [
+"LOW",
+0
+],
+"CASE_20": [
+"HIGH",
+80
+]
+},
+"v2": {
+"CASE_01": [
+"HIGH",
+99
+],
+"CASE_02": [
+"HIGH",
+99
+],
+"CASE_03": [
+"MEDIUM",
+40
+],
+"CASE_04": [
+"MEDIUM",
+50
+],
+"CASE_05": [
+"CRITICAL",
+99
+],
+"CASE_06": [
+"LOW",
+0
+],
+"CASE_07": [
+"LOW",
+30
+],
+"CASE_08": [
+"LOW",
+0
+],
+"CASE_09": [
+"LOW",
+0
+],
+"CASE_10": [
+"CRITICAL",
+99
+],
+"CASE_11": [
+"LOW",
+0
+],
+"CASE_12": [
+"MEDIUM",
+70
+],
+"CASE_13": [
+"HIGH",
+99
+],
+"CASE_14": [
+"HIGH",
+75
+],
+"CASE_15": [
+"MEDIUM",
+50
+],
+"CASE_16": [
+"LOW",
+0
+],
+"CASE_17": [
+"LOW",
+0
+],
+"CASE_18": [
+"HIGH",
+75
+],
+"CASE_19": [
+"LOW",
+0
+],
+"CASE_20": [
+"HIGH",
+80
+],
+"CASE_21": [
+"LOW",
+0
+],
+"CASE_22": [
+"MEDIUM",
+60
+],
+"CASE_23": [
+"LOW",
+0
+],
+"CASE_24": [
+"HIGH",
+80
+],
+"CASE_25": [
+"LOW",
+15
+],
+"CASE_26": [
+"LOW",
+15
+],
+"CASE_27": [
+"LOW",
+0
+],
+"CASE_28": [
+"LOW",
+0
+],
+"CASE_29": [
+"LOW",
+15
+],
+"CASE_30": [
+"MEDIUM",
+45
+],
+"CASE_31": [
+"LOW",
+0
+],
+"CASE_32": [
+"LOW",
+0
+],
+"CASE_33": [
+"MEDIUM",
+50
+],
+"CASE_34": [
+"LOW",
+0
+],
+"CASE_35": [
+"LOW",
+0
+],
+"CASE_36": [
+"LOW",
+0
+],
+"CASE_37": [
+"MEDIUM",
+60
+],
+"CASE_38": [
+"LOW",
+0
+],
+"CASE_39": [
+"HIGH",
+99
+],
+"CASE_40": [
+"MEDIUM",
+60
+],
+"CASE_41": [
+"LOW",
+0
+],
+"CASE_42": [
+"LOW",
+0
+],
+"CASE_43": [
+"LOW",
+0
+],
+"CASE_44": [
+"HIGH",
+80
+],
+"CASE_45": [
+"MEDIUM",
+45
+],
+"CASE_46": [
+"LOW",
+0
+],
+"CASE_47": [
+"LOW",
+0
+],
+"CASE_48": [
+"LOW",
+0
+],
+"CASE_49": [
+"MEDIUM",
+40
+],
+"CASE_50": [
+"LOW",
+0
+],
+"CASE_51": [
+"LOW",
+0
+],
+"CASE_52": [
+"LOW",
+0
+],
+"CASE_53": [
+"LOW",
+0
+],
+"CASE_54": [
+"LOW",
+0
+],
+"CASE_55": [
+"LOW",
+0
+],
+"CASE_56": [
+"HIGH",
+95
+],
+"CASE_57": [
+"HIGH",
+90
+],
+"CASE_58": [
+"HIGH",
+80
+],
+"CASE_59": [
+"LOW",
+35
+],
+"CASE_60": [
+"LOW",
+15
+],
+"CASE_61": [
+"LOW",
+20
+],
+"CASE_62": [
+"LOW",
+0
+],
+"CASE_63": [
+"LOW",
+0
+],
+"CASE_64": [
+"LOW",
+15
+],
+"CASE_65": [
+"MEDIUM",
+45
+],
+"CASE_66": [
+"MEDIUM",
+40
+],
+"CASE_67": [
+"CRITICAL",
+99
+],
+"CASE_68": [
+"CRITICAL",
+99
+],
+"CASE_69": [
+"CRITICAL",
+99
+],
+"CASE_70": [
+"CRITICAL",
+99
+],
+"CASE_71": [
+"CRITICAL",
+99
+],
+"CASE_72": [
+"CRITICAL",
+99
+]
+}
+}
