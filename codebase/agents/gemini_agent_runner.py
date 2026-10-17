@@ -4,6 +4,7 @@ import json
 import time
 import base64
 import threading
+import concurrent.futures
 from typing import Any
 from dataclasses import dataclass, field
 
@@ -28,6 +29,7 @@ except ImportError:
 
 from codebase.config import get_settings, get_api_key
 from codebase.agents.prompt_guard import PromptGuard
+from codebase.agents.llm_output import sanitize_llm_output, clean_llm_string
 
 NETWORK_TOOL_NAMES = {"scan_url_threat_intel", "lookup_domain_info", "check_phishing_db"}
 
@@ -641,27 +643,7 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
                 "gemini-1.5-flash"
             ]
 
-            model = None
-            for m in model_names_to_try:
-                try:
-                    model = self.genai.GenerativeModel(
-                        model_name=m,
-                        system_instruction=self._build_system_prompt(allow_net=allow_net),
-                        tools=tools
-                    )
-                    self.model_name = m
-                    break
-                except Exception:
-                    continue
-
-            if not model:
-                print("[GeminiAgentRunner] No working model found.")
-                return None
-
-            # Build initial message (always wrap user text)
-            wrapped_text = PromptGuard.wrap_untrusted_input(user_text)
-            initial_content = []
-
+            sys_prompt = self._build_system_prompt(allow_net=allow_net)
             if system_evidence:
                 if isinstance(system_evidence, dict):
                     ev_lines = []
@@ -682,9 +664,28 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
                 else:
                     ev_str = str(system_evidence).strip()
 
-                initial_content.append(f"SYSTEM EVIDENCE (deterministic, trusted):\n{ev_str}")
+                sys_prompt = f"{sys_prompt}\n\n════════════════════════════════════════\nSYSTEM EVIDENCE (deterministic, trusted):\n{ev_str}\n════════════════════════════════════════"
 
-            initial_content.append(wrapped_text)
+            model = None
+            for m in model_names_to_try:
+                try:
+                    model = self.genai.GenerativeModel(
+                        model_name=m,
+                        system_instruction=sys_prompt,
+                        tools=tools
+                    )
+                    self.model_name = m
+                    break
+                except Exception:
+                    continue
+
+            if not model:
+                print("[GeminiAgentRunner] No working model found.")
+                return None
+
+            # Build initial message (always wrap user text; system evidence is strictly in system_instruction)
+            wrapped_text = PromptGuard.wrap_untrusted_input(user_text)
+            initial_content = [wrapped_text]
 
             if pil_image and Image and isinstance(pil_image, Image.Image):
                 if pil_image.mode != "RGB":
@@ -737,6 +738,9 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
             print(f"[GeminiAgentRunner] ✅ Done in {elapsed_ms}ms — {len(tool_calls_log)} tool call(s)")
 
             parsed = self._parse_json_response(final_text)
+            sanitized = sanitize_llm_output(parsed)
+            if sanitized is not None:
+                parsed = sanitized
             parsed["tool_calls_made"] = tool_calls_log
             parsed["model_used"] = self.model_name
             parsed["latency_ms"] = elapsed_ms
@@ -749,6 +753,9 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
 
             return parsed
 
+        except TimeoutError:
+            print("[GeminiAgentRunner] ⏱️ TimeoutError")
+            raise
         except Exception as e:
             err_name = type(e).__name__
             print(f"[GeminiAgentRunner] ❌ Agentic loop error: {err_name}")
@@ -769,7 +776,12 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
                 try:
                     return chat.send_message(content, request_options={"timeout": rem_time})
                 except TypeError:
-                    return chat.send_message(content)
+                    try:
+                        return chat.send_message(content, timeout=rem_time)
+                    except TypeError:
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                            fut = ex.submit(chat.send_message, content)
+                            return fut.result(timeout=rem_time)
             except Exception as e:
                 err_str = str(e)
                 is_429 = "429" in err_str or "Quota exceeded" in err_str or "RESOURCE_EXHAUSTED" in err_str
@@ -786,7 +798,20 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
                     time.sleep(wait_sec)
                 else:
                     raise e
-        return chat.send_message(content)
+
+        now = time.monotonic()
+        rem_time = max(0.01, (deadline - now)) if deadline is not None else 20.0
+        if rem_time <= 0.05:
+            raise TimeoutError("Runner deadline exceeded")
+        try:
+            return chat.send_message(content, request_options={"timeout": rem_time})
+        except TypeError:
+            try:
+                return chat.send_message(content, timeout=rem_time)
+            except TypeError:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                    fut = ex.submit(chat.send_message, content)
+                    return fut.result(timeout=rem_time)
 
     def _extract_function_calls(self, response) -> list:
         """
@@ -887,16 +912,20 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
         """Parse JSON from Gemini final answer, with fallback defaults."""
         try:
             clean = text.replace("```json", "").replace("```", "").strip()
-            return json.loads(clean)
+            parsed = json.loads(clean)
+            if isinstance(parsed, dict):
+                return parsed
         except Exception:
-            # Fallback: return raw text as conversational reply
-            return {
-                "intent_type": "scam_analysis",
-                "conversational_reply": text.strip() or "Không thể phân tích được nội dung này.",
-                "risk_score": 0,
-                "explanation_breakdown": [],
-                "recommendations": []
-            }
+            pass
+
+        # Fallback: return raw text as conversational reply
+        return {
+            "intent_type": "scam_analysis",
+            "conversational_reply": clean_llm_string(text, max_len=600) or "Không thể phân tích được nội dung này.",
+            "risk_score": 0,
+            "explanation_breakdown": [],
+            "recommendations": []
+        }
 
 
 def _clean_proto_value(obj):

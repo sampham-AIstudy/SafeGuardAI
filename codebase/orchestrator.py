@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import re
+import math
 import urllib.parse
 import concurrent.futures
 import threading
@@ -26,6 +27,7 @@ from codebase.agents.multi_llm_client import MultiLLMClient      # NEW: multi-pl
 from codebase.agents.gemini_agent_runner import GeminiAgentRunner
 from codebase.agents.threat_intel_agent import ThreatIntelAgent  # NEW: threat intelligence
 from codebase.agents.prompt_guard import PromptGuard
+from codebase.agents.llm_output import sanitize_llm_output, clean_llm_string
 from codebase.agents.url_analysis_agent import URLAnalysisAgent
 from codebase.url_analysis.analyzer import UrlAnalyzer
 from codebase.url_analysis.resolver import NetworkRecorder
@@ -271,7 +273,8 @@ class SafeGuardOrchestrator:
             allow_net = bool(settings.network_enabled and not settings.offline and online_check)
 
         recorder = NetworkRecorder() if allow_net else None
-        deadline = time.monotonic() + settings.request_budget_s
+        net_deadline = time.monotonic() + settings.request_budget_s
+        deadline = net_deadline
 
         if settings.offline:
             effective_llm_mode = "off"
@@ -552,8 +555,12 @@ class SafeGuardOrchestrator:
 
         # ── Stage B: Concurrent Network (B1) & LLM (B2) Pipeline ─────────────
         stage_b_start = time.time()
+        is_llm_active = (
+            (effective_llm_mode == "agentic" and self.agent_runner.is_active) or
+            (effective_llm_mode == "single" and self.multi_llm_client.is_active)
+        )
         need_network = bool(allow_net)
-        need_llm = bool(not injection_detected and effective_llm_mode in ("single", "agentic"))
+        need_llm = bool(not injection_detected and not settings.offline and is_llm_active)
 
         ti_result = None
         b1_ms = 0.0
@@ -568,7 +575,7 @@ class SafeGuardOrchestrator:
 
         if injection_detected:
             b2_status = "skipped"
-        elif settings.offline or effective_llm_mode == "off":
+        elif settings.offline or effective_llm_mode == "off" or not is_llm_active:
             b2_status = "disabled"
 
         if not need_network and not need_llm:
@@ -578,7 +585,7 @@ class SafeGuardOrchestrator:
         else:
             def _task_network() -> tuple[dict | None, Any, float, str]:
                 t0 = time.time()
-                rem = max(0.01, deadline - time.monotonic())
+                rem = max(0.01, net_deadline - time.monotonic())
                 rep = url_report
                 if settings.url_module_enabled:
                     try:
@@ -593,7 +600,7 @@ class SafeGuardOrchestrator:
                     except Exception as ex:
                         print(f"[Orchestrator] Network analyzer notice: {type(ex).__name__}")
                 ti = None
-                rem_ti = max(0.0, deadline - time.monotonic())
+                rem_ti = max(0.0, net_deadline - time.monotonic())
                 if rem_ti >= 0.3:
                     try:
                         ti = self._run_threat_intel_for_report(
@@ -607,7 +614,7 @@ class SafeGuardOrchestrator:
 
             def _task_llm() -> tuple[dict | None, float, str, str | None]:
                 t0 = time.time()
-                llm_budget = min(settings.llm_timeout_s, max(0.1, deadline - time.monotonic()))
+                llm_budget = getattr(settings, "runner_deadline_s", 20.0) if effective_llm_mode == "agentic" else settings.llm_timeout_s
                 llm_deadline_abs = time.monotonic() + llm_budget
                 try:
                     if effective_llm_mode == "agentic":
@@ -632,7 +639,14 @@ class SafeGuardOrchestrator:
                         el = round((time.time() - t0) * 1000, 2)
                         if res is None:
                             return None, el, "error", "llm_error"
-                        return res, el, "ok", None
+                        sanitized = sanitize_llm_output(res)
+                        if sanitized is None:
+                            return None, el, "invalid", "llm_invalid"
+                        if isinstance(res, dict):
+                            for k in ("_tool_cache", "tool_calls_made", "model_used", "latency_ms"):
+                                if k in res:
+                                    sanitized[k] = res[k]
+                        return sanitized, el, "ok", None
                     else:
                         if not self.multi_llm_client.is_active:
                             return None, round((time.time() - t0) * 1000, 2), "disabled", None
@@ -647,7 +661,10 @@ class SafeGuardOrchestrator:
                         el = round((time.time() - t0) * 1000, 2)
                         if res is None:
                             return None, el, "error", "llm_error"
-                        return res, el, "ok", None
+                        sanitized = sanitize_llm_output(res)
+                        if sanitized is None:
+                            return None, el, "invalid", "llm_invalid"
+                        return sanitized, el, "ok", None
                 except TimeoutError:
                     return None, round((time.time() - t0) * 1000, 2), "timeout", "llm_timeout"
                 except Exception as ex:
@@ -674,8 +691,9 @@ class SafeGuardOrchestrator:
                         b1_status = "error"
 
                 if llm_future is not None:
+                    llm_wait_s = (getattr(settings, "runner_deadline_s", 20.0) if effective_llm_mode == "agentic" else settings.llm_timeout_s) + 0.5
                     try:
-                        l_res, b2_ms, b2_status, b2_flag = llm_future.result(timeout=settings.llm_timeout_s + 0.5)
+                        l_res, b2_ms, b2_status, b2_flag = llm_future.result(timeout=llm_wait_s)
                         llm_res = l_res
                     except concurrent.futures.TimeoutError:
                         b2_ms = round((time.time() - stage_b_start) * 1000, 2)
@@ -717,48 +735,57 @@ class SafeGuardOrchestrator:
         llm_risk = 0
         llm_status_final = b2_flag
         if llm_res is not None:
-            if not isinstance(llm_res, dict) or "risk_score" not in llm_res:
+            sanitized = sanitize_llm_output(llm_res)
+            if sanitized is None:
                 llm_status_final = "llm_invalid"
+                llm_res = None
             else:
                 try:
-                    raw_val = llm_res["risk_score"]
+                    raw_val = sanitized.get("risk_score")
                     if isinstance(raw_val, bool):
                         llm_status_final = "llm_invalid"
+                        llm_res = None
                     else:
-                        llm_risk = max(0, min(99, int(raw_val)))
-                except (ValueError, TypeError):
+                        f_val = float(raw_val)
+                        if not math.isfinite(f_val):
+                            llm_status_final = "llm_invalid"
+                            llm_res = None
+                        else:
+                            llm_risk = max(0, min(99, int(f_val)))
+                            if isinstance(llm_res, dict):
+                                for meta_k in ("_tool_cache", "tool_calls_made", "model_used", "latency_ms"):
+                                    if meta_k in llm_res:
+                                        sanitized[meta_k] = llm_res[meta_k]
+                            llm_res = sanitized
+                except (ValueError, TypeError, OverflowError, ArithmeticError):
                     llm_status_final = "llm_invalid"
+                    llm_res = None
 
         # Risk merge: max(det_risk, llm_risk); LLM never pulls score below deterministic
         risk_score = max(det_risk, llm_risk)
-
-        # Merge recommendations and explanations from LLM (without overwriting)
-        BIDI_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u200e\u200f\u202a-\u202e\u2066-\u2069]")
-        def _clean_s(s: Any, max_len: int = 300) -> str:
-            if not isinstance(s, str):
-                return ""
-            cleaned = re.sub(r"<[^>\n]{0,200}>", "", s)
-            cleaned = BIDI_RE.sub("", cleaned).strip()
-            return cleaned[:max_len]
 
         if llm_res and isinstance(llm_res, dict) and llm_status_final not in ("llm_invalid", "llm_error", "llm_timeout"):
             llm_recs = llm_res.get("recommendations", [])
             if isinstance(llm_recs, list):
                 existing_recs = set(det_decision.get("recommendations", []))
                 for r in llm_recs:
-                    cr = _clean_s(r, max_len=300)
+                    cr = clean_llm_string(r, max_len=300)
                     if cr and cr not in existing_recs:
                         det_decision.setdefault("recommendations", []).append(cr)
                         existing_recs.add(cr)
+                        if len(det_decision["recommendations"]) >= 10:
+                            break
 
             llm_breakdown = llm_res.get("explanation_breakdown", [])
             if isinstance(llm_breakdown, list):
                 existing_reasons = set(explain_info.get("reasons", []))
                 for r in llm_breakdown:
-                    cr = _clean_s(r, max_len=300)
+                    cr = clean_llm_string(r, max_len=300)
                     if cr and cr not in existing_reasons:
                         explain_info.setdefault("reasons", []).append(cr)
                         existing_reasons.add(cr)
+                        if len(explain_info["reasons"]) >= 10:
+                            break
 
         # Apply evidence floors AFTER merge
         if settings.url_module_enabled or extra_crit:
@@ -793,13 +820,14 @@ class SafeGuardOrchestrator:
                 confidence_info["reason"] += " (Độ đồng thuận giữa hệ thống tất định và LLM có độ phân kỳ cao >40 điểm)."
 
         # Decision Agent evaluation
+        safe_llm_res = llm_res if (llm_res and isinstance(llm_res, dict) and llm_status_final not in ("llm_invalid", "llm_error", "llm_timeout")) else None
         decision_info = self.decision_agent.evaluate_decision(
             risk_score=risk_score,
             confidence_info=confidence_info,
             explainable_info=explain_info,
             emergency_info=emergency_info,
             user_text=user_text,
-            real_llm_result=llm_res,
+            real_llm_result=safe_llm_res,
             critical_evidence=critical_evidence,
             url_report=url_report,
             has_image=has_image,
@@ -814,6 +842,8 @@ class SafeGuardOrchestrator:
             decision_info.setdefault("recommendations", []).append(
                 "Nội dung đầu vào vượt quá giới hạn độ dài cho phép (20.000 ký tự) và đã được cắt bớt để xử lý an toàn."
             )
+        if "recommendations" in decision_info and isinstance(decision_info["recommendations"], list):
+            decision_info["recommendations"] = decision_info["recommendations"][:10]
 
         # Memory update
         self.memory_agent.add_interaction(
@@ -837,7 +867,7 @@ class SafeGuardOrchestrator:
             )
 
         # Determine execution_path
-        if settings.offline or (effective_llm_mode == "off" and not allow_net):
+        if settings.offline or effective_llm_mode == "off" or not is_llm_active:
             execution_path = "deterministic_only"
         elif effective_llm_mode == "agentic":
             if b2_status == "ok":
@@ -900,6 +930,9 @@ class SafeGuardOrchestrator:
             "image_analysis": image_analysis,
             "online_check": bool(online_check),
         }
+        if decision_info.get("llm_commentary"):
+            resp["llm_commentary"] = decision_info["llm_commentary"]
+
         if llm_status_final:
             resp["status"] = llm_status_final
             resp["llm_status"] = llm_status_final
@@ -1199,7 +1232,14 @@ class SafeGuardOrchestrator:
         })
         emergency_info = tool_cache.get("emergency", {"is_emergency": False})
 
-        llm_risk = int(agent_result.get("risk_score", 0))
+        try:
+            val = agent_result.get("risk_score", 0)
+            if val is not None and not isinstance(val, bool) and math.isfinite(float(val)):
+                llm_risk = max(0, min(99, int(float(val))))
+            else:
+                llm_risk = 0
+        except (ValueError, TypeError, OverflowError, ArithmeticError):
+            llm_risk = 0
         explainable_risk = int(explain_info.get("risk_score", 0))
 
         # Use MAX of Gemini score and ExplainableAgent score
@@ -1338,7 +1378,7 @@ class SafeGuardOrchestrator:
 
         # Merge LLM recommendations into decision
         llm_recs = agent_result.get("recommendations", [])
-        if llm_recs:
+        if llm_recs and isinstance(llm_recs, list):
             existing = set(decision_info.get("recommendations", []))
             for rec in llm_recs:
                 if rec not in existing:
@@ -1353,6 +1393,8 @@ class SafeGuardOrchestrator:
             decision_info.setdefault("recommendations", []).append(
                 "Nội dung đầu vào vượt quá giới hạn độ dài cho phép (20.000 ký tự) và đã được cắt bớt để xử lý an toàn."
             )
+        if "recommendations" in decision_info and isinstance(decision_info["recommendations"], list):
+            decision_info["recommendations"] = decision_info["recommendations"][:10]
 
         elapsed_ms = round((time.time() - start_time) * 1000, 2)
 
@@ -1395,6 +1437,8 @@ class SafeGuardOrchestrator:
             "image_analysis": image_analysis,
             "online_check": bool(online_check),
         }
+        if decision_info.get("llm_commentary"):
+            resp["llm_commentary"] = decision_info["llm_commentary"]
         if ti_result is not None:
             resp["threat_intel"] = ti_result
         return resp

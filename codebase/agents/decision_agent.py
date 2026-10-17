@@ -1,4 +1,5 @@
 import re
+from codebase.agents.llm_output import clean_llm_string
 
 
 class DecisionAgent:
@@ -111,8 +112,19 @@ class DecisionAgent:
         )
         is_general_chat = can_be_general and (is_exact_greeting or (1 <= word_count <= 8 and not has_money_action))
 
+        # Extract sanitized LLM conversational reply if available and valid
+        llm_reply = None
+        if real_llm_result and isinstance(real_llm_result, dict):
+            status = real_llm_result.get("status") or real_llm_result.get("llm_status")
+            if status not in ("llm_invalid", "llm_error", "llm_timeout"):
+                raw_reply = real_llm_result.get("conversational_reply")
+                if raw_reply and isinstance(raw_reply, str):
+                    cleaned_reply = clean_llm_string(raw_reply, max_len=600)
+                    if cleaned_reply:
+                        llm_reply = cleaned_reply
+
         if is_general_chat:
-            reply = real_llm_result.get("conversational_reply") if real_llm_result else None
+            reply = llm_reply
             if not reply:
                 if "đây là gì" in txt_clean or "bạn là ai" in txt_clean:
                     reply = "Tôi là SafeGuard AI — Trợ lý Vệ sĩ Số phòng chống lừa đảo trực tuyến tại Việt Nam. Bạn có thể gửi tin nhắn, đường link nghi vấn hoặc ảnh chụp bill VietQR/SMS để tôi hỗ trợ phân tích độ an toàn!"
@@ -123,6 +135,7 @@ class DecisionAgent:
                 "intent_type": "general_chat",
                 "risk_level": "LOW",
                 "headline": reply,
+                "llm_commentary": None,
                 "recommendations": [],
                 "hitl_disclaimer": "SafeGuard AI — Trợ lý Vệ sĩ Số phòng chống lừa đảo trực tuyến."
             }
@@ -130,7 +143,7 @@ class DecisionAgent:
         # Need More Info condition:
         # Query has no URL, no factors, risk < 25, not emergency, but is too short or ambiguous without content
         if can_be_general and (word_count <= 15):
-            reply = real_llm_result.get("conversational_reply") if real_llm_result else None
+            reply = llm_reply
             if not reply:
                 reply = "SafeGuard AI cần thêm thông tin để đánh giá. Vui lòng gửi cho tôi đầy đủ nội dung tin nhắn, số tài khoản, số điện thoại hoặc dán đường link nghi vấn cần kiểm tra nhé!"
 
@@ -138,6 +151,7 @@ class DecisionAgent:
                 "intent_type": "need_more_info",
                 "risk_level": "LOW",
                 "headline": reply,
+                "llm_commentary": None,
                 "recommendations": [
                     "Dán toàn bộ nội dung tin nhắn đáng ngờ bạn nhận được.",
                     "Gửi đường link trang web hoặc file cài đặt nghi vấn.",
@@ -189,13 +203,11 @@ class DecisionAgent:
                 "💡 Vẫn duy trì cảnh giác khi thực hiện giao dịch online với người lạ."
             ]
 
-        if real_llm_result and real_llm_result.get("conversational_reply"):
-            headline = real_llm_result["conversational_reply"]
-
         return {
             "intent_type": "scam_analysis",
             "risk_level": risk_level,
             "headline": headline,
+            "llm_commentary": llm_reply,
             "recommendations": recommends,
             "hitl_disclaimer": "SafeGuard AI là Hệ thống Hỗ trợ Quyết định (Decision Support System). Quyết định giao dịch hoàn toàn thuộc về bạn."
         }

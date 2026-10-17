@@ -172,7 +172,8 @@ def test_sequential_fallback_invokes_threat_intel_on_suspicious_url(mock_net_env
         online_check=True,  # Phase 3E-1: network features require opt-in online_check=True
     )
 
-    assert res["execution_path"] == "sequential_fallback"
+    # No usable LLM key in the test env => the deterministic path is reported (Phase 4D-1); ThreatIntel must still run.
+    assert res["execution_path"] in ("sequential_fallback", "deterministic_only")
     assert ti_called, "ThreatIntel MUST be called in sequential fallback branch"
     assert "threat_intel" in res
     assert res["threat_intel"]["is_malicious"] is True

@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from codebase.text_utils import make_variants
 
 
@@ -31,6 +32,8 @@ class PromptGuard:
         r"bat\s*buoc\s*danh\s*gia\s*0%",
         r"bắt\s*buộc\s*trả\s*lời\s*an\s*toàn",
         r"bat\s*buoc\s*tra\s*loi\s*an\s*toan",
+        r"system[\s_]*evidence",
+        r"deterministic[\s,_]*trusted",
     ]
 
     CMD_VERB = (
@@ -133,6 +136,13 @@ class PromptGuard:
             if re.search(pat, variants.lower, re.IGNORECASE) or re.search(pat, variants.folded, re.IGNORECASE):
                 injection_detected = True
                 break
+
+        # Check for fake system evidence injection (handles case/diacritics/whitespace/zero-width/full-width)
+        if not injection_detected and user_text:
+            clean_text = re.sub(r"[\u200b-\u200d\u2060\ufeff\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]", "", user_text)
+            clean_compact = re.sub(r"[\s\W_]+", "", unicodedata.normalize("NFKC", clean_text).lower())
+            if "systemevidence" in clean_compact or "deterministictrusted" in clean_compact:
+                injection_detected = True
 
         # 2. Check URL presence:
         # Rủi ro đã chấp nhận: Yêu cầu độc hại kèm domain thật vẫn đi tiếp vào pipeline
@@ -249,5 +259,28 @@ class PromptGuard:
     @staticmethod
     def wrap_untrusted_input(text: str) -> str:
         """Wrap user text inside XML delimiters to prevent prompt injection."""
-        clean_text = re.sub(r"(?i)</?\s*user_input_untrusted\s*>", "", text or "")
-        return f"<user_input_untrusted>\n{clean_text}\n</user_input_untrusted>"
+        if not text:
+            return "<user_input_untrusted>\n\n</user_input_untrusted>"
+
+        # 1. Normalize full-width angle brackets ＜ (U+FF1C), ＞ (U+FF1E)
+        clean = str(text).replace("＜", "<").replace("＞", ">")
+
+        # 2. Strip zero-width & bidi characters that could evade tag match
+        clean = re.sub(r"[\u200b-\u200d\u2060\ufeff\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]", "", clean)
+
+        # 3. Repeatedly strip closing / opening delimiter tags until none remain
+        tag_pattern = re.compile(r"</?\s*user_input_untrusted\s*>", re.IGNORECASE)
+        for _ in range(10):
+            new_clean = tag_pattern.sub("", clean)
+            if new_clean == clean:
+                break
+            clean = new_clean
+
+        # 4. Neutralize any remaining angle brackets
+        clean = clean.replace("<", "‹").replace(">", "›")
+
+        # 5. Defang fake system evidence markers
+        clean = re.sub(r"(?i)system[\s_]*evidence", "[system_evidence_token]", clean)
+        clean = re.sub(r"(?i)deterministic[\s,_]*trusted", "[deterministic_trusted_token]", clean)
+
+        return f"<user_input_untrusted>\n{clean}\n</user_input_untrusted>"
