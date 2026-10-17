@@ -98,6 +98,7 @@ class UrlAnalyzer:
         self.catalog = catalog or BrandCatalog.load()
         self.lists = lists or load_url_lists()
         self.resolver = resolver
+        self._default_resolver: Any = None
         self.blacklist = blacklist if blacklist is not None else PhishBlacklist.from_dataset()
 
         # Cache config sets
@@ -260,6 +261,204 @@ class UrlAnalyzer:
                     return True
         return False
 
+    def _is_network_permitted(self, allow_network: bool) -> bool:
+        if not allow_network:
+            return False
+        try:
+            from codebase.config import get_settings
+            settings = get_settings()
+            return bool(getattr(settings, "network_enabled", False)) and not bool(getattr(settings, "offline", False))
+        except Exception:
+            return False
+
+    def _get_resolver(self) -> Any:
+        if self.resolver is not None:
+            return self.resolver
+        if self._default_resolver is None:
+            from codebase.url_analysis.resolver import SafeRedirectResolver
+            self._default_resolver = SafeRedirectResolver(lists=self.lists)
+        return self._default_resolver
+
+    def _resolve_finding(
+        self,
+        finding: UrlFinding,
+        resolver: Any,
+        deadline_s: float,
+        depth: int = 0,
+    ) -> None:
+        finding.network_used = True
+        target_url = finding.final_url or finding.raw
+        try:
+            chain = resolver.resolve(target_url)
+        except Exception as e:
+            finding.errors.append(f"resolver_error:{type(e).__name__}")
+            return
+
+        if not chain:
+            return
+
+        if hasattr(chain, "hops") and chain.hops:
+            finding.redirect_chain = [
+                h.to_dict() if hasattr(h, "to_dict") else dict(h) for h in chain.hops
+            ]
+
+        # (b) chain.blocked_reason thuộc nhóm đích nội bộ/ip riêng
+        is_private_blocked = False
+        if getattr(chain, "blocked_reason", None):
+            br = str(chain.blocked_reason).lower()
+            if (
+                "private" in br
+                or "loopback" in br
+                or "internal" in br
+                or br in ("blocked_destination", "disallowed_host")
+            ):
+                is_private_blocked = True
+
+        if is_private_blocked:
+            if not any(s.code == "NETWORK_BLOCKED_PRIVATE" for s in finding.signals):
+                finding.signals.append(
+                    UrlSignal(
+                        code="NETWORK_BLOCKED_PRIVATE",
+                        severity="high",
+                        weight=40,
+                        message_vi="Đường link dẫn tới địa chỉ mạng nội bộ.",
+                        evidence=f"blocked_reason={chain.blocked_reason}",
+                    )
+                )
+
+        # (a) nếu final_url khác:
+        final_dest = getattr(chain, "final_url", None)
+        if final_dest and final_dest.strip() != target_url.strip():
+            final_clean = final_dest.strip()
+            finding.final_url = final_clean
+
+            if not any(s.code == "SHORTENER_RESOLVED" for s in finding.signals):
+                finding.signals.append(
+                    UrlSignal(
+                        code="SHORTENER_RESOLVED",
+                        severity="low",
+                        weight=10,
+                        message_vi="Liên kết rút gọn đã được giải mã tới đích đến thực tế.",
+                        evidence=f"final_url={final_clean}",
+                    )
+                )
+
+            num_hops = len(getattr(chain, "hops", []))
+            if num_hops > 2 and not any(s.code == "REDIRECT_CHAIN" for s in finding.signals):
+                finding.signals.append(
+                    UrlSignal(
+                        code="REDIRECT_CHAIN",
+                        severity="low",
+                        weight=10,
+                        message_vi=f"Chuỗi chuyển hướng nhiều bước ({num_hops} bước) tiềm ẩn rủi ro che giấu đích đến.",
+                        evidence=f"hops_count={num_hops}",
+                    )
+                )
+
+            # Recursive analysis of final_url (độ sâu <= 2)
+            if depth < 2:
+                child = self.analyze_url(
+                    final_clean,
+                    source="redirect",
+                    allow_network=False,
+                    depth=depth + 1,
+                )
+                finding.children.append(child)
+                if child.final_url:
+                    finding.final_url = child.final_url
+                if child.is_official:
+                    # Brand in shortener path was a legitimate route to official domain
+                    finding.signals = [
+                        s for s in finding.signals if s.code != "BRAND_IN_PATH"
+                    ]
+
+        # (c) chain.antibot có => ANTIBOT_CHALLENGE (weight 10, low, message_vi nêu vendor)
+        has_antibot = bool(getattr(chain, "antibot", None))
+        if has_antibot:
+            vendor_name = chain.antibot.get("vendor", "hệ thống chống bot")
+            if not any(s.code == "ANTIBOT_CHALLENGE" for s in finding.signals):
+                finding.signals.append(
+                    UrlSignal(
+                        code="ANTIBOT_CHALLENGE",
+                        severity="low",
+                        weight=10,
+                        message_vi=f"Trang web kích hoạt cơ chế chống bot / kiểm tra người dùng ({vendor_name}).",
+                        evidence=f"vendor={vendor_name}, kind={chain.antibot.get('kind', '')}",
+                    )
+                )
+
+        # (d) nếu antibot VÀ (brand match HOẶC suspicious TLD HOẶC free hosting HOẶC lure token HOẶC shortener chưa rõ đích HOẶC url_risk >= 20)
+        # => thêm CLOAKING_SUSPECTED (weight 25, medium, message_vi 'trang chặn công cụ kiểm tra tự động và có dấu hiệu giả mạo');
+        # domain OFFICIAL + antibot vẫn 'official' (không cộng);
+        if has_antibot and not finding.is_official:
+            has_brand = bool(finding.brand_match) or any("BRAND" in s.code for s in finding.signals)
+            has_susp_tld = self._is_suspicious_tld(
+                finding.effective_host, finding.registrable_domain
+            ) or any(s.code == "SUSPICIOUS_TLD" for s in finding.signals)
+            has_free_host = self._is_free_hosting(
+                finding.effective_host, finding.registrable_domain
+            ) or any(s.code == "FREE_HOSTING" for s in finding.signals)
+            has_lure = any(
+                s.code in ("LURE_KEYWORD_DOMAIN", "LURE_KEYWORD_PATH")
+                for s in finding.signals
+            )
+            is_shortener_unresolved = any(
+                s.code == "SHORTENER" for s in finding.signals
+            ) and (not getattr(chain, "final_url", None) or chain.final_url == target_url)
+            cur_risk = sum(
+                s.weight for s in finding.signals if s.code not in ("ANTIBOT_CHALLENGE", "CLOAKING_SUSPECTED")
+            )
+            has_risk_20 = cur_risk >= 20 or finding.url_risk_score >= 20
+
+            if (
+                has_brand
+                or has_susp_tld
+                or has_free_host
+                or has_lure
+                or is_shortener_unresolved
+                or has_risk_20
+            ):
+                if not any(s.code == "CLOAKING_SUSPECTED" for s in finding.signals):
+                    finding.signals.append(
+                        UrlSignal(
+                            code="CLOAKING_SUSPECTED",
+                            severity="medium",
+                            weight=25,
+                            message_vi="Trang chặn công cụ kiểm tra tự động và có dấu hiệu giả mạo.",
+                            evidence=f"antibot={chain.antibot.get('vendor')}, suspicious_context=True",
+                        )
+                    )
+
+        # Recalculate score & verdict:
+        # domain OFFICIAL + antibot vẫn 'official' (không cộng);
+        if finding.is_official:
+            finding.url_risk_score = 0
+            finding.verdict = "official"
+        else:
+            self_risk = min(99, sum(s.weight for s in finding.signals))
+            max_child_risk = max((ch.url_risk_score for ch in finding.children), default=0)
+            final_risk = max(self_risk, max_child_risk)
+            finding.url_risk_score = final_risk
+
+            # (e) không đọc được nội dung (antibot hoặc error timeout/blocked/budget)
+            # => finding.verdict='unverified' khi các tín hiệu khác chưa đủ nâng lên suspicious/dangerous,
+            # và message_vi 'Trang này chặn công cụ kiểm tra tự động nên hệ thống chưa xác minh được nội dung. Điều này KHÔNG có nghĩa là an toàn.'
+            # — verdict 'unverified' không bao giờ hạ điểm hay biến thành official/benign;
+            cannot_read = (
+                has_antibot
+                or (getattr(chain, "error", None) in ("budget_exceeded", "request_timeout", "dns_timeout", "too_many_hops"))
+                or bool(getattr(chain, "blocked_reason", None))
+            )
+
+            if final_risk >= 70:
+                finding.verdict = "dangerous"
+            elif final_risk >= 40:
+                finding.verdict = "suspicious"
+            elif cannot_read:
+                finding.verdict = "unverified"
+            else:
+                finding.verdict = "low" if final_risk >= 1 else "benign"
+
     def analyze_text(
         self,
         text: str,
@@ -343,7 +542,7 @@ class UrlAnalyzer:
                     cand.raw,
                     source=cand.source,
                     display_text=cand.display_text,
-                    allow_network=allow_network,
+                    allow_network=False,
                     depth=0,
                     obfuscation_steps=norm_steps,
                 )
@@ -361,6 +560,43 @@ class UrlAnalyzer:
                 findings[0].url_risk_score = min(99, max(findings[0].url_risk_score, 20))
                 if findings[0].verdict in ("benign", "official"):
                     findings[0].verdict = "suspicious" if findings[0].url_risk_score >= 40 else "low"
+
+            # 3.5 Network resolution for eligible findings (max 3 most suspicious / shorteners)
+            if self._is_network_permitted(allow_network):
+                res = self._get_resolver()
+                eligible: list[UrlFinding] = []
+                for f in findings:
+                    p = parse_url(f.raw)
+                    try:
+                        if res.should_resolve(p):
+                            eligible.append(f)
+                    except Exception:
+                        pass
+
+                def _res_priority(f: UrlFinding) -> tuple[int, int]:
+                    is_short = (
+                        1
+                        if (
+                            self._is_shortener(f.effective_host)
+                            or any(s.code == "SHORTENER" for s in f.signals)
+                        )
+                        else 0
+                    )
+                    return (is_short, f.url_risk_score)
+
+                eligible.sort(key=_res_priority, reverse=True)
+                to_resolve = eligible[:3]
+
+                for f in to_resolve:
+                    elapsed = time.perf_counter() - start_time
+                    if elapsed >= deadline_s:
+                        is_truncated = True
+                        break
+                    rem_time = max(0.5, deadline_s - elapsed)
+                    try:
+                        self._resolve_finding(f, res, deadline_s=rem_time, depth=0)
+                    except Exception as ex:
+                        f.errors.append(f"resolver_unhandled:{type(ex).__name__}")
 
             # 4. Aggregates
             max_url_risk = max((f.url_risk_score for f in findings), default=0)
@@ -381,7 +617,7 @@ class UrlAnalyzer:
             # has_only_official_urls: True if all findings (and children) are official and no unverified URL flood
             def _all_official(flist: list[UrlFinding]) -> bool:
                 for f in flist:
-                    if not f.is_official:
+                    if not f.is_official or f.verdict == "unverified":
                         return False
                     if f.children and not _all_official(f.children):
                         return False
@@ -418,6 +654,11 @@ class UrlAnalyzer:
                 flood_msg = "Tin chứa quá nhiều đường link, một số chưa được kiểm tra."
                 if flood_msg not in summary_vi:
                     summary_vi.append(flood_msg)
+
+            if any(f.verdict == "unverified" for f in findings):
+                unverified_msg = "Trang này chặn công cụ kiểm tra tự động nên hệ thống chưa xác minh được nội dung. Điều này KHÔNG có nghĩa là an toàn."
+                if unverified_msg not in summary_vi:
+                    summary_vi.append(unverified_msg)
 
             for f in findings:
                 for s in f.signals:
@@ -456,6 +697,7 @@ class UrlAnalyzer:
         source: str = "text",
         display_text: str | None = None,
         allow_network: bool = False,
+        deadline_s: float = 6.0,
         depth: int = 0,
         seen_urls: set[str] | None = None,
         obfuscation_steps: list[ObfuscationStep] | None = None,
@@ -1101,7 +1343,7 @@ class UrlAnalyzer:
         # Destination URL after redirect peeling or embedded extraction
         final_dest = children[-1].final_url if children else norm_url
 
-        return UrlFinding(
+        finding = UrlFinding(
             raw=raw,
             normalized=norm_url,
             final_url=final_dest,
@@ -1121,3 +1363,13 @@ class UrlAnalyzer:
             network_used=False,
             errors=[],
         )
+
+        if self._is_network_permitted(allow_network) and depth < 2:
+            res = self._get_resolver()
+            try:
+                if res.should_resolve(parsed):
+                    self._resolve_finding(finding, res, deadline_s=deadline_s, depth=depth)
+            except Exception as ex:
+                finding.errors.append(f"resolver_unhandled:{type(ex).__name__}")
+
+        return finding

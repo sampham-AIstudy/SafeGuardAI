@@ -11,10 +11,11 @@ import ssl
 import threading
 import time
 import urllib.parse
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
 from codebase.config import get_settings
+from codebase.url_analysis.antibot import classify_response
 from codebase.url_analysis.normalize import load_url_lists
 from codebase.url_analysis.parse import parse_url
 
@@ -1007,6 +1008,8 @@ class SafeRedirectResolver:
         blocked_reason: str | None = None
         error: str | None = None
         final_url: str | None = None
+        antibot_data: dict | None = None
+        retry_429_used: bool = False
 
         while True:
             # Check hops limit
@@ -1160,6 +1163,42 @@ class SafeRedirectResolver:
                 str(k).lower(): str(v) for k, v in resp_headers.items()
             }
 
+            # Retry at most once for 429 with Retry-After <= 5s within budget
+            if status == 429 and not retry_429_used:
+                retry_hdr = resp_headers_lower.get("retry-after")
+                if retry_hdr:
+                    try:
+                        retry_s = float(retry_hdr.strip())
+                    except (ValueError, TypeError):
+                        retry_s = -1.0
+                    if 0 <= retry_s <= 5.0:
+                        rem = deadline - time.monotonic()
+                        if rem > retry_s + 0.5:
+                            time.sleep(retry_s)
+                            retry_429_used = True
+                            remaining_budget = deadline - time.monotonic()
+                            if remaining_budget > 0:
+                                timeout = min(self.per_hop_timeout, remaining_budget)
+                                try:
+                                    status, resp_headers, body = _invoke_transport(
+                                        transport_fn,
+                                        "HEAD",
+                                        p.scheme,
+                                        pinned_ip,
+                                        port,
+                                        host,
+                                        path_and_query,
+                                        headers,
+                                        timeout,
+                                        self.max_body_bytes,
+                                        deadline,
+                                    )
+                                    resp_headers_lower = {
+                                        str(k).lower(): str(v) for k, v in resp_headers.items()
+                                    }
+                                except Exception:
+                                    pass
+
             if resp_headers_lower.get("__ambiguous_location__") == "true":
                 error = "ambiguous_location"
                 hops.append(
@@ -1173,9 +1212,9 @@ class SafeRedirectResolver:
                 )
                 break
 
-            # If HEAD returns 405/501/403, fallback to GET
-            # Note: 403 is retained because Phase 3B needs the body to detect antibot challenge pages
-            if status in (405, 501, 403):
+            # If HEAD returns 405/501/403/429/503, fallback to GET
+            # Note: 403, 429, 503 are retained because Phase 3B needs the body to detect antibot challenge pages
+            if status in (405, 501, 403, 429, 503):
                 remaining_budget = deadline - time.monotonic()
                 if remaining_budget <= 0:
                     error = "budget_exceeded"
@@ -1260,14 +1299,41 @@ class SafeRedirectResolver:
             if body and len(body) > self.max_body_bytes:
                 body = body[: self.max_body_bytes]
 
+            body_str = ""
+            if body:
+                try:
+                    body_str = body.decode("utf-8", errors="replace")
+                except Exception:
+                    body_str = str(body)
+
+            # If status in (403, 429, 503) or explicit challenge header, check antibot immediately:
+            is_explicit_antibot_candidate = (
+                status in (403, 429, 503)
+                or "cf-mitigated" in resp_headers_lower
+                or "x-datadome" in resp_headers_lower
+                or "x-amzn-waf-action" in resp_headers_lower
+            )
+            if is_explicit_antibot_candidate:
+                bot_res = classify_response(status, resp_headers_lower, body_str)
+                if bot_res is not None:
+                    antibot_data = asdict(bot_res)
+                    hops.append(
+                        Hop(
+                            url=current_url,
+                            status=status,
+                            location=raw_location,
+                            ip=pinned_ip,
+                            flags=hop_flags,
+                        )
+                    )
+                    final_url = current_url
+                    error = None
+                    break
+
             # Check meta refresh if no HTTP redirect Location
             meta_refresh_url = None
             if not raw_location or status not in (301, 302, 303, 307, 308):
-                if body:
-                    try:
-                        body_str = body.decode("utf-8", errors="replace")
-                    except Exception:
-                        body_str = str(body)
+                if body_str:
                     meta_refresh_url = _extract_meta_refresh(body_str)
 
             redirect_target = (
@@ -1318,7 +1384,13 @@ class SafeRedirectResolver:
                 current_url = next_url
                 continue
             else:
-                # Final hop reached
+                # Final hop reached - check for antibot on final response if not checked yet
+                if antibot_data is None:
+                    bot_res = classify_response(status, resp_headers_lower, body_str)
+                    if bot_res is not None:
+                        antibot_data = asdict(bot_res)
+                        error = None
+
                 hops.append(
                     Hop(
                         url=current_url,
@@ -1340,7 +1412,7 @@ class SafeRedirectResolver:
             error=error,
             elapsed_ms=elapsed_ms,
             from_cache=False,
-            antibot=None,
+            antibot=antibot_data,
         )
 
         # Cache entry

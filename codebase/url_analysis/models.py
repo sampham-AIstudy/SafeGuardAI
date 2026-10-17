@@ -76,7 +76,7 @@ class UrlFinding:
     signals: list[UrlSignal] = field(default_factory=list)
     children: list[UrlFinding] = field(default_factory=list)
     url_risk_score: int = 0
-    verdict: str = "unknown"             # official | benign | low | suspicious | dangerous | unknown
+    verdict: str = "unknown"             # official | benign | low | suspicious | dangerous | unverified | unknown
     network_used: bool = False
     errors: list[str] = field(default_factory=list)
 
