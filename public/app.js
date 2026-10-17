@@ -3,14 +3,43 @@
    ============================================================ */
 
 document.addEventListener("DOMContentLoaded", () => {
+    // Client ID management (UUID v4 with localStorage and fallback)
+    let inMemoryClientId = null;
+
+    function getClientId() {
+        try {
+            let cid = localStorage.getItem("safeguard_client_id");
+            if (!cid) {
+                cid = (typeof crypto !== "undefined" && crypto.randomUUID) 
+                    ? crypto.randomUUID() 
+                    : "cid_" + Date.now() + "_" + Math.random().toString(36).substring(2, 15);
+                localStorage.setItem("safeguard_client_id", cid);
+            }
+            return cid;
+        } catch (e) {
+            if (!inMemoryClientId) {
+                inMemoryClientId = (typeof crypto !== "undefined" && crypto.randomUUID)
+                    ? crypto.randomUUID()
+                    : "cid_" + Date.now() + "_" + Math.random().toString(36).substring(2, 15);
+            }
+            return inMemoryClientId;
+        }
+    }
+
+    function generateSessionId() {
+        if (typeof crypto !== "undefined" && crypto.randomUUID) {
+            return `session_${crypto.randomUUID()}`;
+        }
+        return `session_${Date.now()}`;
+    }
+
     // State Variables
-    let activeSessionId = `session_${Date.now()}`;
+    let activeSessionId = generateSessionId();
     let attachedFileBase64 = null;
     let attachedFileName = "";
     let fileReadingPromise = null;
     let isProcessing = false;
     const IMAGE_SRC_REGEX = /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/;
-
 
     // DOM Elements
     const btnNewChat = document.getElementById("btnNewChat");
@@ -40,7 +69,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function setupEventListeners() {
         // New Chat
         btnNewChat.addEventListener("click", () => {
-            activeSessionId = `session_${Date.now()}`;
+            activeSessionId = generateSessionId();
             renderChatView([]);
             showLanding();
             loadSessions();
@@ -127,7 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         btnRemoveFile.addEventListener("click", clearAttachedFile);
 
-        // ── Image Lightbox Modal Setup ──
+        // Image Lightbox Modal Setup
         const lightboxModal = document.getElementById("imageLightboxModal");
         const lightboxImage = document.getElementById("lightboxImage");
         const lightboxBackdrop = document.getElementById("lightboxBackdrop");
@@ -142,7 +171,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if (lightboxCaption) lightboxCaption.textContent = altText || "Bằng chứng hình ảnh";
             lightboxModal.classList.remove("hidden");
         }
-
 
         function closeLightbox() {
             if (lightboxModal) lightboxModal.classList.add("hidden");
@@ -232,11 +260,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (filePreview) filePreview.classList.add("hidden");
     }
 
-
     // Load Session list from MySQL API
     async function loadSessions() {
         try {
-            const res = await fetch("/api/sessions");
+            const res = await fetch("/api/sessions", {
+                headers: {
+                    "X-Client-Id": getClientId()
+                }
+            });
             if (res.ok) {
                 const sessions = await res.json();
                 renderSessionList(sessions);
@@ -250,7 +281,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!sessionList) return;
         sessionList.innerHTML = "";
         if (!sessions || sessions.length === 0) {
-            sessionList.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:12px 8px;text-align:center;">Chưa có lịch sử chat</div>`;
+            const emptyDiv = document.createElement("div");
+            emptyDiv.className = "empty-history-notice";
+            emptyDiv.textContent = "Chưa có lịch sử chat";
+            emptyDiv.style.fontSize = "12px";
+            emptyDiv.style.color = "var(--text-muted)";
+            emptyDiv.style.padding = "12px 8px";
+            emptyDiv.style.textAlign = "center";
+            sessionList.appendChild(emptyDiv);
             return;
         }
 
@@ -273,7 +311,11 @@ document.addEventListener("DOMContentLoaded", () => {
         loadSessions();
 
         try {
-            const res = await fetch(`/api/history?session_id=${encodeURIComponent(sessionId)}`);
+            const res = await fetch(`/api/history?session_id=${encodeURIComponent(sessionId)}`, {
+                headers: {
+                    "X-Client-Id": getClientId()
+                }
+            });
             if (res.ok) {
                 const history = await res.json();
                 if (history && history.length > 0) {
@@ -317,7 +359,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const currentImageBase64 = attachedFileBase64;
         const currentFileName = attachedFileName;
 
-        // 1. Render User Message with Image Preview Thumbnail if attached
+        // Render User Message with Image Preview Thumbnail if attached
         appendUserMessage(userText || `[Đã đính kèm ảnh ${currentFileName || "bằng chứng"}]`, currentImageBase64);
 
         const payload = {
@@ -330,14 +372,17 @@ document.addEventListener("DOMContentLoaded", () => {
         chatInput.value = "";
         clearAttachedFile();
 
-        // 2. Show thinking indicator
+        // Show thinking indicator
         showThinkingWidget();
 
-        // 3. Call REST API /api/analyze
+        // Call REST API /api/analyze
         try {
             const res = await fetch("/api/analyze", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-Client-Id": getClientId()
+                },
                 body: JSON.stringify(payload)
             });
 
@@ -369,8 +414,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // Render User Message with Thumbnail Preview
-    function appendUserMessage(text, imageBase64) {
+    // Render User Message with Thumbnail Preview or Not Stored Notice
+    function appendUserMessage(text, imageBase64, showNoStoreNotice = false) {
         const row = document.createElement("div");
         row.className = "message-row user";
         
@@ -380,15 +425,31 @@ document.addEventListener("DOMContentLoaded", () => {
             if (IMAGE_SRC_REGEX.test(trimmedImg)) {
                 imgHtml = `<img src="${trimmedImg}" class="chat-attached-img" alt="Attached evidence">`;
             }
+        } else if (showNoStoreNotice) {
+            imgHtml = `<div class="image-not-stored-notice">(ảnh không được lưu)</div>`;
         }
 
         row.innerHTML = `
             <div class="message-avatar">👤</div>
             <div class="message-content">
                 ${imgHtml}
-                <p style="margin:0;">${escapeHtml(text)}</p>
+                <p class="user-msg-text">${escapeHtml(text)}</p>
             </div>
         `;
+
+        const userMsgP = row.querySelector(".user-msg-text");
+        if (userMsgP) {
+            userMsgP.style.margin = "0";
+        }
+
+        const noticeEl = row.querySelector(".image-not-stored-notice");
+        if (noticeEl) {
+            noticeEl.style.fontSize = "12px";
+            noticeEl.style.color = "var(--text-muted)";
+            noticeEl.style.fontStyle = "italic";
+            noticeEl.style.marginBottom = "6px";
+        }
+
         messagesContainer.appendChild(row);
         scrollToBottom();
     }
@@ -438,11 +499,10 @@ document.addEventListener("DOMContentLoaded", () => {
             `;
         }
 
-
         if (intentType === "general_chat" || intentType === "refusal" || intentType === "need_more_info") {
-            html += `<p style="font-size:15px;line-height:1.6;">${escapeHtml(headline)}</p>`;
+            html += `<p class="chat-headline-text">${escapeHtml(headline)}</p>`;
             if (decision.recommendations && decision.recommendations.length > 0) {
-                html += `<ul style="font-size:13px;line-height:1.6;margin:8px 0 0 18px;color:var(--text-secondary);">`;
+                html += `<ul class="chat-recommendations-list">`;
                 decision.recommendations.forEach(rec => {
                     html += `<li>${escapeHtml(rec)}</li>`;
                 });
@@ -485,30 +545,30 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">AI Confidence</div>
-                        <div class="metric-value" style="color:var(--accent);">${confScoreText}</div>
-                        <div style="font-size:10px;color:var(--text-muted);">${confLevelText}</div>
+                        <div class="metric-value metric-accent">${confScoreText}</div>
+                        <div class="metric-sub">${confLevelText}</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-label">Latency</div>
                         <div class="metric-value">${latencyText}</div>
-                        <div style="font-size:10px;color:var(--text-muted);">${latencyUnit}</div>
+                        <div class="metric-sub">${latencyUnit}</div>
                     </div>
                 </div>
             `;
 
             if (res.explainable && res.explainable.reasons && res.explainable.reasons.length > 0) {
-                html += `<div class="breakdown-section"><h4 style="font-size:13px;color:var(--text-primary);margin-bottom:8px;">🔍 Phân tích chi tiết rủi ro:</h4>`;
+                html += `<div class="breakdown-section"><h4 class="breakdown-title">🔍 Phân tích chi tiết rủi ro:</h4>`;
                 res.explainable.reasons.forEach(r => {
                     const parts = r.split(": +");
                     const label = parts[0];
-                    const pct = parts[1] ? parseInt(parts[1]) : 15;
+                    const pct = parts[1] ? parseInt(parts[1], 10) : 15;
                     html += `
-                        <div class="breakdown-row">
+                        <div class="breakdown-row" data-pct="${pct}">
                             <span class="breakdown-label">• ${escapeHtml(label)}</span>
                             <div class="breakdown-progress">
-                                <div class="breakdown-fill" style="width:${Math.min(pct, 100)}%;"></div>
+                                <div class="breakdown-fill"></div>
                             </div>
-                            <span style="font-size:12px;font-weight:600;">+${pct}%</span>
+                            <span class="breakdown-pct">+${pct}%</span>
                         </div>
                     `;
                 });
@@ -516,18 +576,81 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             if (decision.recommendations && decision.recommendations.length > 0) {
-                html += `<div style="margin-top:12px;"><h4 style="font-size:13px;color:var(--text-primary);margin-bottom:6px;">💡 Khuyến nghị hành động:</h4>`;
+                html += `<div class="recs-box"><h4 class="recs-title">💡 Khuyến nghị hành động:</h4>`;
                 decision.recommendations.forEach(rec => {
-                    html += `<p style="font-size:13px;color:var(--text-secondary);margin:4px 0;">${escapeHtml(rec)}</p>`;
+                    html += `<p class="rec-item">${escapeHtml(rec)}</p>`;
                 });
                 html += `</div>`;
             }
 
-            html += `<p style="font-size:11px;color:var(--text-muted);margin-top:12px;border-top:1px solid var(--border);padding-top:8px;">${escapeHtml(decision.hitl_disclaimer || "SafeGuard AI — Decision Support System.")}</p>`;
+            html += `<p class="hitl-footer">${escapeHtml(decision.hitl_disclaimer || "SafeGuard AI — Decision Support System.")}</p>`;
         }
 
         html += `</div>`;
         row.innerHTML = html;
+
+        // Apply CSSOM styles (CSP safe)
+        const headlineEl = row.querySelector(".chat-headline-text");
+        if (headlineEl) {
+            headlineEl.style.fontSize = "15px";
+            headlineEl.style.lineHeight = "1.6";
+        }
+        const recListEl = row.querySelector(".chat-recommendations-list");
+        if (recListEl) {
+            recListEl.style.fontSize = "13px";
+            recListEl.style.lineHeight = "1.6";
+            recListEl.style.margin = "8px 0 0 18px";
+            recListEl.style.color = "var(--text-secondary)";
+        }
+        const metricAccentEl = row.querySelector(".metric-accent");
+        if (metricAccentEl) {
+            metricAccentEl.style.color = "var(--accent)";
+        }
+        row.querySelectorAll(".metric-sub").forEach(el => {
+            el.style.fontSize = "10px";
+            el.style.color = "var(--text-muted)";
+        });
+        const bdTitle = row.querySelector(".breakdown-title");
+        if (bdTitle) {
+            bdTitle.style.fontSize = "13px";
+            bdTitle.style.color = "var(--text-primary)";
+            bdTitle.style.marginBottom = "8px";
+        }
+        row.querySelectorAll(".breakdown-row").forEach(brow => {
+            const pct = parseInt(brow.dataset.pct, 10) || 15;
+            const fillEl = brow.querySelector(".breakdown-fill");
+            if (fillEl) {
+                fillEl.style.width = Math.min(pct, 100) + "%";
+            }
+            const pctSpan = brow.querySelector(".breakdown-pct");
+            if (pctSpan) {
+                pctSpan.style.fontSize = "12px";
+                pctSpan.style.fontWeight = "600";
+            }
+        });
+        const recsBox = row.querySelector(".recs-box");
+        if (recsBox) {
+            recsBox.style.marginTop = "12px";
+        }
+        const recsTitle = row.querySelector(".recs-title");
+        if (recsTitle) {
+            recsTitle.style.fontSize = "13px";
+            recsTitle.style.color = "var(--text-primary)";
+            recsTitle.style.marginBottom = "6px";
+        }
+        row.querySelectorAll(".rec-item").forEach(el => {
+            el.style.fontSize = "13px";
+            el.style.color = "var(--text-secondary)";
+            el.style.margin = "4px 0";
+        });
+        const hitlFooter = row.querySelector(".hitl-footer");
+        if (hitlFooter) {
+            hitlFooter.style.fontSize = "11px";
+            hitlFooter.style.color = "var(--text-muted)";
+            hitlFooter.style.marginTop = "12px";
+            hitlFooter.style.borderTop = "1px solid var(--border)";
+            hitlFooter.style.paddingTop = "8px";
+        }
 
         // Attach event listener for thought accordion collapse/expand
         const thoughtBtn = row.querySelector(".thought-header-btn");
@@ -545,7 +668,13 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderChatView(history) {
         messagesContainer.innerHTML = "";
         history.forEach(item => {
-            if (item.user_text || item.image_base64) appendUserMessage(item.user_text, item.image_base64);
+            const hasImg = Boolean(item.has_image || item.image_base64);
+            const hasBase64 = Boolean(item.image_base64 && String(item.image_base64).trim());
+            const showNoStoreNotice = hasImg && !hasBase64;
+            
+            if (item.user_text || hasImg) {
+                appendUserMessage(item.user_text, item.image_base64, showNoStoreNotice);
+            }
             if (item.bot_response) {
                 appendAssistantMessage({
                     decision: {
@@ -585,7 +714,6 @@ document.addEventListener("DOMContentLoaded", () => {
             existingRow.remove();
         }
     }
-
 
     function scrollToBottom() {
         chatViewport.scrollTop = chatViewport.scrollHeight;

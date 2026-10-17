@@ -13,6 +13,7 @@ Verifies:
 
 import collections
 import io
+import types
 import json
 import logging
 import os
@@ -486,6 +487,8 @@ def test_server_online_check_boolean_validation(clean_settings):
         handler.command = "POST"
         handler.request_version = "HTTP/1.1"
         handler.close_connection = False
+        handler.client_address = ("127.0.0.1", 12345)  # rate limiter keys on the peer IP
+        handler.server = types.SimpleNamespace()  # no custom limiter/semaphore => module defaults
 
         status_box = []
         body_box = []

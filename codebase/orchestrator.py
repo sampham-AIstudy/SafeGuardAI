@@ -4,6 +4,7 @@ import time
 import re
 import urllib.parse
 import concurrent.futures
+import threading
 
 try:
     from PIL import Image
@@ -114,6 +115,9 @@ class SafeGuardOrchestrator:
             "confidence": self.confidence_agent,
             "threat_intel": self.threat_intel_agent,
         })
+        # TODO (Phase 4B): GeminiAgentRunner retains state per instance (_tool_results_cache).
+        # Temporarily guard with Lock until request-scoped ctx refactor in Phase 4B.
+        self._agent_runner_lock = threading.Lock()
 
     # ─────────────────────────────────────────────────────────────────────────
     # PUBLIC ENTRY POINT
@@ -127,6 +131,7 @@ class SafeGuardOrchestrator:
         persist: bool = True,
         pil_image=None,
         online_check: bool = False,
+        client_id: str = None,
     ) -> dict:
         start_time = time.time()
         settings = get_settings()
@@ -262,7 +267,7 @@ class SafeGuardOrchestrator:
 
         # ── Step 1: Hydrate Memory Agent from MySQL ────────────────────────
         if persist and self.db_manager.is_connected:
-            self.memory_agent.load_history_from_db(self.db_manager, session_id)
+            self.memory_agent.load_history_from_db(self.db_manager, session_id, client_id=client_id)
 
         # ══════════════════════════════════════════════════════════════════
         # PRIMARY PATH: Gemini Agentic Tool-Calling
@@ -276,14 +281,17 @@ class SafeGuardOrchestrator:
                 else:
                     effective_user_text = f"{user_text}\n[Người dùng đính kèm ảnh bằng chứng màn hình nghi vấn - BẮT BUỘC gọi ocr_extract() để kiểm tra chữ trên ảnh]".strip()
 
-            agent_result = self.agent_runner.run(
-                user_text=effective_user_text,
-                pil_image=pil_image,
-                session_id=session_id,
-                allow_net=allow_net,
-                recorder=recorder,
-                deadline=deadline,
-            )
+            # TODO (Phase 4B): GeminiAgentRunner retains state per instance (_tool_results_cache).
+            # Temporarily guard with a lock until request-scoped ctx refactor in Phase 4B.
+            with self._agent_runner_lock:
+                agent_result = self.agent_runner.run(
+                    user_text=effective_user_text,
+                    pil_image=pil_image,
+                    session_id=session_id,
+                    allow_net=allow_net,
+                    recorder=recorder,
+                    deadline=deadline,
+                )
         else:
             print("[Orchestrator] ⚠️ Prompt injection detected — bypassing LLM agent runner.")
 
@@ -306,6 +314,7 @@ class SafeGuardOrchestrator:
                 recorder=recorder,
                 allow_net=allow_net,
                 online_check=online_check,
+                client_id=client_id,
             )
 
         # ══════════════════════════════════════════════════════════════════
@@ -330,6 +339,7 @@ class SafeGuardOrchestrator:
             recorder=recorder,
             allow_net=allow_net,
             online_check=online_check,
+            client_id=client_id,
         )
 
 
@@ -585,6 +595,7 @@ class SafeGuardOrchestrator:
         recorder: Any = None,
         allow_net: bool = False,
         online_check: bool = False,
+        client_id: str = None,
     ) -> dict:
         """
         Post-process the Gemini agentic result:
@@ -765,7 +776,7 @@ class SafeGuardOrchestrator:
 
         # ── Memory: record interaction ────────────────────────────────────
         self.memory_agent.add_interaction(
-            user_text, decision_info["risk_level"], matched_flags, session_id=session_id
+            user_text, decision_info["risk_level"], matched_flags, session_id=session_id, client_id=client_id
         )
 
         if input_truncated:
@@ -786,7 +797,8 @@ class SafeGuardOrchestrator:
                 latency_ms=elapsed_ms,
                 session_id=session_id,
                 bot_response=decision_info["headline"],
-                image_base64=image_base64
+                image_base64=image_base64,
+                client_id=client_id,
             )
 
         network_actions = recorder.get_actions() if (recorder is not None and allow_net) else []
@@ -839,6 +851,7 @@ class SafeGuardOrchestrator:
         recorder: Any = None,
         allow_net: bool = False,
         online_check: bool = False,
+        client_id: str = None,
     ) -> dict:
         """
         Original 8-step sequential pipeline. Runs when Gemini API is unavailable.
@@ -897,7 +910,7 @@ class SafeGuardOrchestrator:
         rag_result = self.rag_agent.search(rag_text, url_report=url_report)
 
         # Step 4: Memory Agent Escalation Check
-        escalation_info = self.memory_agent.analyze_escalation(full_text, session_id=session_id)
+        escalation_info = self.memory_agent.analyze_escalation(full_text, session_id=session_id, client_id=client_id)
 
         # Step 5: LLM Fallback (GeminiLLMClient text-only, no tool calling)
         real_llm_result = None
@@ -1032,7 +1045,7 @@ class SafeGuardOrchestrator:
         if real_llm_result and real_llm_result.get("recommendations"):
             decision_info["recommendations"].extend(real_llm_result["recommendations"])
 
-        self.memory_agent.add_interaction(full_text, decision_info["risk_level"], rag_result["matched_flags"], session_id=session_id)
+        self.memory_agent.add_interaction(full_text, decision_info["risk_level"], rag_result["matched_flags"], session_id=session_id, client_id=client_id)
         elapsed_ms = round((time.time() - start_time) * 1000, 2)
 
         if persist and self.db_manager.is_connected:
@@ -1045,7 +1058,8 @@ class SafeGuardOrchestrator:
                 latency_ms=elapsed_ms,
                 session_id=session_id,
                 bot_response=decision_info["headline"],
-                image_base64=image_base64
+                image_base64=image_base64,
+                client_id=client_id,
             )
 
         if input_truncated:

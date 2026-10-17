@@ -5,10 +5,14 @@ import base64
 import time
 import uuid
 import re
+import threading
+import hashlib
+import math
+from collections import OrderedDict
 from io import BytesIO
 from datetime import datetime, date
 from pathlib import Path
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse, unquote
 
 # Add root project dir to sys.path
@@ -33,6 +37,67 @@ _configure_streams()
 orchestrator = SafeGuardOrchestrator()
 PUBLIC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "public"))
 SESSION_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,100}$", re.ASCII)
+CLIENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{16,64}$", re.ASCII)
+
+
+class TokenBucketRateLimiter:
+    """
+    Thread-safe Token Bucket rate limiter with bounded LRU memory.
+    Burst = min(10, rate_per_min).
+    Bounded IP tracking table to prevent unbounded memory growth.
+    """
+    def __init__(self, rate_per_min: int = 20, max_ips: int = 10_000, clock=None):
+        self.rate_per_min = rate_per_min
+        self.rate_per_sec = rate_per_min / 60.0
+        self.burst = float(min(10, rate_per_min))
+        self.max_ips = max_ips
+        self._clock = clock or time.monotonic
+        self._lock = threading.Lock()
+        self._buckets = OrderedDict()  # ip -> (tokens, last_time)
+
+    def check_and_consume(self, ip: str, tokens_needed: float = 1.0) -> tuple[bool, float]:
+        now = self._clock()
+        with self._lock:
+            if ip in self._buckets:
+                self._buckets.move_to_end(ip)
+                tokens, last_time = self._buckets[ip]
+                elapsed = max(0.0, now - last_time)
+                tokens = min(self.burst, tokens + elapsed * self.rate_per_sec)
+            else:
+                if len(self._buckets) >= self.max_ips:
+                    self._buckets.popitem(last=False)
+                tokens = self.burst
+                last_time = now
+
+            if tokens >= tokens_needed:
+                tokens -= tokens_needed
+                self._buckets[ip] = (tokens, now)
+                return True, 0.0
+            else:
+                deficit = tokens_needed - tokens
+                wait_time = deficit / self.rate_per_sec if self.rate_per_sec > 0 else 60.0
+                self._buckets[ip] = (tokens, now)
+                return False, max(1.0, wait_time)
+
+    def reset(self):
+        with self._lock:
+            self._buckets.clear()
+
+
+_DEFAULT_SEMAPHORE = threading.BoundedSemaphore(4)
+_DEFAULT_RATE_LIMITER = TokenBucketRateLimiter(20, max_ips=10_000)
+
+
+def get_client_ip(handler) -> str:
+    settings = get_settings()
+    trust_proxy = getattr(settings, "trust_proxy", False) or (os.environ.get("SAFEGUARD_TRUST_PROXY") == "1")
+    if trust_proxy and hasattr(handler, "headers") and handler.headers:
+        xff = handler.headers.get("X-Forwarded-For")
+        if xff:
+            return xff.split(",")[0].strip()
+    if hasattr(handler, "client_address") and handler.client_address and len(handler.client_address) > 0:
+        return str(handler.client_address[0])
+    return "127.0.0.1"
 
 
 class SafeGuardAPIHandler(BaseHTTPRequestHandler):
@@ -46,30 +111,82 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
     def version_string(self):
         return self.server_version
 
+    def end_headers(self):
+        # Security Headers for all responses
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('Referrer-Policy', 'no-referrer')
+        self.send_header('X-Frame-Options', 'DENY')
+        self.send_header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+        self.send_header('Cross-Origin-Opener-Policy', 'same-origin')
+        self.send_header(
+            'Content-Security-Policy',
+            "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; "
+            "font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; "
+            "object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+        )
+
+        # Cache-Control for API routes
+        if hasattr(self, "path") and self.path and self.path.startswith('/api/'):
+            self.send_header('Cache-Control', 'no-store')
+
+        # CORS allowlist check (exact match, no wildcard)
+        origin = self.headers.get('Origin') if (hasattr(self, "headers") and self.headers) else None
+        if origin:
+            settings = get_settings()
+            cors_origins = getattr(settings, "cors_origins", ())
+            if not cors_origins:
+                raw_cors = os.environ.get("SAFEGUARD_CORS_ORIGINS", "").strip()
+                if raw_cors:
+                    cors_origins = tuple(o.strip() for o in raw_cors.split(",") if o.strip())
+            if origin in cors_origins:
+                self.send_header('Access-Control-Allow-Origin', origin)
+                self.send_header('Vary', 'Origin')
+
+        super().end_headers()
+
     def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.end_headers()
+        origin = self.headers.get('Origin')
+        settings = get_settings()
+        cors_origins = getattr(settings, "cors_origins", ())
+        if not cors_origins:
+            raw_cors = os.environ.get("SAFEGUARD_CORS_ORIGINS", "").strip()
+            if raw_cors:
+                cors_origins = tuple(o.strip() for o in raw_cors.split(",") if o.strip())
+
+        if origin and origin in cors_origins:
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-Client-Id')
+            self.end_headers()
+        else:
+            self.send_error(403, "Forbidden Origin")
 
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
 
-        # 1. API: Get all chat sessions from MySQL
+        # 1. API: Get all chat sessions from MySQL (client-isolated)
         if path == '/api/sessions':
-            self.send_json_response(orchestrator.db_manager.get_all_sessions())
+            client_id = self.headers.get('X-Client-Id')
+            if not client_id or not CLIENT_ID_PATTERN.fullmatch(client_id):
+                self.send_json_response({"error": "Missing or invalid X-Client-Id header"}, status=400)
+                return
+            sessions = orchestrator.db_manager.get_all_sessions(client_id=client_id)
+            self.send_json_response(sessions)
             return
 
-        # 2. API: Get history for specific session_id
+        # 2. API: Get history for specific session_id (client-isolated)
         if path == '/api/history':
+            client_id = self.headers.get('X-Client-Id')
+            if not client_id or not CLIENT_ID_PATTERN.fullmatch(client_id):
+                self.send_json_response({"error": "Missing or invalid X-Client-Id header"}, status=400)
+                return
             query = parse_qs(parsed.query)
             session_id = query.get('session_id', ['session_default'])[0]
             if not SESSION_ID_PATTERN.fullmatch(session_id):
                 self.send_json_response({"error": "Invalid session_id"}, status=400)
                 return
-            history = orchestrator.db_manager.get_chat_history(session_id)
+            history = orchestrator.db_manager.get_chat_history(session_id=session_id, client_id=client_id)
             self.send_json_response(history)
             return
 
@@ -132,6 +249,20 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
         path = parsed.path
 
         if path == '/api/analyze':
+            # Rate limiting check
+            limiter = getattr(self.server, "rate_limiter", _DEFAULT_RATE_LIMITER)
+            client_ip = get_client_ip(self)
+            allowed, wait_s = limiter.check_and_consume(client_ip)
+            if not allowed:
+                err_id = str(uuid.uuid4())
+                retry_str = str(max(1, int(math.ceil(wait_s))))
+                self.send_json_response(
+                    {"error": "rate_limited", "error_id": err_id},
+                    status=429,
+                    headers={"Retry-After": retry_str}
+                )
+                return
+
             cl_header = self.headers.get('Content-Length')
             if cl_header is None:
                 self.close_connection = True
@@ -211,27 +342,65 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
                         self.send_json_response({"error": "Dữ liệu ảnh base64 không hợp lệ."}, status=400)
                         return
 
-                # Process request through Multi-Agent Orchestrator
-                result = orchestrator.process_request(
-                    user_text=user_text,
-                    image_input=image_input,
-                    session_id=session_id,
-                    image_base64=raw_image_base64,
-                    online_check=online_check,
-                )
+                # Validate client_id header
+                raw_client_id = self.headers.get('X-Client-Id')
+                if raw_client_id is not None:
+                    if not CLIENT_ID_PATTERN.fullmatch(raw_client_id):
+                        self.send_json_response({"error": "Invalid X-Client-Id header"}, status=400)
+                        return
+                    client_id = raw_client_id
+                else:
+                    ip_hash = hashlib.sha256(client_ip.encode('utf-8')).hexdigest()[:16]
+                    client_id = f"anonymous-{ip_hash}"
 
-                self.send_json_response(result)
+                # Concurrency Semaphore check (wait up to 5s)
+                sem = getattr(self.server, "analyze_semaphore", _DEFAULT_SEMAPHORE)
+                acquired = sem.acquire(timeout=5.0)
+                if not acquired:
+                    err_id = str(uuid.uuid4())
+                    self.send_json_response(
+                        {"error": "busy", "error_id": err_id},
+                        status=503,
+                        headers={"Retry-After": "2"}
+                    )
+                    return
+
+                try:
+                    # Process request through Multi-Agent Orchestrator
+                    result = orchestrator.process_request(
+                        user_text=user_text,
+                        image_input=image_input,
+                        session_id=session_id,
+                        image_base64=raw_image_base64,
+                        online_check=online_check,
+                        client_id=client_id,
+                    )
+                    self.send_json_response(result)
+                finally:
+                    sem.release()
 
             except Exception as e:
                 err_id = str(uuid.uuid4())
-                print(f"[Server Error {err_id}] Internal server error: {e}", file=sys.stderr)
-                import traceback
-                traceback.print_exc()
+                print(f"[Server Error {err_id}] Internal server error occurred", file=sys.stderr)
                 self.send_json_response({"error": "internal_error", "error_id": err_id}, status=500)
             return
 
         elif path == '/api/sessions/new':
-            new_id = f"session_{int(time.time())}"
+            # Rate limiting check
+            limiter = getattr(self.server, "rate_limiter", _DEFAULT_RATE_LIMITER)
+            client_ip = get_client_ip(self)
+            allowed, wait_s = limiter.check_and_consume(client_ip)
+            if not allowed:
+                err_id = str(uuid.uuid4())
+                retry_str = str(max(1, int(math.ceil(wait_s))))
+                self.send_json_response(
+                    {"error": "rate_limited", "error_id": err_id},
+                    status=429,
+                    headers={"Retry-After": retry_str}
+                )
+                return
+
+            new_id = f"session_{uuid.uuid4()}"
             self.send_json_response({"session_id": new_id, "title": "Cuộc trò chuyện mới"})
             return
 
@@ -244,7 +413,6 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
                     content = f.read()
                 self.send_response(200)
                 self.send_header('Content-Type', mime_type)
-                self.send_header('Access-Control-Allow-Origin', '*')
                 if self.close_connection:
                     self.send_header('Connection', 'close')
                 self.send_header('Content-Length', str(len(content)))
@@ -265,11 +433,13 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
             return [self._json_default(x) for x in obj]
         return str(obj)
 
-    def send_json_response(self, data, status=200):
+    def send_json_response(self, data, status=200, headers=None):
         body = json.dumps(data, ensure_ascii=False, default=self._json_default).encode('utf-8')
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        if headers:
+            for k, v in headers.items():
+                self.send_header(k, str(v))
         if self.close_connection:
             self.send_header('Connection', 'close')
         self.send_header('Content-Length', str(len(body)))
@@ -277,12 +447,24 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
+class SafeGuardServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True):
+        super().__init__(server_address, RequestHandlerClass, bind_and_activate=bind_and_activate)
+        settings = get_settings()
+        max_conc = max(1, min(16, getattr(settings, "max_concurrency", 4)))
+        self.analyze_semaphore = threading.BoundedSemaphore(max_conc)
+        self.rate_limiter = TokenBucketRateLimiter(rate_per_min=settings.rate_limit_per_min, max_ips=10_000)
+
+
 def create_server(host=None, port=None, handler_class=SafeGuardAPIHandler):
     settings = get_settings()
     h = host if host is not None else settings.host
     p = port if port is not None else settings.port
     server_address = (h, p)
-    return HTTPServer(server_address, handler_class)
+    server = SafeGuardServer(server_address, handler_class)
+    return server
 
 
 def run_server(host=None, port=None):
@@ -293,6 +475,8 @@ def run_server(host=None, port=None):
     print(f"============================================================")
     print(f"🚀 SafeGuard AI Web App Server is RUNNING at:")
     print(f"👉 http://{actual_host}:{actual_port}")
+    if str(actual_host) not in ("127.0.0.1", "localhost", "::1"):
+        print(f"⚠️ CẢNH BÁO: Server mở ra mạng LAN ({actual_host}): bật xác thực/proxy!")
     print(f"============================================================")
     try:
         httpd.serve_forever()
@@ -303,4 +487,3 @@ def run_server(host=None, port=None):
 
 if __name__ == "__main__":
     run_server()
-

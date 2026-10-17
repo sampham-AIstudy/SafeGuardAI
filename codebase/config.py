@@ -19,6 +19,9 @@ class Settings:
     passive_tls: bool = False
     phishtank_enabled: bool = False
     request_budget_s: float = 6.0
+    max_concurrency: int = 4
+    cors_origins: tuple[str, ...] = ()
+    trust_proxy: bool = False
 
 
 _SETTINGS_INSTANCE: Settings | None = None
@@ -120,6 +123,20 @@ def get_settings(refresh: bool = False) -> Settings:
     except (ValueError, TypeError):
         request_budget_s = 6.0
 
+    try:
+        raw_mc = int(os.environ.get("SAFEGUARD_MAX_CONCURRENCY", "4").strip())
+        max_concurrency = max(1, min(16, raw_mc))
+    except (ValueError, TypeError):
+        max_concurrency = 4
+
+    raw_cors = os.environ.get("SAFEGUARD_CORS_ORIGINS", "").strip()
+    if raw_cors:
+        cors_origins = tuple(o.strip() for o in raw_cors.split(",") if o.strip())
+    else:
+        cors_origins = ()
+
+    trust_proxy = _parse_bool(os.environ.get("SAFEGUARD_TRUST_PROXY"), False)
+
     _SETTINGS_INSTANCE = Settings(
         offline=offline,
         llm_mode=llm_mode,
@@ -136,5 +153,8 @@ def get_settings(refresh: bool = False) -> Settings:
         passive_tls=passive_tls,
         phishtank_enabled=phishtank_enabled,
         request_budget_s=request_budget_s,
+        max_concurrency=max_concurrency,
+        cors_origins=cors_origins,
+        trust_proxy=trust_proxy,
     )
     return _SETTINGS_INSTANCE

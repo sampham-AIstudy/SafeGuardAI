@@ -196,8 +196,12 @@ def test_e2_session_id_ascii_fullmatch(live_server):
     for sid in invalid_session_ids:
         # 1. GET /api/history
         from urllib.parse import quote
-        get_status, get_body, _ = make_request(host, port, "GET", f"/api/history?session_id={quote(sid)}")
+        get_status, get_body, _ = make_request(
+            host, port, "GET", f"/api/history?session_id={quote(sid)}",
+            headers={"X-Client-Id": "client-1234567890abcdef"}
+        )
         assert get_status == 400, f"GET with session_id '{sid}' must return 400, got {get_status}"
+        assert b"Invalid session_id" in get_body
 
         # 2. POST /api/analyze
         post_payload = json.dumps({"user_text": "test", "session_id": sid}).encode("utf-8")
