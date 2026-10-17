@@ -125,14 +125,94 @@ class SafeGuardOrchestrator:
             user_text = user_text[:max_chars]
             input_truncated = True
 
-        # ── Step 0: Prompt Injection & Safety Guardrail Check ──────────────
+        # ── Step 0: Image & QR Pre-processing ──────────────────────────────
+        has_image_input = bool(image_input or pil_image or image_base64)
+        image_analysis = None
+        extra_urls: list[tuple[str, str]] = []
+        vietqr_crc_failed = False
+        image_to_process = image_input or pil_image
+        pil_image = None
+
+        if has_image_input:
+            image_analysis = {
+                "qr_count": 0,
+                "qr_urls": [],
+                "vietqr": [],
+                "risky_payloads": 0,
+            }
+            if not image_to_process and image_base64:
+                try:
+                    import base64
+                    import io
+                    b64_data = image_base64
+                    if "," in b64_data:
+                        b64_data = b64_data.split(",", 1)[1]
+                    image_to_process = io.BytesIO(base64.b64decode(b64_data))
+                except Exception as ex:
+                    print(f"[Orchestrator] Base64 decode notice: {ex}")
+                    image_to_process = None
+
+            try:
+                from codebase.url_analysis.image_sources import (
+                    open_image_safely,
+                    extract_qr_payloads,
+                    classify_qr_payload,
+                    parse_vietqr,
+                    defang_url,
+                )
+                pil_image = open_image_safely(image_to_process) if image_to_process is not None else None
+            except Exception as ex:
+                print(f"[Orchestrator] open_image_safely notice: {ex}")
+                pil_image = None
+
+            if pil_image is not None:
+                try:
+                    payloads = extract_qr_payloads(pil_image)
+                except Exception as ex:
+                    print(f"[Orchestrator] extract_qr_payloads notice: {ex}")
+                    payloads = []
+
+                image_analysis["qr_count"] = len(payloads)
+                for p in payloads:
+                    try:
+                        cls = classify_qr_payload(p)
+                        kind = cls.get("kind")
+                        if kind == "url":
+                            u = cls.get("url") or p
+                            extra_urls.append((u, "qr"))
+                            image_analysis["qr_urls"].append(defang_url(u))
+                        elif cls.get("risky"):
+                            image_analysis["risky_payloads"] += 1
+                            extra_urls.append((p, "qr"))
+                        elif kind == "vietqr":
+                            vinfo = parse_vietqr(p)
+                            if vinfo is not None:
+                                if not vinfo.get("crc_ok", True):
+                                    vietqr_crc_failed = True
+                                image_analysis["vietqr"].append({
+                                    "bank_name": vinfo.get("bank_name"),
+                                    "bin": vinfo.get("bin"),
+                                    "masked_account": vinfo.get("masked_account"),
+                                    "amount": vinfo.get("amount"),
+                                    "name": vinfo.get("name"),
+                                    "memo": vinfo.get("memo"),
+                                    "crc_ok": vinfo.get("crc_ok", False),
+                                })
+                    except Exception as ex:
+                        print(f"[Orchestrator] Payload classification notice: {ex}")
+
+        # ── Step 0b: Prompt Injection & Safety Guardrail Check ─────────────
         guard_eval = self.prompt_guard.evaluate_input(user_text)
         if not guard_eval.get("is_safe", True):
             print(f"[Orchestrator] Refused malicious request: {guard_eval.get('reason')}")
             url_report = None
             if get_settings().url_module_enabled:
                 allow_net = bool(get_settings().network_enabled and not get_settings().offline)
-                raw_rep = self.url_agent.analyze(_clean_text_for_url_analysis(user_text), allow_network=allow_net)
+                raw_rep = self.url_agent.analyze(
+                    _clean_text_for_url_analysis(user_text),
+                    extra_urls=extra_urls,
+                    allow_network=allow_net
+                )
                 url_report = _wrap_report_dict(raw_rep)
             return {
                 "session_id": session_id,
@@ -150,22 +230,11 @@ class SafeGuardOrchestrator:
                 "risk_score": 0,
                 "latency_ms": round((time.time() - start_time) * 1000, 2),
                 "url_analysis": url_report,
-                "network_actions": []
+                "network_actions": [],
+                "image_analysis": image_analysis
             }
 
         injection_detected = bool(guard_eval.get("injection_detected", False))
-
-        # ── Step 1: Prepare PIL image ──────────────────────────────────────
-        image_input = image_input or pil_image
-        pil_image = None
-        if image_input and Image:
-            try:
-                if isinstance(image_input, Image.Image):
-                    pil_image = image_input
-                else:
-                    pil_image = Image.open(image_input)
-            except Exception as e:
-                print(f"[Orchestrator] PIL Image open notice: {e}")
 
         # ── Step 1: Hydrate Memory Agent from MySQL ────────────────────────
         if persist and self.db_manager.is_connected:
@@ -198,9 +267,11 @@ class SafeGuardOrchestrator:
                 persist=persist,
                 injection_detected=injection_detected,
                 input_truncated=input_truncated,
-                pil_image=pil_image
+                pil_image=pil_image,
+                extra_urls=extra_urls,
+                image_analysis=image_analysis,
+                vietqr_crc_failed=vietqr_crc_failed,
             )
-
 
         # ══════════════════════════════════════════════════════════════════
         # FALLBACK PATH: Sequential Pipeline (no Gemini API)
@@ -215,8 +286,12 @@ class SafeGuardOrchestrator:
             image_base64=image_base64,
             persist=persist,
             injection_detected=injection_detected,
-            input_truncated=input_truncated
+            input_truncated=input_truncated,
+            extra_urls=extra_urls,
+            image_analysis=image_analysis,
+            vietqr_crc_failed=vietqr_crc_failed,
         )
+
 
     # ─────────────────────────────────────────────────────────────────────────
     # URL EVIDENCE FLOORS
@@ -510,7 +585,7 @@ class SafeGuardOrchestrator:
     # ─────────────────────────────────────────────────────────────────────────
     # PATH A: Finalize result from Gemini Agentic Runner
     # ─────────────────────────────────────────────────────────────────────────
-    def _finalize_agentic_result(self, agent_result: dict, user_text: str, session_id: str, start_time: float, image_base64: str = None, persist: bool = True, injection_detected: bool = False, input_truncated: bool = False, pil_image=None) -> dict:
+    def _finalize_agentic_result(self, agent_result: dict, user_text: str, session_id: str, start_time: float, image_base64: str = None, persist: bool = True, injection_detected: bool = False, input_truncated: bool = False, pil_image=None, extra_urls: list[tuple[str, str]] | None = None, image_analysis: dict | None = None, vietqr_crc_failed: bool = False) -> dict:
         """
         Post-process the Gemini agentic result:
         - Pull cached tool outputs for structured response
@@ -581,7 +656,11 @@ class SafeGuardOrchestrator:
         url_report = None
         if get_settings().url_module_enabled:
             allow_net = bool(get_settings().network_enabled and not get_settings().offline)
-            raw_rep = self.url_agent.analyze(_clean_text_for_url_analysis(full_text), allow_network=allow_net)
+            raw_rep = self.url_agent.analyze(
+                _clean_text_for_url_analysis(full_text),
+                extra_urls=extra_urls,
+                allow_network=allow_net
+            )
             url_report = _wrap_report_dict(raw_rep)
 
         # ThreatIntel in agentic branch
@@ -618,6 +697,11 @@ class SafeGuardOrchestrator:
                 explain_info=explain_info,
                 extra_critical_codes=extra_crit
             )
+
+        if vietqr_crc_failed:
+            if "reasons" not in explain_info:
+                explain_info["reasons"] = []
+            explain_info["reasons"].append("Mã VietQR bị chỉnh sửa/không hợp lệ (sai CRC)")
 
         decision_info = self.decision_agent.evaluate_decision(
             risk_score=risk_score,
@@ -688,6 +772,7 @@ class SafeGuardOrchestrator:
             "latency_ms": elapsed_ms,
             "url_analysis": url_report,
             "network_actions": network_actions,
+            "image_analysis": image_analysis,
         }
         if ti_result is not None:
             resp["threat_intel"] = ti_result
@@ -698,7 +783,10 @@ class SafeGuardOrchestrator:
     # ─────────────────────────────────────────────────────────────────────────
     def _run_sequential_fallback(self, user_text: str, pil_image, image_input,
                                   session_id: str, start_time: float, image_base64: str = None, persist: bool = True,
-                                  injection_detected: bool = False, input_truncated: bool = False) -> dict:
+                                  injection_detected: bool = False, input_truncated: bool = False,
+                                  extra_urls: list[tuple[str, str]] | None = None,
+                                  image_analysis: dict | None = None,
+                                  vietqr_crc_failed: bool = False) -> dict:
         """
         Original 8-step sequential pipeline. Runs when Gemini API is unavailable.
         Preserves all previous behavior exactly.
@@ -725,7 +813,11 @@ class SafeGuardOrchestrator:
         url_report = None
         if get_settings().url_module_enabled:
             allow_net = bool(get_settings().network_enabled and not get_settings().offline)
-            raw_rep = self.url_agent.analyze(_clean_text_for_url_analysis(full_text), allow_network=allow_net)
+            raw_rep = self.url_agent.analyze(
+                _clean_text_for_url_analysis(full_text),
+                extra_urls=extra_urls,
+                allow_network=allow_net
+            )
             url_report = _wrap_report_dict(raw_rep)
 
         # ThreatIntel in sequential fallback branch
@@ -826,6 +918,11 @@ class SafeGuardOrchestrator:
             risk_score=risk_score
         )
 
+        if vietqr_crc_failed:
+            if "reasons" not in explain_info:
+                explain_info["reasons"] = []
+            explain_info["reasons"].append("Mã VietQR bị chỉnh sửa/không hợp lệ (sai CRC)")
+
         # Step 8: Decision Agent
         decision_info = self.decision_agent.evaluate_decision(
             risk_score=risk_score,
@@ -899,6 +996,7 @@ class SafeGuardOrchestrator:
             "latency_ms": elapsed_ms,
             "url_analysis": url_report,
             "network_actions": network_actions,
+            "image_analysis": image_analysis,
         }
         if ti_result is not None:
             resp["threat_intel"] = ti_result

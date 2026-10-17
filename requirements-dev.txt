@@ -1,1 +1,2 @@
 pytest>=8.0.0
+qrcode[pil]>=7.4
