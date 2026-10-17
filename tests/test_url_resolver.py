@@ -12,6 +12,7 @@ from codebase.url_analysis.resolver import (
     SafeRedirectResolver,
     _extract_meta_refresh,
     _is_safe_ip,
+    default_transport,
     is_public_destination,
 )
 
@@ -499,7 +500,7 @@ def test_cache_mechanisms(enable_network_settings):
     def mock_transport(method, scheme, ip, port, host, path, headers, timeout):
         nonlocal calls
         calls += 1
-        return 200, {}, b"ok"
+        return 200, {"content-type": "text/plain"}, b"ok"
 
     resolver = SafeRedirectResolver(
         mode="all",
@@ -612,7 +613,7 @@ def test_resolver_modes(enable_network_settings):
     def mock_transport(method, scheme, ip, port, host, path, headers, timeout):
         nonlocal calls
         calls += 1
-        return 200, {}, b"ok"
+        return 200, {"content-type": "text/plain"}, b"ok"
 
     # Mode: off
     res_off = SafeRedirectResolver(
@@ -662,7 +663,7 @@ def test_transport_raise_captured(enable_network_settings):
     )
     chain = resolver.resolve("http://example.com/fail")
     assert chain.error is not None
-    assert "broken" in chain.error
+    assert "ConnectionResetError" in chain.error or "transport_error" in chain.error
     assert chain.final_url is None
 
 
@@ -676,7 +677,7 @@ def test_redos_meta_refresh_speed():
 
 
 # =====================================================================
-# 17. Real HTTP Server tests on 127.0.0.1 (thread, ip_validator loopback)
+# 17. Real HTTP Server tests on 127.0.0.1 (thread, loopback test filter)
 # =====================================================================
 
 def test_real_server_2_hops_redirect(enable_network_settings):
@@ -712,7 +713,8 @@ def test_real_server_2_hops_redirect(enable_network_settings):
     try:
         resolver = SafeRedirectResolver(
             mode="all",
-            ip_validator=lambda ip: True,
+            _test_ip_filter=lambda ip: True,
+            _test_allowed_ports=(80, 443, port),
             per_hop_timeout=2.0,
             total_budget=5.0,
         )
@@ -758,7 +760,8 @@ def test_real_server_hanging_terminates_on_timeout(enable_network_settings):
     try:
         resolver = SafeRedirectResolver(
             mode="all",
-            ip_validator=lambda ip: True,
+            _test_ip_filter=lambda ip: True,
+            _test_allowed_ports=(80, 443, port),
             per_hop_timeout=0.3,
             total_budget=0.6,
         )
@@ -841,22 +844,45 @@ def test_mutation_guard_port_restriction_enforced(enable_network_settings):
 
 
 def test_mutation_guard_body_64kb_cap_enforced(enable_network_settings):
-    resolver = SafeRedirectResolver(
-        mode="all",
-        getaddrinfo=lambda h, p, *a, **k: [
-            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", p))
-        ],
-        transport=lambda m, s, ip, p, h, pq, hd, t: (
-            405,
+    class OneMbHandler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_HEAD(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(1024 * 1024))
+            self.end_headers()
+            self.wfile.write(b"A" * (1024 * 1024))
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), OneMbHandler)
+    port = server.server_port
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+
+    try:
+        cap = 32768
+        status, hdrs, body = default_transport(
+            "GET",
+            "http",
+            "127.0.0.1",
+            port,
+            "127.0.0.1",
+            "/big",
             {},
-            b"",
+            timeout=2.0,
+            max_body_bytes=cap,
         )
-        if m == "HEAD"
-        else (200, {}, b"X" * 100000),
-    )
-    chain = resolver.resolve("http://example.com/big")
-    assert chain.final_url == "http://example.com/big"
-    assert resolver.max_body_bytes == 65536
+        assert len(body) == cap
+        assert len(body) < 1024 * 1024
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def test_mutation_guard_dns_timeout_enforced(enable_network_settings):
@@ -881,7 +907,7 @@ def test_mutation_guard_dns_timeout_enforced(enable_network_settings):
 
 
 def test_mutation_guard_loop_detection_enforced(enable_network_settings):
-    def loop_transport(m, s, ip, p, h, pq, hd, t):
+    def loop_transport(m, s, ip, p, h, pq, hd, t, **kw):
         if "a" in pq:
             return 302, {"location": "http://example.com/b"}, b""
         return 302, {"location": "http://example.com/a"}, b""
@@ -903,3 +929,434 @@ def test_mutation_guard_userinfo_blocked(enable_network_settings):
     chain = resolver.resolve("http://attacker:secret@example.com/login")
     assert chain.final_url is None
     assert chain.blocked_reason == "userinfo_forbidden"
+
+
+# =====================================================================
+# 19. Phase 3A-Fix Tests (S1..S8, B1)
+# =====================================================================
+
+def test_dns_thread_pool_limit_and_no_leak(enable_network_settings):
+    hang_event = threading.Event()
+
+    def hanging_gai(host, port, *args, **kwargs):
+        hang_event.wait(timeout=2.0)
+        return []
+
+    resolver = SafeRedirectResolver(
+        mode="all",
+        getaddrinfo=hanging_gai,
+        per_hop_timeout=0.02,
+        total_budget=0.05,
+    )
+    threads_before = threading.active_count()
+    for i in range(200):
+        chain = resolver.resolve(f"http://hang{i}.example/")
+        assert chain.final_url is None
+    threads_during = threading.active_count()
+    # Pool max 8 workers ensures thread increase <= 10
+    assert threads_during - threads_before <= 10
+    hang_event.set()
+
+
+@pytest.mark.parametrize(
+    "loc, expected_host, confusion",
+    [
+        ("/\\evil.com/", "evil.com", True),
+        ("\\\\evil.com/x", "evil.com", True),
+        ("///evil.com/foo", "evil.com", False),
+    ],
+)
+def test_whatwg_location_normalization(
+    enable_network_settings, loc, expected_host, confusion
+):
+    def mock_gai(host, port, *args, **kwargs):
+        if host == "victim.example":
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))]
+
+    def mock_transport(method, scheme, ip, port, host, path, headers, timeout, **kw):
+        if host == "victim.example":
+            return 302, {"location": loc}, b""
+        return 200, {}, b"ok"
+
+    resolver = SafeRedirectResolver(
+        mode="all",
+        getaddrinfo=mock_gai,
+        transport=mock_transport,
+    )
+    chain = resolver.resolve("http://victim.example/start")
+    # Hop 2 MUST be checked against SSRF: evil.com resolves to 127.0.0.1 and gets blocked!
+    assert chain.final_url is None
+    assert chain.blocked_reason is not None
+    assert "private" in chain.blocked_reason
+    assert len(chain.hops) == 1
+    if confusion:
+        assert "BACKSLASH_CONFUSION" in chain.hops[0].flags
+
+
+def test_ambiguous_location_error(enable_network_settings):
+    class AmbiguousHandler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_HEAD(self):
+            self.send_response(302)
+            self.send_header("Location", "http://example.com/one")
+            self.send_header("Location", "http://example.com/two")
+            self.end_headers()
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), AmbiguousHandler)
+    port = server.server_port
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+
+    try:
+        resolver = SafeRedirectResolver(
+            mode="all",
+            _test_ip_filter=lambda ip: True,
+            _test_allowed_ports=(80, 443, port),
+        )
+        chain = resolver.resolve(f"http://127.0.0.1:{port}/ambig")
+        assert chain.error == "ambiguous_location"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_path_and_query_percent_encoded_and_crlf_safe(enable_network_settings):
+    received_path = None
+
+    def mock_transport(method, scheme, ip, port, host, path, headers, timeout, **kw):
+        nonlocal received_path
+        received_path = path
+        return 200, {}, b"ok"
+
+    resolver = SafeRedirectResolver(
+        mode="all",
+        getaddrinfo=lambda h, p, *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", p))],
+        transport=mock_transport,
+    )
+    chain = resolver.resolve("http://example.com/khuyến-mãi?tìm=kiếm#frag")
+    assert chain.final_url == "http://example.com/khuyến-mãi?tìm=kiếm"
+    assert "frag" not in received_path
+    assert "%" in received_path
+    assert "\r" not in received_path and "\n" not in received_path
+
+
+def test_meta_refresh_after_head_200(enable_network_settings):
+    def mock_transport(method, scheme, ip, port, host, path, headers, timeout, **kw):
+        if path == "/start":
+            if method == "HEAD":
+                return 200, {"content-type": "text/html; charset=utf-8"}, b""
+            html = b'<html><head><meta http-equiv="refresh" content="url=\'http://example.com/meta-dest\'"></head></html>'
+            return 200, {"content-type": "text/html"}, html
+        return 200, {}, b"destination reached"
+
+    resolver = SafeRedirectResolver(
+        mode="all",
+        getaddrinfo=lambda h, p, *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", p))],
+        transport=mock_transport,
+    )
+    chain = resolver.resolve("http://example.com/start")
+    assert chain.final_url == "http://example.com/meta-dest"
+    assert len(chain.hops) == 2
+    assert chain.hops[0].location == "http://example.com/meta-dest"
+
+
+@pytest.mark.parametrize(
+    "html, expected",
+    [
+        ('<html><meta http-equiv="refresh" content="0; url=\'https://target.com/a\'"></html>', "https://target.com/a"),
+        ('<html><meta http-equiv="refresh" content=\'0; url="https://target.com/b"\'></html>', "https://target.com/b"),
+        ('<html><meta http-equiv="refresh" content="5;URL=https://target.com/c"></html>', "https://target.com/c"),
+        ('<html><meta http-equiv="refresh" content="url=\'https://target.com/d\'"></html>', "https://target.com/d"),
+        ('<html><meta http-equiv="refresh" content="url=https://target.com/e"></html>', "https://target.com/e"),
+    ],
+)
+def test_meta_refresh_variations_quotes_and_semicolon(html, expected):
+    extracted = _extract_meta_refresh(html)
+    assert extracted == expected
+
+
+def test_test_ip_filter_only_filters_ips_never_bypasses_checks(enable_network_settings):
+    resolver = SafeRedirectResolver(
+        mode="all",
+        _test_ip_filter=lambda ip: True,
+    )
+    # 1. Scheme check must not be bypassed
+    c_scheme = resolver.resolve("ftp://example.com/test")
+    assert "scheme" in c_scheme.blocked_reason
+
+    # 2. Port check must not be bypassed
+    c_port = resolver.resolve("http://example.com:8080/test")
+    assert "port" in c_port.blocked_reason or "8080" in c_port.blocked_reason
+
+    # 3. Userinfo must not be bypassed
+    c_user = resolver.resolve("http://admin:pass@example.com/test")
+    assert c_user.blocked_reason == "userinfo_forbidden"
+
+    # 4. Forbidden host name must not be bypassed
+    c_host = resolver.resolve("http://localhost/test")
+    assert c_host.blocked_reason == "disallowed_host"
+
+    # 5. DNS failure fails closed (does not pin host)
+    def failing_gai(h, p, *a, **k):
+        raise socket.gaierror(-2, "lookup failed")
+
+    resolver_failing_dns = SafeRedirectResolver(
+        mode="all",
+        getaddrinfo=failing_gai,
+        _test_ip_filter=lambda ip: True,
+    )
+    c_dns = resolver_failing_dns.resolve("http://failing.example/test")
+    assert c_dns.blocked_reason == "dns_error"
+    assert c_dns.final_url is None
+
+
+def test_default_transport_connects_to_pinned_ip(enable_network_settings):
+    received_host_hdr = None
+    client_ip = None
+
+    class PinnedHandler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_HEAD(self):
+            nonlocal received_host_hdr, client_ip
+            received_host_hdr = self.headers.get("Host")
+            client_ip = self.client_address[0]
+            self.send_response(200)
+            self.end_headers()
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), PinnedHandler)
+    port = server.server_port
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+
+    gai_calls = 0
+
+    def mock_gai(host, p, *args, **kwargs):
+        nonlocal gai_calls
+        gai_calls += 1
+        if gai_calls > 1:
+            raise AssertionError("getaddrinfo called more than once! IP was not pinned.")
+        if host == "pinned.example.test":
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", p))]
+        raise AssertionError(f"Unexpected host resolution: {host}")
+
+    try:
+        resolver = SafeRedirectResolver(
+            mode="all",
+            getaddrinfo=mock_gai,
+            _test_ip_filter=lambda ip: True,
+            _test_allowed_ports=(80, 443, port),
+        )
+        chain = resolver.resolve(f"http://pinned.example.test:{port}/check")
+        assert chain.final_url == f"http://pinned.example.test:{port}/check"
+        assert gai_calls == 1
+        assert client_ip == "127.0.0.1"
+        assert received_host_hdr == f"pinned.example.test:{port}"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_location_scheme_ftp_blocked(enable_network_settings):
+    def mock_transport(*args, **kwargs):
+        return 302, {"location": "ftp://public.example.com/file.txt"}, b""
+
+    resolver = SafeRedirectResolver(
+        mode="all",
+        getaddrinfo=lambda h, p, *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", p))],
+        transport=mock_transport,
+    )
+    chain = resolver.resolve("http://example.com/start")
+    assert chain.final_url is None
+    assert chain.blocked_reason is not None
+    assert "ftp" in chain.blocked_reason or "scheme" in chain.blocked_reason
+    assert len(chain.hops) == 1
+
+
+def test_budget_mid_hop_timeout(enable_network_settings):
+    hop_idx = 0
+
+    def sleeping_transport(method, scheme, ip, port, host, path, headers, timeout, **kw):
+        nonlocal hop_idx
+        hop_idx += 1
+        time.sleep(0.3)
+        return 302, {"location": f"http://example.com/step_{hop_idx}"}, b""
+
+    resolver = SafeRedirectResolver(
+        mode="all",
+        per_hop_timeout=1.0,
+        total_budget=0.5,
+        getaddrinfo=lambda h, p, *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", p))],
+        transport=sleeping_transport,
+    )
+    t0 = time.monotonic()
+    chain = resolver.resolve("http://example.com/step_0")
+    elapsed = time.monotonic() - t0
+    assert elapsed <= 0.58
+    assert chain.error == "budget_exceeded"
+
+
+def test_getaddrinfo_runtime_lookup_matches_socket():
+    resolver = SafeRedirectResolver()
+    assert resolver.getaddrinfo is None
+
+
+def test_hop_url_and_location_truncated_and_sanitized():
+    huge_url = "http://example.com/" + "a" * 600
+    huge_loc = "http://example.com/" + "b" * 600
+    dirty_url = "http://example.com/path\r\n\x00with\x1fctrl"
+
+    hop1 = Hop(url=huge_url, location=huge_loc)
+    assert len(hop1.url) <= 512
+    assert len(hop1.location) <= 512
+
+    hop2 = Hop(url=dirty_url, location="loc\r\n\t")
+    assert "\r" not in hop2.url and "\n" not in hop2.url and "\x00" not in hop2.url
+    assert "\r" not in hop2.location and "\n" not in hop2.location
+
+
+def test_error_and_blocked_reason_short_codes_and_to_dict_masking():
+    # 1. DNS error masked in to_dict()
+    chain_dns = RedirectChain(blocked_reason="dns_error", error=None)
+    d_dns = chain_dns.to_dict()
+    assert chain_dns.blocked_reason == "dns_error"
+    assert d_dns["blocked_reason"] == "blocked_destination"
+
+    # 2. Private destination masked in to_dict()
+    chain_priv = RedirectChain(blocked_reason="private_destination", error=None)
+    d_priv = chain_priv.to_dict()
+    assert chain_priv.blocked_reason == "private_destination"
+    assert d_priv["blocked_reason"] == "blocked_destination"
+
+    # 3. Disallowed host is preserved
+    chain_host = RedirectChain(blocked_reason="disallowed_host", error=None)
+    d_host = chain_host.to_dict()
+    assert d_host["blocked_reason"] == "disallowed_host"
+
+
+def test_should_resolve_trailing_dot_and_exact_redirector_path():
+    lists = {
+        "shorteners": ["bit.ly", "tinyurl.com"],
+        "redirectors": {"google.com/url": {}, "facebook.com/l.php": {}},
+    }
+    resolver = SafeRedirectResolver(mode="shorteners", lists=lists)
+    # Trailing dot normalized
+    assert resolver.should_resolve("http://bit.ly./abc")
+    assert resolver.should_resolve("http://bit.ly/abc")
+
+    # Redirector exact path / prefix matching
+    assert resolver.should_resolve("https://www.google.com/url?q=https://target.com")
+    assert resolver.should_resolve("https://google.com/url")
+    assert not resolver.should_resolve("https://google.com/urlfoo")
+    assert not resolver.should_resolve("https://google.com/other")
+
+
+def test_downgrade_to_http_flag(enable_network_settings):
+    def mock_transport(method, scheme, ip, port, host, path, headers, timeout, **kw):
+        if scheme == "https":
+            return 302, {"location": "http://example.com/insecure"}, b""
+        return 200, {}, b"ok"
+
+    resolver = SafeRedirectResolver(
+        mode="all",
+        getaddrinfo=lambda h, p, *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", p))],
+        transport=mock_transport,
+    )
+    chain = resolver.resolve("https://example.com/secure")
+    assert chain.final_url == "http://example.com/insecure"
+    assert len(chain.hops) == 2
+    assert "DOWNGRADE_TO_HTTP" in chain.hops[0].flags
+
+
+def test_slowloris_drip_timeout_bounded(enable_network_settings):
+    class DripHandler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_HEAD(self):
+            self.wfile.write(b"HTTP/1.1 200 OK\r\n")
+            self.wfile.flush()
+            for _ in range(20):
+                time.sleep(0.15)
+                self.wfile.write(b"X-Drip: a\r\n")
+                self.wfile.flush()
+            self.end_headers()
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), DripHandler)
+    port = server.server_port
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+
+    try:
+        resolver = SafeRedirectResolver(
+            mode="all",
+            per_hop_timeout=1.0,
+            total_budget=0.4,
+            _test_ip_filter=lambda ip: True,
+            _test_allowed_ports=(80, 443, port),
+        )
+        t0 = time.monotonic()
+        chain = resolver.resolve(f"http://127.0.0.1:{port}/drip")
+        elapsed = time.monotonic() - t0
+        assert elapsed <= 0.8
+        assert chain.error in ("budget_exceeded", "request_timeout")
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_infinite_1xx_continue_rejected(enable_network_settings):
+    server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_sock.bind(("127.0.0.1", 0))
+    server_sock.listen(1)
+    port = server_sock.getsockname()[1]
+
+    def handle_conn():
+        try:
+            conn, _ = server_sock.accept()
+            conn.recv(1024)
+            for _ in range(4):
+                conn.sendall(b"HTTP/1.1 100 Continue\r\n\r\n")
+                time.sleep(0.01)
+            conn.close()
+        except Exception:
+            pass
+
+    t = threading.Thread(target=handle_conn, daemon=True)
+    t.start()
+
+    try:
+        resolver = SafeRedirectResolver(
+            mode="all",
+            _test_ip_filter=lambda ip: True,
+            _test_allowed_ports=(80, 443, port),
+            total_budget=1.0,
+        )
+        chain = resolver.resolve(f"http://127.0.0.1:{port}/1xx")
+        assert chain.error == "transport_error:too_many_1xx"
+    finally:
+        server_sock.close()
+
+
+def test_injected_transport_sleep_bounded(enable_network_settings):
+    def sleeping_transport(*args, **kwargs):
+        time.sleep(3.0)
+        return 200, {}, b"ok"
+
+    resolver = SafeRedirectResolver(
+        mode="all",
+        per_hop_timeout=1.0,
+        total_budget=0.4,
+        getaddrinfo=lambda h, p, *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", p))],
+        transport=sleeping_transport,
+    )
+    t0 = time.monotonic()
+    chain = resolver.resolve("http://example.com/sleep")
+    elapsed = time.monotonic() - t0
+    assert elapsed <= 0.8
+    assert chain.error == "budget_exceeded"
+
