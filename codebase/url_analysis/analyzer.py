@@ -376,13 +376,17 @@ class UrlAnalyzer:
         # Signal: BLACKLIST
         if bl_res.get("hit"):
             level = bl_res.get("level", "domain")
-            add_sig(
-                "BLACKLIST_HIT",
-                "critical",
-                60,
-                f"Tên miền nằm trong danh sách đen PhishVN ({level} match).",
-                f"host={effective_host}, level={level}",
-            )
+            # Official domains can never be blacklisted by host or registrable
+            if is_off and level != "path":
+                pass
+            else:
+                add_sig(
+                    "BLACKLIST_HIT",
+                    "critical",
+                    60,
+                    f"Tên miền nằm trong danh sách đen PhishVN ({level} match).",
+                    f"host={effective_host}, level={level}",
+                )
 
         # Signal: BACKSLASH CONFUSION
         if "BACKSLASH_CONFUSION" in parsed.flags:

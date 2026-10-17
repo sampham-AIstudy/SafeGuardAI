@@ -1,3 +1,6 @@
+import csv
+from pathlib import Path
+import random
 import time
 import pytest
 
@@ -300,3 +303,133 @@ class TestMutationsKilled:
             current = current.children[0]
             depth += 1
         assert depth <= 2
+
+
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+HAS_REAL_DATA = DATA_DIR.exists() and (DATA_DIR / "data-phising-VN-ver2" / "splits" / "url_train.csv").exists()
+
+
+class TestRealDatasetBlacklist:
+    """
+    Requirements 3(b):
+    Real dataset tests with PhishVN blacklist:
+      - 30 benign URLs: no BLACKLIST_HIT, verdict not in ('suspicious', 'dangerous')
+      - >= 20 random phish hosts (seed 42) from train split: BLACKLIST_HIT and verdict in ('suspicious', 'dangerous')
+    """
+
+    BENIGN_30_URLS = [
+        "https://www.facebook.com/groups/123",
+        "https://zalo.me/g/abc",
+        "https://www.google.com/maps/place/Ha+Noi",
+        "https://docs.google.com/document/d/1",
+        "https://meet.google.com/abc-defg-hij",
+        "https://drive.google.com/drive/u/0/my-drive",
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "https://youtu.be/dQw4w9WgXcQ",
+        "https://github.com/torvalds/linux",
+        "https://vi.wikipedia.org/wiki/Vi%E1%BB%87t_Nam",
+        "https://vnexpress.net/thoi-su",
+        "https://tuoitre.vn/kinh-doanh.htm",
+        "https://thuvienphapluat.vn/van-ban/Bo-may-hanh-chinh",
+        "https://www.topcv.vn/viec-lam",
+        "https://vietcombank.com.vn/vi-VN/Ca-nhan",
+        "https://mbbank.com.vn/personal",
+        "https://shopee.vn/m/ma-giam-gia",
+        "https://tiki.vn/khuyen-mai",
+        "https://zoom.us/j/1234567890",
+        "https://forms.gle/abcdef123",
+        "https://t.me/telegram",
+        "https://instagram.com/p/abc123",
+        "https://twitter.com/x/status/123",
+        "https://x.com/explore",
+        "https://tiktok.com/@tiktok",
+        "https://canva.com/design/123",
+        "https://linktr.ee/creator",
+        "https://medium.com/@author/story-123",
+        "https://notion.site/my-page",
+        "https://dichvucong.gov.vn/p/home/dvc-trang-chu.html",
+    ]
+
+    @pytest.fixture(scope="class")
+    def real_analyzer(self):
+        if not HAS_REAL_DATA:
+            pytest.skip("data/ directory or PhishVN splits not found")
+        # Load real blacklist excluding test split to prevent leakage
+        bl = PhishBlacklist.from_dataset(exclude_splits=["test"])
+        cat = BrandCatalog.load()
+        return UrlAnalyzer(catalog=cat, blacklist=bl)
+
+    @pytest.fixture(scope="class")
+    def phish_train_samples_20(self):
+        if not HAS_REAL_DATA:
+            pytest.skip("data/ directory or PhishVN splits not found")
+        train_csv = DATA_DIR / "data-phising-VN-ver2" / "splits" / "url_train.csv"
+        from codebase.url_analysis.blacklist import (
+            _get_platform_and_free_hosting,
+            _get_official_domains,
+            _extract_host_and_path,
+        )
+
+        platform_domains = _get_platform_and_free_hosting()
+        official_domains = _get_official_domains()
+
+        phish_hosts: list[str] = []
+        benign_hosts: set[str] = set()
+
+        with open(train_csv, "r", encoding="utf-8", errors="ignore") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                label = (row.get("label") or "").strip().lower()
+                val = row.get("domain") or row.get("url") or ""
+                h, p, reg = _extract_host_and_path(val)
+                if not h:
+                    continue
+                if label == "benign":
+                    benign_hosts.add(h)
+                    if reg:
+                        benign_hosts.add(reg)
+                elif label == "phishing":
+                    # Filter out platform, official, and conflicted domains
+                    if h in platform_domains or any(h.endswith("." + plat) for plat in platform_domains):
+                        continue
+                    if reg and reg in platform_domains:
+                        continue
+                    if h in official_domains or any(h.endswith("." + off) for off in official_domains):
+                        continue
+                    if reg and reg in official_domains:
+                        continue
+                    phish_hosts.append(h)
+
+        valid_phish = [h for h in dict.fromkeys(phish_hosts) if h not in benign_hosts]
+        random.seed(42)
+        assert len(valid_phish) >= 20
+        return random.sample(valid_phish, 20)
+
+    @pytest.mark.skipif(not HAS_REAL_DATA, reason="data/ directory not found")
+    def test_real_blacklist_30_benign_urls_no_blacklist_hit(self, real_analyzer):
+        assert len(self.BENIGN_30_URLS) == 30
+        for url in self.BENIGN_30_URLS:
+            report = real_analyzer.analyze_text(url)
+            assert len(report.findings) > 0, f"No finding extracted for {url}"
+            finding = report.findings[0]
+            sig_codes = {s.code for s in finding.signals}
+            for ch in finding.children:
+                sig_codes.update(s.code for s in ch.signals)
+
+            assert "BLACKLIST_HIT" not in sig_codes, f"False positive BLACKLIST_HIT for benign url: {url}"
+            assert finding.verdict not in ("suspicious", "dangerous"), (
+                f"Benign url {url} got verdict {finding.verdict} with score {finding.url_risk_score}"
+            )
+            assert report.max_url_risk < 40
+
+    @pytest.mark.skipif(not HAS_REAL_DATA, reason="data/ directory not found")
+    def test_real_blacklist_20_random_phish_hosts_hit(self, real_analyzer, phish_train_samples_20):
+        assert len(phish_train_samples_20) >= 20
+        for host in phish_train_samples_20:
+            report = real_analyzer.analyze_text(f"http://{host}/login")
+            assert len(report.findings) > 0, f"No finding extracted for phish host: {host}"
+            finding = report.findings[0]
+            sig_codes = {s.code for s in finding.signals}
+            assert "BLACKLIST_HIT" in sig_codes, f"Expected BLACKLIST_HIT for real phishing host {host}, got {sig_codes}"
+            assert finding.verdict in ("suspicious", "dangerous")
+
