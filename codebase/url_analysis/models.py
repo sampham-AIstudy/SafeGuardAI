@@ -79,6 +79,7 @@ class UrlFinding:
     verdict: str = "unknown"             # official | benign | low | suspicious | dangerous | unverified | unknown
     network_used: bool = False
     errors: list[str] = field(default_factory=list)
+    passive_intel: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -100,6 +101,7 @@ class UrlFinding:
             "verdict": self.verdict,
             "network_used": self.network_used,
             "errors": list(self.errors),
+            "passive_intel": _serialize_value(self.passive_intel),
         }
 
 

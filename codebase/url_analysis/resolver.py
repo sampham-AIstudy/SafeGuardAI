@@ -1430,3 +1430,397 @@ class SafeRedirectResolver:
                 self._cache[norm_key] = (copy.deepcopy(chain), time.monotonic() + ttl)
 
         return chain
+
+    def fetch(
+        self,
+        url: str,
+        *,
+        allow_hosts: set[str] | list[str] | None = None,
+        max_bytes: int = 262144,
+        accept: str = "application/json",
+        timeout: float | None = None,
+    ) -> tuple[int, dict[str, str], bytes] | None:
+        """
+        Safely fetch an HTTPS URL with redirection up to 3 hops (e.g. RDAP bootstrap).
+        Reuses all SSRF protections, IP pinning, bounded timeouts, and deadline budget.
+        Only fetches registrable domain queries to external passive intel services;
+        NEVER sends full user URLs to external services (Privacy requirement).
+
+        - Initial host MUST belong to allow_hosts (if specified).
+        - Subsequent hops MUST be HTTPS, public destination, port 443, no userinfo.
+        - Max 3 hops.
+        - Returns (status_code, headers, body_bytes) on HTTP completion, or None on error/SSRF/blocked.
+        """
+        settings = get_settings()
+        if not settings.network_enabled or settings.offline:
+            return None
+
+        clean_url = urllib.parse.urldefrag((url or "").strip())[0]
+        parsed = parse_url(clean_url)
+        if parsed.scheme != "https":
+            return None
+
+        # Check initial host against allow_hosts if specified
+        norm_allow: set[str] | None = None
+        if allow_hosts is not None:
+            norm_allow = {h.lower().strip().rstrip(".") for h in allow_hosts if h}
+            init_host = (parsed.effective_host or "").lower().rstrip(".")
+            if not init_host or init_host not in norm_allow:
+                return None
+
+        t_start = time.monotonic()
+        budget = timeout if timeout is not None else min(self.total_budget, 5.0)
+        deadline = t_start + budget
+
+        transport_fn = self.transport if self.transport is not None else default_transport
+        current_url = clean_url
+        hops_count = 0
+        seen_urls: set[str] = set()
+
+        while hops_count < 3:
+            if time.monotonic() >= deadline:
+                return None
+
+            norm_curr = current_url.strip()
+            if norm_curr in seen_urls:
+                return None
+            seen_urls.add(norm_curr)
+
+            p = parse_url(current_url)
+            # Must be HTTPS
+            if p.scheme != "https":
+                return None
+
+            # Must not have userinfo
+            if p.userinfo:
+                return None
+
+            # Must be port 443 (or allowed test port)
+            port = p.port if p.port is not None else 443
+            if port != 443 and port not in self.allowed_ports:
+                return None
+
+            host = (p.effective_host or "").lower().rstrip(".")
+            if not host:
+                return None
+
+            # Host must not be forbidden
+            if host in FORBIDDEN_HOST_NAMES or any(
+                host.endswith(suf) for suf in FORBIDDEN_HOST_SUFFIXES
+            ):
+                return None
+            if not host.startswith("[") and "." not in host:
+                return None
+
+            # On hop 0, allow_hosts check was already verified; on hop 0 double-check:
+            if hops_count == 0 and norm_allow is not None:
+                if host not in norm_allow:
+                    return None
+
+            # Validate destination (SSRF check)
+            rem = deadline - time.monotonic()
+            if rem <= 0:
+                return None
+            dns_timeout = min(self.per_hop_timeout, rem)
+            ok, reason, ips = self._validate_destination(
+                host, port, timeout=dns_timeout
+            )
+            if not ok or not ips:
+                return None
+
+            pinned_ip = ips[0]
+
+            # Request headers
+            req_headers = {
+                "Host": host,
+                "User-Agent": "SafeGuardAI-LinkChecker/1.0",
+                "Accept": accept,
+                "Connection": "close",
+            }
+
+            path_and_query = (p.path or "/") + (f"?{p.query}" if p.query else "")
+
+            rem = deadline - time.monotonic()
+            if rem <= 0:
+                return None
+            hop_timeout = min(self.per_hop_timeout, rem)
+
+            try:
+                status, resp_headers, body = _invoke_transport(
+                    transport_fn=transport_fn,
+                    method="GET",
+                    scheme="https",
+                    ip=pinned_ip,
+                    port=port,
+                    host=host,
+                    path_and_query=path_and_query,
+                    headers=req_headers,
+                    timeout=hop_timeout,
+                    max_body_bytes=max_bytes,
+                    deadline=deadline,
+                )
+            except Exception:
+                return None
+
+            resp_headers_lower = {k.lower(): v for k, v in resp_headers.items()}
+
+            if status in (301, 302, 303, 307, 308):
+                raw_location = resp_headers_lower.get("location")
+                if not raw_location or len(raw_location) > 2048:
+                    return None
+                next_url, _ = _normalize_location(raw_location, current_url)
+                current_url = next_url
+                hops_count += 1
+                continue
+            else:
+                body = body[:max_bytes]
+                return status, resp_headers_lower, body
+
+        return None
+
+
+def probe_tls_certificate(
+    host: str,
+    getaddrinfo: Callable | None = None,
+    deadline: float | None = None,
+    timeout: float = 3.0,
+    *,
+    _test_ip_filter: Callable[[str], bool] | None = None,
+    _test_ssl_context: ssl.SSLContext | None = None,
+    _test_port: int = 443,
+) -> dict[str, Any] | None:
+    """
+    Connect to host on port 443 with IP pinning and anti-SSRF protections,
+    perform TLS handshake with strict certificate verification (CERT_REQUIRED,
+    check_hostname True, min TLS 1.2), and extract certificate details.
+    Does NOT send any HTTP data. Never uses CERT_NONE.
+
+    Returns:
+      - On success: {
+          'valid': True,
+          'subject_cn': str | None,
+          'san': list[str] (<= 20),
+          'issuer_org': str | None,
+          'not_before': ISO str | None,
+          'not_after': ISO str | None,
+          'days_since_issued': int | None,
+          'days_until_expiry': int | None,
+        }
+      - On verification error: {
+          'valid': False,
+          'reason': 'self_signed' | 'expired' | 'hostname_mismatch' | 'untrusted' | 'other',
+        }
+      - On network / SSRF / timeout / offline: None
+    """
+    from datetime import datetime, timezone
+
+    settings = get_settings()
+    if not settings.network_enabled or settings.offline:
+        return None
+
+    clean_host = (host or "").strip().lower()
+    if clean_host.startswith("[") and clean_host.endswith("]"):
+        clean_host = clean_host[1:-1]
+    bare_host = clean_host.rstrip(".")
+    if (
+        not bare_host
+        or bare_host in FORBIDDEN_HOST_NAMES
+        or any(bare_host.endswith(suf) for suf in FORBIDDEN_HOST_SUFFIXES)
+    ):
+        return None
+    if ":" not in clean_host and "." not in bare_host:
+        return None
+
+    t_start = time.monotonic()
+    if deadline is None:
+        deadline = t_start + timeout
+    rem = deadline - time.monotonic()
+    if rem <= 0:
+        return None
+
+    port = _test_port
+    dns_timeout = min(timeout, rem)
+    ok, reason, ips = is_public_destination(
+        clean_host,
+        port,
+        getaddrinfo=getaddrinfo,
+        timeout=dns_timeout,
+        _test_ip_filter=_test_ip_filter,
+    )
+    if not ok or not ips:
+        return None
+
+    pinned_ip = ips[0]
+
+    rem = deadline - time.monotonic()
+    if rem <= 0:
+        return None
+    sock_timeout = min(timeout, rem)
+
+    sock: socket.socket | None = None
+    try:
+        is_ipv6 = ":" in pinned_ip and not pinned_ip.startswith("[")
+        family = socket.AF_INET6 if is_ipv6 else socket.AF_INET
+        sock = socket.socket(family, socket.SOCK_STREAM)
+        sock.settimeout(sock_timeout)
+        sock.connect((pinned_ip, port))
+
+        rem = deadline - time.monotonic()
+        if rem <= 0:
+            return None
+        sock.settimeout(min(timeout, rem))
+
+        if _test_ssl_context is not None:
+            ctx = _test_ssl_context
+        else:
+            ctx = ssl.create_default_context()
+
+        # Strict TLS verification guarantees
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        ctx.verify_mode = ssl.CERT_REQUIRED
+        ctx.check_hostname = True
+
+        try:
+            tls_sock = ctx.wrap_socket(sock, server_hostname=clean_host)
+        except ssl.SSLCertVerificationError as e:
+            err_str = str(e).lower()
+            verify_code = getattr(e, "verify_code", None)
+            verify_msg = getattr(e, "verify_message", "") or ""
+            verify_msg_lower = verify_msg.lower()
+
+            if (
+                verify_code in (18, 19)
+                or "self-signed" in err_str
+                or "self signed" in err_str
+                or "self-signed" in verify_msg_lower
+                or "self signed" in verify_msg_lower
+            ):
+                ver_reason = "self_signed"
+            elif (
+                verify_code in (10, 9)
+                or "expired" in err_str
+                or "expired" in verify_msg_lower
+            ):
+                ver_reason = "expired"
+            elif (
+                verify_code in (62, 63, 64)
+                or "hostname" in err_str
+                or "mismatch" in err_str
+                or "doesn't match" in err_str
+                or "does not match" in err_str
+                or "not valid for" in err_str
+                or "hostname" in verify_msg_lower
+                or "mismatch" in verify_msg_lower
+            ):
+                ver_reason = "hostname_mismatch"
+            elif (
+                verify_code in (20, 21, 27)
+                or "unable to get local issuer certificate" in err_str
+                or "certificate verify failed" in err_str
+                or "untrusted" in err_str
+                or "authority" in err_str
+            ):
+                ver_reason = "untrusted"
+            else:
+                ver_reason = "other"
+            return {"valid": False, "reason": ver_reason}
+
+        except ssl.CertificateError:
+            return {"valid": False, "reason": "hostname_mismatch"}
+
+        except ssl.SSLError as e:
+            err_str = str(e).lower()
+            if "certificate verify failed" in err_str or "verify failed" in err_str:
+                if "self-signed" in err_str or "self signed" in err_str:
+                    return {"valid": False, "reason": "self_signed"}
+                if "expired" in err_str:
+                    return {"valid": False, "reason": "expired"}
+                if "hostname" in err_str or "match" in err_str:
+                    return {"valid": False, "reason": "hostname_mismatch"}
+                return {"valid": False, "reason": "untrusted"}
+            return None
+
+        except (TimeoutError, socket.timeout, ConnectionRefusedError, ConnectionResetError, OSError):
+            return None
+
+        # Handshake succeeded - read verified peer certificate
+        try:
+            cert = tls_sock.getpeercert()
+        except Exception:
+            return None
+
+        if not cert or not isinstance(cert, dict):
+            return None
+
+        subject_cn = None
+        for rdn in cert.get("subject", ()):
+            for attr in rdn:
+                if len(attr) == 2 and attr[0] == "commonName":
+                    subject_cn = str(attr[1])
+                    break
+            if subject_cn:
+                break
+
+        san: list[str] = []
+        for san_entry in cert.get("subjectAltName", ()):
+            if len(san_entry) == 2 and san_entry[0] in ("DNS", "IP Address"):
+                san.append(str(san_entry[1]))
+                if len(san) >= 20:
+                    break
+
+        issuer_org = None
+        for rdn in cert.get("issuer", ()):
+            for attr in rdn:
+                if len(attr) == 2 and attr[0] == "organizationName":
+                    issuer_org = str(attr[1])
+                    break
+            if issuer_org:
+                break
+
+        not_before_str = cert.get("notBefore")
+        not_after_str = cert.get("notAfter")
+        not_before_iso = None
+        not_after_iso = None
+        days_since_issued = None
+        days_until_expiry = None
+
+        now_dt = datetime.now(timezone.utc)
+
+        if not_before_str:
+            try:
+                secs = ssl.cert_time_to_seconds(not_before_str)
+                dt_nb = datetime.fromtimestamp(secs, tz=timezone.utc)
+                not_before_iso = dt_nb.isoformat()
+                days_since_issued = max(0, int((now_dt - dt_nb).total_seconds() // 86400))
+            except Exception:
+                pass
+
+        if not_after_str:
+            try:
+                secs = ssl.cert_time_to_seconds(not_after_str)
+                dt_na = datetime.fromtimestamp(secs, tz=timezone.utc)
+                not_after_iso = dt_na.isoformat()
+                days_until_expiry = int((dt_na - now_dt).total_seconds() // 86400)
+            except Exception:
+                pass
+
+        return {
+            "valid": True,
+            "subject_cn": subject_cn,
+            "san": san,
+            "issuer_org": issuer_org,
+            "not_before": not_before_iso,
+            "not_after": not_after_iso,
+            "days_since_issued": days_since_issued,
+            "days_until_expiry": days_until_expiry,
+        }
+
+    except Exception:
+        return None
+    finally:
+        if sock is not None:
+            try:
+                sock.close()
+            except Exception:
+                pass
+

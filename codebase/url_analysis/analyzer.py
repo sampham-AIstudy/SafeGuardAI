@@ -94,12 +94,15 @@ class UrlAnalyzer:
         lists: dict[str, Any] | None = None,
         resolver: Any = None,
         blacklist: PhishBlacklist | None = None,
+        passive_intel: Any = None,
     ):
         self.catalog = catalog or BrandCatalog.load()
         self.lists = lists or load_url_lists()
         self.resolver = resolver
         self._default_resolver: Any = None
         self.blacklist = blacklist if blacklist is not None else PhishBlacklist.from_dataset()
+        self.passive_intel = passive_intel
+        self._default_passive_intel: Any = None
 
         # Cache config sets
         self.shorteners = {s.lower().strip(".") for s in self.lists.get("shorteners", [])}
@@ -278,6 +281,17 @@ class UrlAnalyzer:
             from codebase.url_analysis.resolver import SafeRedirectResolver
             self._default_resolver = SafeRedirectResolver(lists=self.lists)
         return self._default_resolver
+
+    def _get_passive_intel(self) -> Any:
+        if self.passive_intel is not None:
+            return self.passive_intel
+        if self._default_passive_intel is None:
+            from codebase.url_analysis.passive import PassiveIntel
+            resolver = self._get_resolver()
+            self._default_passive_intel = PassiveIntel(
+                fetch=resolver.fetch if hasattr(resolver, "fetch") else None
+            )
+        return self._default_passive_intel
 
     def _resolve_finding(
         self,
@@ -459,6 +473,183 @@ class UrlAnalyzer:
             else:
                 finding.verdict = "low" if final_risk >= 1 else "benign"
 
+    def _analyze_passive(
+        self,
+        finding: UrlFinding,
+        deadline_s: float = 5.0,
+    ) -> None:
+        """
+        Query passive intelligence (RDAP age, crt.sh first seen, TLS probe, DNS status)
+        and append passive security signals to finding.
+        Never adds risk signals to official domains.
+        """
+        if finding.is_official:
+            return
+
+        intel = self._get_passive_intel()
+        try:
+            res = intel.analyze(finding, deadline_s=deadline_s)
+        except Exception as ex:
+            finding.errors.append(f"passive_intel_error:{type(ex).__name__}")
+            return
+
+        if not res or not isinstance(res, dict):
+            return
+
+        finding.passive_intel = res
+        finding.network_used = True
+
+        # Check if platform domain or free hosting
+        is_platform = self._is_platform_domain(finding.effective_host, finding.registrable_domain)
+        is_free_host = self._is_free_hosting(finding.effective_host, finding.registrable_domain)
+
+        # 1. DOMAIN_NEW (only when not platform / free hosting where registrable domain is platform domain)
+        age_data = res.get("domain_age")
+        if age_data and isinstance(age_data, dict) and not (is_platform or is_free_host):
+            age_days = age_data.get("age_days")
+            if age_days is not None and isinstance(age_days, int):
+                if age_days < 7:
+                    if not any(s.code == "DOMAIN_NEW" for s in finding.signals):
+                        finding.signals.append(
+                            UrlSignal(
+                                code="DOMAIN_NEW",
+                                severity="high",
+                                weight=40,
+                                message_vi=f"Tên miền mới được đăng ký ({age_days} ngày trước), nguy cơ lừa đảo rất cao.",
+                                evidence=f"age_days={age_days}, created={age_data.get('created')}",
+                            )
+                        )
+                elif age_days < 30:
+                    if not any(s.code == "DOMAIN_NEW" for s in finding.signals):
+                        finding.signals.append(
+                            UrlSignal(
+                                code="DOMAIN_NEW",
+                                severity="medium",
+                                weight=30,
+                                message_vi=f"Tên miền mới được đăng ký ({age_days} ngày trước), nguy cơ lừa đảo cao.",
+                                evidence=f"age_days={age_days}, created={age_data.get('created')}",
+                            )
+                        )
+
+        # 2. TLS Probe signals: CERT_NEW or CERT_INVALID
+        tls_data = res.get("tls")
+        if tls_data and isinstance(tls_data, dict):
+            if tls_data.get("valid") is True:
+                days_issued = tls_data.get("days_since_issued")
+                if days_issued is not None and isinstance(days_issued, int) and days_issued < 7:
+                    if not any(s.code == "CERT_NEW" for s in finding.signals):
+                        finding.signals.append(
+                            UrlSignal(
+                                code="CERT_NEW",
+                                severity="medium",
+                                weight=25,
+                                message_vi=f"Chứng chỉ SSL/TLS mới được cấp ({days_issued} ngày trước).",
+                                evidence=f"days_since_issued={days_issued}, not_before={tls_data.get('not_before')}",
+                            )
+                        )
+            elif tls_data.get("valid") is False:
+                reason = tls_data.get("reason", "other")
+                reason_map = {
+                    "self_signed": "chứng chỉ tự ký",
+                    "expired": "chứng chỉ đã hết hạn",
+                    "hostname_mismatch": "tên miền không khớp với chứng chỉ",
+                    "untrusted": "chứng chỉ không được tin cậy",
+                    "other": "chứng chỉ không hợp lệ",
+                }
+                reason_vi = reason_map.get(reason, "chứng chỉ không hợp lệ")
+                if not any(s.code == "CERT_INVALID" for s in finding.signals):
+                    finding.signals.append(
+                        UrlSignal(
+                            code="CERT_INVALID",
+                            severity="medium",
+                            weight=25,
+                            message_vi=f"Chứng chỉ bảo mật TLS không hợp lệ ({reason_vi}).",
+                            evidence=f"reason={reason}",
+                        )
+                    )
+
+        # 3. DOMAIN_DEAD
+        dns_status = res.get("dns_status")
+        if dns_status == "nxdomain":
+            if not any(s.code == "DOMAIN_DEAD" for s in finding.signals):
+                finding.signals.append(
+                    UrlSignal(
+                        code="DOMAIN_DEAD",
+                        severity="low",
+                        weight=10,
+                        message_vi="Tên miền không còn phân giải; link có thể đã bị gỡ.",
+                        evidence="dns_status=nxdomain",
+                    )
+                )
+
+        # 4. CT_FIRST_SEEN_RECENT (chứng chỉ đầu tiên < 14 ngày và cert_count <= 3: weight 15)
+        ct_data = res.get("ct")
+        if ct_data and isinstance(ct_data, dict) and not (is_platform or is_free_host):
+            first_seen_str = ct_data.get("first_seen")
+            cert_count = ct_data.get("cert_count", 0)
+            if first_seen_str:
+                try:
+                    from datetime import datetime, timezone
+                    from codebase.url_analysis.passive import _parse_iso_date
+                    dt = _parse_iso_date(first_seen_str)
+                    if dt:
+                        now_dt = datetime.now(timezone.utc)
+                        days_fs = max(0, int((now_dt - dt).total_seconds() // 86400))
+                        if days_fs < 14 and cert_count <= 3:
+                            if not any(s.code == "CT_FIRST_SEEN_RECENT" for s in finding.signals):
+                                finding.signals.append(
+                                    UrlSignal(
+                                        code="CT_FIRST_SEEN_RECENT",
+                                        severity="low",
+                                        weight=15,
+                                        message_vi=f"Tên miền mới xuất hiện trên Certificate Transparency gần đây ({days_fs} ngày trước, {cert_count} chứng chỉ).",
+                                        evidence=f"days_first_seen={days_fs}, cert_count={cert_count}",
+                                    )
+                                )
+                except Exception:
+                    pass
+
+        # 5. Check antibot combination with DOMAIN_NEW or CERT_NEW:
+        # CLOAKING_SUSPECTED (+25) có thể dùng DOMAIN_NEW/CERT_NEW như yếu tố phụ
+        has_antibot = any(s.code == "ANTIBOT_CHALLENGE" for s in finding.signals)
+        has_new_passive = any(s.code in ("DOMAIN_NEW", "CERT_NEW") for s in finding.signals)
+        if has_antibot and has_new_passive and not finding.is_official:
+            if not any(s.code == "CLOAKING_SUSPECTED" for s in finding.signals):
+                finding.signals.append(
+                    UrlSignal(
+                        code="CLOAKING_SUSPECTED",
+                        severity="medium",
+                        weight=25,
+                        message_vi="Trang chặn công cụ kiểm tra tự động và có dấu hiệu giả mạo.",
+                        evidence="antibot + recent_domain_or_cert",
+                    )
+                )
+
+        # Recalculate score & verdict
+        if finding.is_official:
+            finding.url_risk_score = 0
+            finding.verdict = "official"
+        else:
+            self_risk = min(99, sum(s.weight for s in finding.signals))
+            max_child_risk = max((ch.url_risk_score for ch in finding.children), default=0)
+            final_risk = max(self_risk, max_child_risk)
+            finding.url_risk_score = final_risk
+
+            cannot_read = (
+                any(s.code == "ANTIBOT_CHALLENGE" for s in finding.signals)
+                or (getattr(finding, "redirect_chain", None) and getattr(finding.redirect_chain[-1], "error", None) in ("budget_exceeded", "request_timeout", "dns_timeout", "too_many_hops"))
+            )
+
+            if final_risk >= 70:
+                finding.verdict = "dangerous"
+            elif final_risk >= 40:
+                finding.verdict = "suspicious"
+            elif cannot_read:
+                finding.verdict = "unverified"
+            else:
+                # Rule: DOMAIN_DEAD never benign or official!
+                finding.verdict = "low" if final_risk >= 1 else "benign"
+
     def analyze_text(
         self,
         text: str,
@@ -597,6 +788,35 @@ class UrlAnalyzer:
                         self._resolve_finding(f, res, deadline_s=rem_time, depth=0)
                     except Exception as ex:
                         f.errors.append(f"resolver_unhandled:{type(ex).__name__}")
+
+            # 3.6 Passive intelligence for eligible findings (max 3 non-official with risk >= 15 or antibot/shortener)
+            if self._is_network_permitted(allow_network):
+                passive_eligible: list[UrlFinding] = []
+                for f in findings:
+                    if f.is_official:
+                        continue
+                    has_antibot = any(s.code == "ANTIBOT_CHALLENGE" for s in f.signals) or bool(getattr(f, "redirect_chain", None))
+                    has_shortener = (
+                        self._is_shortener(f.effective_host)
+                        or any(s.code in ("SHORTENER", "SHORTENER_RESOLVED") for s in f.signals)
+                    )
+                    if f.url_risk_score >= 15 or has_antibot or has_shortener:
+                        passive_eligible.append(f)
+
+                # Sort by risk score
+                passive_eligible.sort(key=lambda item: item.url_risk_score, reverse=True)
+                to_passive = passive_eligible[:3]
+
+                for f in to_passive:
+                    elapsed = time.perf_counter() - start_time
+                    if elapsed >= deadline_s:
+                        is_truncated = True
+                        break
+                    rem_time = max(0.5, deadline_s - elapsed)
+                    try:
+                        self._analyze_passive(f, deadline_s=rem_time)
+                    except Exception as ex:
+                        f.errors.append(f"passive_unhandled:{type(ex).__name__}")
 
             # 4. Aggregates
             max_url_risk = max((f.url_risk_score for f in findings), default=0)
@@ -1371,5 +1591,16 @@ class UrlAnalyzer:
                     self._resolve_finding(finding, res, deadline_s=deadline_s, depth=depth)
             except Exception as ex:
                 finding.errors.append(f"resolver_unhandled:{type(ex).__name__}")
+
+        if self._is_network_permitted(allow_network) and depth == 0 and not finding.is_official:
+            has_antibot = any(s.code == "ANTIBOT_CHALLENGE" for s in finding.signals) or bool(getattr(finding, "redirect_chain", None))
+            has_shortener = self._is_shortener(finding.effective_host) or any(
+                s.code in ("SHORTENER", "SHORTENER_RESOLVED") for s in finding.signals
+            )
+            if finding.url_risk_score >= 15 or has_antibot or has_shortener:
+                try:
+                    self._analyze_passive(finding, deadline_s=deadline_s)
+                except Exception as ex:
+                    finding.errors.append(f"passive_unhandled:{type(ex).__name__}")
 
         return finding
