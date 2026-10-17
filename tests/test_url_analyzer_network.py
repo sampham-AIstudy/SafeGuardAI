@@ -495,3 +495,40 @@ def test_mutation_7_recursion_depth_limited():
     assert len(finding.children) <= 1
     if finding.children:
         assert len(finding.children[0].children) <= 1
+
+
+def test_shortener_stops_at_non_shortener_with_static_and_passive_analysis():
+    """
+    P2 & P3: Resolver stops when hop points to non-shortener destination.
+    Target destination has stopped_at_non_shortener=True, is analyzed statically and receives passive domain intelligence.
+    """
+    shortener_url = "http://bit.ly/bank-promo"
+    non_shortener_dest = "https://vietcombank-xacthuc-taikhoan.online/login"
+    mock_chain = RedirectChain(
+        hops=[Hop(url=shortener_url, status=302, location=non_shortener_dest)],
+        final_url=non_shortener_dest,
+        stopped_at_non_shortener=True,
+        elapsed_ms=10.0,
+    )
+    mock_passive = MagicMock()
+    mock_passive.analyze.return_value = {
+        "domain_age": {"created": "2026-10-15T00:00:00Z", "age_days": 2},
+        "ct": None,
+        "tls": None,
+        "dns_status": "ok",
+    }
+    resolver = FakeResolver(routes={shortener_url: mock_chain})
+    analyzer = UrlAnalyzer(resolver=resolver, passive_intel=mock_passive)
+
+    report = analyzer.analyze_text(f"Truy cập {shortener_url} ngay", allow_network=True)
+    assert len(report.findings) > 0
+    parent = report.findings[0]
+    assert parent.final_url == non_shortener_dest
+    assert len(parent.children) > 0
+    child = parent.children[0]
+    # Static analysis of destination
+    assert any(s.code in ("BRAND_IN_HOST", "SUSPICIOUS_TLD", "DOMAIN_NEW") for s in child.signals)
+    # Passive analysis ran on child's destination
+    assert child.passive_intel is not None
+    assert any(s.code == "DOMAIN_NEW" for s in child.signals)
+    assert parent.url_risk_score >= child.url_risk_score

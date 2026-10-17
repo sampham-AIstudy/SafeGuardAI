@@ -64,6 +64,9 @@ def mock_keys(monkeypatch):
 # ─────────────────────────────────────────────────────────────────────────────
 def test_threat_intel_timeout_bounds_within_3_5s(mock_keys, monkeypatch):
     """Mock one source sleeping 30s: total time must be <= 3.5s and keep fast sources."""
+    # P4: PhishTank is disabled by default; enable it explicitly to test timeout across all 4 sources
+    monkeypatch.setenv("SAFEGUARD_PHISHTANK", "1")
+    get_settings(refresh=True)
     agent = ThreatIntelAgent()
     agent._cache.clear()
 
@@ -135,17 +138,15 @@ def test_urlscan_default_only_searches_no_post_submit(mock_keys, monkeypatch):
 
 
 def test_urlscan_submit_env_submits_unlisted_visibility(mock_keys, monkeypatch):
-    """When URLSCAN_SUBMIT=1: submits scan with visibility='unlisted' and no sleep(3)."""
-    monkeypatch.setenv("URLSCAN_SUBMIT", "1")
+    """P4 design: URLScan only searches by domain: query, never submits URL for privacy."""
     agent = ThreatIntelAgent()
     agent._cache.clear()
 
-    submitted_payloads = []
+    searched_queries = []
 
     def fake_urlopen(req, timeout=None):
-        if req.data:
-            submitted_payloads.append(json.loads(req.data.decode("utf-8")))
-        return MockHTTPResponse({"uuid": "scan-uuid-12345"})
+        searched_queries.append(req.full_url)
+        return MockHTTPResponse({"results": []})
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
@@ -153,29 +154,17 @@ def test_urlscan_submit_env_submits_unlisted_visibility(mock_keys, monkeypatch):
     res = agent._check_urlscan("https://target-victim.com/page")
     elapsed = time.perf_counter() - start
 
-    assert elapsed < 1.0, f"URLScan submit took {elapsed:.2f}s, expected no sleep(3)"
-    assert res.get("status") == "submitted"
-    assert res.get("uuid") == "scan-uuid-12345"
-
-    assert len(submitted_payloads) == 1
-    assert submitted_payloads[0].get("visibility") == "unlisted"
-    assert submitted_payloads[0].get("visibility") != "public"
+    assert elapsed < 1.0, f"URLScan search took {elapsed:.2f}s"
+    assert not res.get("is_malicious")
+    assert len(searched_queries) == 1
+    assert "target-victim.com" in searched_queries[0]
 
 
 def test_virustotal_default_no_submit_on_404(mock_keys, monkeypatch):
-    """When VT returns 404 and VT_SUBMIT is unset, do NOT submit URL for scanning."""
+    """P4 design: VirusTotal uses /domains/{domain} endpoint, never submits on 404."""
     monkeypatch.delenv("VT_SUBMIT", raising=False)
     agent = ThreatIntelAgent()
     agent._cache.clear()
-
-    submit_called = False
-
-    def fake_submit(url):
-        nonlocal submit_called
-        submit_called = True
-        return {"status": "submitted"}
-
-    monkeypatch.setattr(agent, "_submit_virustotal", fake_submit)
 
     def fake_urlopen(req, timeout=None):
         raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, io.BytesIO(b""))
@@ -183,34 +172,33 @@ def test_virustotal_default_no_submit_on_404(mock_keys, monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
     res = agent._check_virustotal("https://unknown-link.xyz/path")
-    assert not submit_called, "VirusTotal should NOT submit by default on 404"
     assert res.get("status") == "not_found"
     assert not res.get("is_malicious")
 
 
 def test_virustotal_submits_when_vt_submit_is_1(mock_keys, monkeypatch):
-    """When VT_SUBMIT=1 and VT returns 404, submit URL for scanning."""
-    monkeypatch.setenv("VT_SUBMIT", "1")
+    """P4 design: VirusTotal only queries domain endpoint even if VT_SUBMIT was set."""
     agent = ThreatIntelAgent()
     agent._cache.clear()
 
-    submit_called = False
-
-    def fake_submit(url):
-        nonlocal submit_called
-        submit_called = True
-        return {"status": "submitted", "is_malicious": False}
-
-    monkeypatch.setattr(agent, "_submit_virustotal", fake_submit)
+    queried_urls = []
 
     def fake_urlopen(req, timeout=None):
-        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, io.BytesIO(b""))
+        queried_urls.append(req.full_url)
+        return MockHTTPResponse({
+            "data": {
+                "attributes": {
+                    "last_analysis_stats": {"malicious": 0, "suspicious": 0, "harmless": 50}
+                }
+            }
+        })
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
     res = agent._check_virustotal("https://unknown-link.xyz/path")
-    assert submit_called, "VirusTotal should submit on 404 when VT_SUBMIT=1"
-    assert res.get("status") == "submitted"
+    assert len(queried_urls) == 1
+    assert "/domains/unknown-link.xyz" in queried_urls[0]
+    assert not res.get("is_malicious")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

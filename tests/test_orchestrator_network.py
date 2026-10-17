@@ -116,7 +116,11 @@ def test_shortener_resolved_to_malicious_floors_risk_to_85(mock_net_env, monkeyp
 
     monkeypatch.setattr(orch.threat_intel_agent, "scan_url", mock_scan_url)
 
-    res = orch.process_request("Vui lòng truy cập https://bit.ly/promo để nhận ưu đãi", session_id="test_shortener")
+    res = orch.process_request(
+        "Vui lòng truy cập https://bit.ly/promo để nhận ưu đãi",
+        session_id="test_shortener",
+        online_check=True,  # Phase 3E-1: network features require opt-in online_check=True
+    )
 
     # Verification
     assert res["risk_score"] >= 85, f"Expected risk >= 85, got {res['risk_score']}"
@@ -161,7 +165,11 @@ def test_sequential_fallback_invokes_threat_intel_on_suspicious_url(mock_net_env
     # Ensure runner is unavailable to force fallback path
     monkeypatch.setattr(orch.agent_runner, "run", lambda **kwargs: None)
 
-    res = orch.process_request("Thông báo cập nhật VNeID tại https://vcb-portal.top/login", session_id="fallback_test")
+    res = orch.process_request(
+        "Thông báo cập nhật VNeID tại https://vcb-portal.top/login",
+        session_id="fallback_test",
+        online_check=True,  # Phase 3E-1: network features require opt-in online_check=True
+    )
 
     assert res["execution_path"] == "sequential_fallback"
     assert ti_called, "ThreatIntel MUST be called in sequential fallback branch"
@@ -206,7 +214,11 @@ def test_agentic_branch_reuses_tool_cache_threat_intel(mock_net_env, monkeypatch
     scan_called = False
     monkeypatch.setattr(orch.threat_intel_agent, "scan_url", lambda u: scan_called.__setitem__(0, True))
 
-    res = orch.process_request("Kiểm tra link https://suspicious-site.com", session_id="agentic_test")
+    res = orch.process_request(
+        "Kiểm tra link https://suspicious-site.com",
+        session_id="agentic_test",
+        online_check=True,
+    )
 
     assert res["execution_path"] == "gemini_agentic"
     assert not scan_called, "Should reuse tool_cache threat_intel without calling scan_url again"
@@ -279,7 +291,11 @@ def test_slow_network_hang_returns_within_7_seconds(mock_net_env, monkeypatch):
     monkeypatch.setattr(orch.agent_runner, "run", lambda **kwargs: None)
 
     start = time.perf_counter()
-    res = orch.process_request("Kiểm tra link https://slow-network-test.xyz/login", session_id="slow_test")
+    res = orch.process_request(
+        "Kiểm tra link https://slow-network-test.xyz/login",
+        session_id="slow_test",
+        online_check=True,
+    )
     elapsed = time.perf_counter() - start
 
     assert elapsed <= 7.0, f"Orchestrator took too long during network hang: {elapsed:.2f}s > 7.0s"
@@ -299,7 +315,11 @@ def test_threat_intel_exception_does_not_break_orchestrator(mock_net_env, monkey
 
     monkeypatch.setattr(orch.threat_intel_agent, "scan_url", buggy_scan)
 
-    res = orch.process_request("Kiểm tra liên kết https://random-bug.xyz", session_id="bug_test")
+    res = orch.process_request(
+        "Kiểm tra liên kết https://random-bug.xyz",
+        session_id="bug_test",
+        online_check=True,
+    )
 
     assert "decision" in res
     assert "risk_score" in res
@@ -330,17 +350,17 @@ def test_mutation_suite_all_6_mutations_killed(mock_net_env, monkeypatch):
     # Our implementation uses concurrent.futures.wait(timeout=3.0), which killed mutation 1.
     assert agent.TIMEOUT == 3.0
 
-    # Mutation 2: URLScan submit must NOT be public
-    monkeypatch.setenv("URLSCAN_SUBMIT", "1")
-    captured_payload = None
+    # Mutation 2: URLScan queries domain: only and does not leak path/query
+    captured_req = None
     def spy_urlscan(req, timeout=None):
-        nonlocal captured_payload
-        captured_payload = json.loads(req.data.decode("utf-8"))
-        return MockHTTPResponse({"uuid": "u1"})
+        nonlocal captured_req
+        captured_req = req
+        return MockHTTPResponse({"results": []})
     monkeypatch.setattr("urllib.request.urlopen", spy_urlscan)
-    agent._check_urlscan("https://test.com")
-    assert captured_payload.get("visibility") == "unlisted"
-    assert captured_payload.get("visibility") != "public", "Mutation 2 alive: URLScan submitted as public!"
+    agent._check_urlscan("https://test.com/secret-path?token=123")
+    assert captured_req is not None
+    assert "domain%3Atest.com" in captured_req.full_url or "domain:test.com" in captured_req.full_url
+    assert "secret-path" not in captured_req.full_url, "Mutation 2 alive: path leaked to URLScan!"
 
     # Mutation 3: VT submit mặc định trên 404
     monkeypatch.delenv("VT_SUBMIT", raising=False)

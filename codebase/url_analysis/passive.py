@@ -146,7 +146,13 @@ class PassiveIntel:
                 self._cache.popitem(last=False)
             self._cache[key] = (val, self.clock() + self.cache_ttl_s)
 
-    def domain_age(self, registrable: str) -> dict[str, Any] | None:
+    def domain_age(
+        self,
+        registrable: str,
+        *,
+        recorder: Any = None,
+        timeout: float = 3.0,
+    ) -> dict[str, Any] | None:
         """
         Query domain registration age via RDAP (https://rdap.org/domain/{domain}).
         PRIVACY: Only queries registrable domain. Never sends user URL.
@@ -170,13 +176,24 @@ class PassiveIntel:
         fetch = self._get_fetch()
         url = f"https://rdap.org/domain/{reg}"
 
+        rec_idx = None
+        if recorder is not None:
+            rec_idx = recorder.record_request("rdap_lookup", reg)
+
         try:
-            res = fetch(url, allow_hosts={"rdap.org"}, timeout=3.0)
+            res = fetch(url, allow_hosts={"rdap.org"}, timeout=timeout)
         except Exception:
+            if rec_idx is not None:
+                recorder.update_status(rec_idx, "error")
             return None
 
         if res is None:
+            if rec_idx is not None:
+                recorder.update_status(rec_idx, "error")
             return None
+
+        if rec_idx is not None:
+            recorder.update_status(rec_idx, "ok")
 
         status, headers, body_bytes = res
         if status == 404:
@@ -233,7 +250,13 @@ class PassiveIntel:
         self._put_into_cache(cache_key, res_val)
         return res_val
 
-    def ct_first_seen(self, registrable: str) -> dict[str, Any] | None:
+    def ct_first_seen(
+        self,
+        registrable: str,
+        *,
+        recorder: Any = None,
+        timeout: float = 3.0,
+    ) -> dict[str, Any] | None:
         """
         Query Certificate Transparency for earliest certificate via crt.sh JSON API.
         PRIVACY: Only queries registrable domain. Never sends user URL.
@@ -257,12 +280,24 @@ class PassiveIntel:
         fetch = self._get_fetch()
         url = f"https://crt.sh/?q={reg}&output=json"
 
+        rec_idx = None
+        if recorder is not None:
+            rec_idx = recorder.record_request("crtsh_lookup", reg)
+
         try:
-            res = fetch(url, allow_hosts={"crt.sh"}, max_bytes=262144, timeout=3.0)
+            res = fetch(url, allow_hosts={"crt.sh"}, max_bytes=262144, timeout=timeout)
         except Exception:
+            if rec_idx is not None:
+                recorder.update_status(rec_idx, "error")
             return None
 
         if res is None:
+            if rec_idx is not None:
+                recorder.update_status(rec_idx, "error")
+            return None
+
+        if rec_idx is not None:
+            recorder.update_status(rec_idx, "ok")
             return None
 
         status, headers, body_bytes = res
@@ -307,15 +342,22 @@ class PassiveIntel:
         self._put_into_cache(cache_key, res_val)
         return res_val
 
-    def tls(self, host: str) -> dict[str, Any] | None:
+    def tls(
+        self,
+        host: str,
+        *,
+        recorder: Any = None,
+        timeout: float = 3.0,
+    ) -> dict[str, Any] | None:
         """
         Probe TLS certificate of host on port 443 with verification.
         Does not send HTTP data.
+        P3: Disabled by default unless Settings.passive_tls is True.
 
         Returns dict or None.
         """
         settings = get_settings()
-        if not settings.network_enabled or settings.offline:
+        if not settings.network_enabled or settings.offline or not settings.passive_tls:
             return None
 
         clean_host = (host or "").strip().lower()
@@ -327,17 +369,34 @@ class PassiveIntel:
         if found:
             return cached
 
+        rec_idx = None
+        if recorder is not None:
+            rec_idx = recorder.record_request("tls_probe", clean_host)
+
         probe = self._get_probe()
         try:
-            res = probe(clean_host, timeout=3.0)
-        except Exception:
+            res = probe(clean_host, timeout=timeout)
+            if rec_idx is not None:
+                recorder.update_status(rec_idx, "ok" if res is not None else "error")
+        except Exception as e:
+            if rec_idx is not None:
+                if "timeout" in str(e).lower() or isinstance(e, (TimeoutError, socket.timeout)):
+                    recorder.update_status(rec_idx, "timeout")
+                else:
+                    recorder.update_status(rec_idx, "error")
             res = None
 
         if res is not None:
             self._put_into_cache(cache_key, res)
         return res
 
-    def dns_status(self, host: str) -> str:
+    def dns_status(
+        self,
+        host: str,
+        *,
+        recorder: Any = None,
+        timeout: float = 3.0,
+    ) -> str:
         """
         Check DNS resolution status using the shared bounded DNS pool.
 
@@ -348,8 +407,17 @@ class PassiveIntel:
         if not settings.network_enabled or settings.offline:
             return "unknown"
 
-        clean_host = (host or "").strip().lower()
+        clean_host = (host or "").strip().lower().rstrip(".")
         if not clean_host:
+            return "unknown"
+
+        # P3: dns_status không phân biệt tên nội bộ với NXDOMAIN ra ngoài (tên nội bộ/.local/không có dấu chấm => 'unknown')
+        if (
+            "." not in clean_host
+            or clean_host.startswith("[")
+            or clean_host in ("localhost", "metadata", "local", "internal", "localdomain", "lan", "home.arpa")
+            or any(clean_host.endswith(suf) for suf in (".local", ".internal", ".localhost", ".lan", ".home.arpa", ".localdomain"))
+        ):
             return "unknown"
 
         cache_key = f"dns:{clean_host}"
@@ -357,12 +425,23 @@ class PassiveIntel:
         if found:
             return cached
 
+        rec_idx = None
+        if recorder is not None:
+            rec_idx = recorder.record_request("dns_lookup", clean_host)
+
         if self._dns_fn is not None:
             try:
                 res = self._dns_fn(clean_host)
                 self._put_into_cache(cache_key, res)
+                if rec_idx is not None:
+                    recorder.update_status(rec_idx, "ok" if res in ("ok", "nxdomain") else "error")
                 return res
-            except Exception:
+            except Exception as e:
+                if rec_idx is not None:
+                    if "timeout" in str(e).lower() or isinstance(e, (TimeoutError, socket.timeout)):
+                        recorder.update_status(rec_idx, "timeout")
+                    else:
+                        recorder.update_status(rec_idx, "error")
                 return "unknown"
 
         # Check destination via shared bounded pool using socket.getaddrinfo
@@ -371,12 +450,14 @@ class PassiveIntel:
                 socket.getaddrinfo,
                 (clean_host, 443, socket.AF_UNSPEC, socket.SOCK_STREAM),
                 {},
-                timeout=3.0,
+                timeout=timeout,
             )
             if addr_info_list:
                 status = "ok"
             else:
                 status = "unknown"
+            if rec_idx is not None:
+                recorder.update_status(rec_idx, "ok" if status == "ok" else "error")
         except socket.gaierror as e:
             # Genuine NXDOMAIN / host not found
             err_str = str(e).lower()
@@ -391,13 +472,26 @@ class PassiveIntel:
                 status = "nxdomain"
             else:
                 status = "unknown"
-        except Exception:
+            if rec_idx is not None:
+                recorder.update_status(rec_idx, "ok" if status == "nxdomain" else "error")
+        except Exception as e:
             status = "unknown"
+            if rec_idx is not None:
+                if "timeout" in str(e).lower() or isinstance(e, (TimeoutError, socket.timeout)):
+                    recorder.update_status(rec_idx, "timeout")
+                else:
+                    recorder.update_status(rec_idx, "error")
 
         self._put_into_cache(cache_key, status)
         return status
 
-    def analyze(self, finding: UrlFinding, *, deadline_s: float = 5.0) -> dict[str, Any] | None:
+    def analyze(
+        self,
+        finding: UrlFinding,
+        *,
+        deadline_s: float = 5.0,
+        recorder: Any = None,
+    ) -> dict[str, Any] | None:
         """
         Aggregate passive intelligence across all 4 sources:
           - domain_age (RDAP)
@@ -437,22 +531,26 @@ class PassiveIntel:
         def run_domain_age():
             if not can_query_domain:
                 return None
-            return self.domain_age(registrable)
+            rem = max(0.1, overall_deadline - time.monotonic())
+            return self.domain_age(registrable, recorder=recorder, timeout=min(3.0, rem))
 
         def run_ct():
             if not can_query_domain:
                 return None
-            return self.ct_first_seen(registrable)
+            rem = max(0.1, overall_deadline - time.monotonic())
+            return self.ct_first_seen(registrable, recorder=recorder, timeout=min(3.0, rem))
 
         def run_tls():
             if not host:
                 return None
-            return self.tls(host)
+            rem = max(0.1, overall_deadline - time.monotonic())
+            return self.tls(host, recorder=recorder, timeout=min(3.0, rem))
 
         def run_dns():
             if not host:
                 return "unknown"
-            return self.dns_status(host)
+            rem = max(0.1, overall_deadline - time.monotonic())
+            return self.dns_status(host, recorder=recorder, timeout=min(3.0, rem))
 
         tasks = {
             "domain_age": run_domain_age,

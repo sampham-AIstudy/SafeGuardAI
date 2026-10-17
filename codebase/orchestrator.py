@@ -27,6 +27,7 @@ from codebase.agents.threat_intel_agent import ThreatIntelAgent  # NEW: threat i
 from codebase.agents.prompt_guard import PromptGuard
 from codebase.agents.url_analysis_agent import URLAnalysisAgent
 from codebase.url_analysis.analyzer import UrlAnalyzer
+from codebase.url_analysis.resolver import NetworkRecorder
 from codebase.url_analysis.blacklist import PhishBlacklist
 from codebase.knowledge_base.db_connect import MySQLManager
 from codebase.config import get_settings
@@ -117,9 +118,23 @@ class SafeGuardOrchestrator:
     # ─────────────────────────────────────────────────────────────────────────
     # PUBLIC ENTRY POINT
     # ─────────────────────────────────────────────────────────────────────────
-    def process_request(self, user_text: str = "", image_input=None, session_id: str = "session_default", image_base64: str = None, persist: bool = True, pil_image=None) -> dict:
+    def process_request(
+        self,
+        user_text: str = "",
+        image_input=None,
+        session_id: str = "session_default",
+        image_base64: str = None,
+        persist: bool = True,
+        pil_image=None,
+        online_check: bool = False,
+    ) -> dict:
         start_time = time.time()
-        max_chars = get_settings().max_text_chars
+        settings = get_settings()
+        allow_net = bool(settings.network_enabled and not settings.offline and online_check)
+        recorder = NetworkRecorder() if allow_net else None
+        deadline = time.monotonic() + settings.request_budget_s
+
+        max_chars = settings.max_text_chars
         input_truncated = False
         if user_text and len(user_text) > max_chars:
             user_text = user_text[:max_chars]
@@ -206,14 +221,17 @@ class SafeGuardOrchestrator:
         if not guard_eval.get("is_safe", True):
             print(f"[Orchestrator] Refused malicious request: {guard_eval.get('reason')}")
             url_report = None
-            if get_settings().url_module_enabled:
-                allow_net = bool(get_settings().network_enabled and not get_settings().offline)
-                raw_rep = self.url_agent.analyze(
+            if settings.url_module_enabled:
+                rem_time = max(0.01, deadline - time.monotonic())
+                raw_rep = self.url_analyzer.analyze_text(
                     _clean_text_for_url_analysis(user_text),
                     extra_urls=extra_urls,
-                    allow_network=allow_net
+                    allow_network=allow_net,
+                    deadline_s=rem_time,
+                    recorder=recorder,
                 )
                 url_report = _wrap_report_dict(raw_rep)
+            net_actions = recorder.get_actions() if (recorder and allow_net) else []
             return {
                 "session_id": session_id,
                 "user_input": user_text,
@@ -230,8 +248,9 @@ class SafeGuardOrchestrator:
                 "risk_score": 0,
                 "latency_ms": round((time.time() - start_time) * 1000, 2),
                 "url_analysis": url_report,
-                "network_actions": [],
-                "image_analysis": image_analysis
+                "network_actions": net_actions,
+                "image_analysis": image_analysis,
+                "online_check": bool(online_check),
             }
 
         injection_detected = bool(guard_eval.get("injection_detected", False))
@@ -271,6 +290,10 @@ class SafeGuardOrchestrator:
                 extra_urls=extra_urls,
                 image_analysis=image_analysis,
                 vietqr_crc_failed=vietqr_crc_failed,
+                deadline=deadline,
+                recorder=recorder,
+                allow_net=allow_net,
+                online_check=online_check,
             )
 
         # ══════════════════════════════════════════════════════════════════
@@ -290,6 +313,10 @@ class SafeGuardOrchestrator:
             extra_urls=extra_urls,
             image_analysis=image_analysis,
             vietqr_crc_failed=vietqr_crc_failed,
+            deadline=deadline,
+            recorder=recorder,
+            allow_net=allow_net,
+            online_check=online_check,
         )
 
 
@@ -386,7 +413,8 @@ class SafeGuardOrchestrator:
         self,
         url_report: Any,
         tool_cache_ti: Any = None,
-        budget_s: float = 6.0
+        budget_s: float = 6.0,
+        recorder: Any = None,
     ) -> dict | None:
         """
         Run ThreatIntel for up to 3 non-official findings that have:
@@ -414,6 +442,7 @@ class SafeGuardOrchestrator:
         findings = getattr(url_report, "findings", None)
         if findings is None and isinstance(url_report, dict):
             findings = url_report.get("findings", [])
+
         if not findings:
             return None
 
@@ -456,8 +485,22 @@ class SafeGuardOrchestrator:
 
         ti_results: list[dict] = []
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=min(3, len(eligible_urls)))
+
+        def _invoke_scan(u: str) -> dict:
+            try:
+                return self.threat_intel_agent.scan_url(
+                    u,
+                    deadline_s=budget_s,
+                    recorder=recorder,
+                )
+            except TypeError:
+                return self.threat_intel_agent.scan_url(u)
+
         try:
-            futures = {executor.submit(self.threat_intel_agent.scan_url, u): u for u in eligible_urls}
+            futures = {
+                executor.submit(_invoke_scan, u): u
+                for u in eligible_urls
+            }
             done, not_done = concurrent.futures.wait(futures.keys(), timeout=budget_s)
             for future in done:
                 try:
@@ -466,7 +509,10 @@ class SafeGuardOrchestrator:
                         ti_results.append(res)
                 except Exception as ex:
                     u = futures[future]
-                    ti_results.append({"url": u, "is_malicious": False, "error": str(ex)})
+                    ti_results.append({"url": u, "is_malicious": False, "error": type(ex).__name__})
+            for future in not_done:
+                u = futures[future]
+                ti_results.append({"url": u, "is_malicious": False, "error": "timeout"})
         finally:
             executor.shutdown(wait=False, cancel_futures=True)
 
@@ -585,7 +631,25 @@ class SafeGuardOrchestrator:
     # ─────────────────────────────────────────────────────────────────────────
     # PATH A: Finalize result from Gemini Agentic Runner
     # ─────────────────────────────────────────────────────────────────────────
-    def _finalize_agentic_result(self, agent_result: dict, user_text: str, session_id: str, start_time: float, image_base64: str = None, persist: bool = True, injection_detected: bool = False, input_truncated: bool = False, pil_image=None, extra_urls: list[tuple[str, str]] | None = None, image_analysis: dict | None = None, vietqr_crc_failed: bool = False) -> dict:
+    def _finalize_agentic_result(
+        self,
+        agent_result: dict,
+        user_text: str,
+        session_id: str,
+        start_time: float,
+        image_base64: str = None,
+        persist: bool = True,
+        injection_detected: bool = False,
+        input_truncated: bool = False,
+        pil_image=None,
+        extra_urls: list[tuple[str, str]] | None = None,
+        image_analysis: dict | None = None,
+        vietqr_crc_failed: bool = False,
+        deadline: float | None = None,
+        recorder: Any = None,
+        allow_net: bool = False,
+        online_check: bool = False,
+    ) -> dict:
         """
         Post-process the Gemini agentic result:
         - Pull cached tool outputs for structured response
@@ -655,25 +719,30 @@ class SafeGuardOrchestrator:
 
         url_report = None
         if get_settings().url_module_enabled:
-            allow_net = bool(get_settings().network_enabled and not get_settings().offline)
-            raw_rep = self.url_agent.analyze(
+            rem_time = max(0.01, deadline - time.monotonic()) if deadline is not None else 6.0
+            raw_rep = self.url_analyzer.analyze_text(
                 _clean_text_for_url_analysis(full_text),
                 extra_urls=extra_urls,
-                allow_network=allow_net
+                allow_network=allow_net,
+                deadline_s=rem_time,
+                recorder=recorder,
             )
             url_report = _wrap_report_dict(raw_rep)
 
         # ThreatIntel in agentic branch
         ti_from_cache = tool_cache.get("threat_intel")
         ti_result = None
-        try:
-            ti_result = self._run_threat_intel_for_report(
-                url_report=url_report,
-                tool_cache_ti=ti_from_cache,
-                budget_s=6.0
-            )
-        except Exception as ex:
-            print(f"[Orchestrator] ThreatIntel error in agentic: {ex}")
+        if allow_net:
+            try:
+                rem_ti = max(0.01, deadline - time.monotonic()) if deadline is not None else 6.0
+                ti_result = self._run_threat_intel_for_report(
+                    url_report=url_report,
+                    tool_cache_ti=ti_from_cache,
+                    budget_s=rem_ti,
+                    recorder=recorder,
+                )
+            except Exception as ex:
+                print(f"[Orchestrator] ThreatIntel error in agentic: {ex}")
 
         if ti_result and ti_result.get("is_malicious"):
             if "risk_breakdown" not in explain_info:
@@ -751,7 +820,7 @@ class SafeGuardOrchestrator:
                 image_base64=image_base64
             )
 
-        network_actions = self._collect_network_actions(url_report, ti_result)
+        network_actions = recorder.get_actions() if (recorder is not None and allow_net) else []
 
         resp = {
             "session_id": session_id,
@@ -773,6 +842,7 @@ class SafeGuardOrchestrator:
             "url_analysis": url_report,
             "network_actions": network_actions,
             "image_analysis": image_analysis,
+            "online_check": bool(online_check),
         }
         if ti_result is not None:
             resp["threat_intel"] = ti_result
@@ -781,12 +851,25 @@ class SafeGuardOrchestrator:
     # ─────────────────────────────────────────────────────────────────────────
     # PATH B: Sequential Fallback Pipeline (original logic, preserved fully)
     # ─────────────────────────────────────────────────────────────────────────
-    def _run_sequential_fallback(self, user_text: str, pil_image, image_input,
-                                  session_id: str, start_time: float, image_base64: str = None, persist: bool = True,
-                                  injection_detected: bool = False, input_truncated: bool = False,
-                                  extra_urls: list[tuple[str, str]] | None = None,
-                                  image_analysis: dict | None = None,
-                                  vietqr_crc_failed: bool = False) -> dict:
+    def _run_sequential_fallback(
+        self,
+        user_text: str,
+        pil_image,
+        image_input,
+        session_id: str,
+        start_time: float,
+        image_base64: str = None,
+        persist: bool = True,
+        injection_detected: bool = False,
+        input_truncated: bool = False,
+        extra_urls: list[tuple[str, str]] | None = None,
+        image_analysis: dict | None = None,
+        vietqr_crc_failed: bool = False,
+        deadline: float | None = None,
+        recorder: Any = None,
+        allow_net: bool = False,
+        online_check: bool = False,
+    ) -> dict:
         """
         Original 8-step sequential pipeline. Runs when Gemini API is unavailable.
         Preserves all previous behavior exactly.
@@ -812,23 +895,28 @@ class SafeGuardOrchestrator:
         # URL Analysis (if module enabled)
         url_report = None
         if get_settings().url_module_enabled:
-            allow_net = bool(get_settings().network_enabled and not get_settings().offline)
-            raw_rep = self.url_agent.analyze(
+            rem_time = max(0.01, deadline - time.monotonic()) if deadline is not None else 6.0
+            raw_rep = self.url_analyzer.analyze_text(
                 _clean_text_for_url_analysis(full_text),
                 extra_urls=extra_urls,
-                allow_network=allow_net
+                allow_network=allow_net,
+                deadline_s=rem_time,
+                recorder=recorder,
             )
             url_report = _wrap_report_dict(raw_rep)
 
         # ThreatIntel in sequential fallback branch
         ti_result = None
-        try:
-            ti_result = self._run_threat_intel_for_report(
-                url_report=url_report,
-                budget_s=6.0
-            )
-        except Exception as ex:
-            print(f"[Orchestrator] ThreatIntel error in fallback: {ex}")
+        if allow_net:
+            try:
+                rem_ti = max(0.01, deadline - time.monotonic()) if deadline is not None else 6.0
+                ti_result = self._run_threat_intel_for_report(
+                    url_report=url_report,
+                    budget_s=rem_ti,
+                    recorder=recorder,
+                )
+            except Exception as ex:
+                print(f"[Orchestrator] ThreatIntel error in fallback: {ex}")
 
         # Step 3: RAG Agent Knowledge Match
         # Protect against single-token DoS repetitive strings (e.g. 'a'*50000 without spaces/dots)
@@ -975,7 +1063,7 @@ class SafeGuardOrchestrator:
                 {"tool": "threat_intel_scan", "desc": "Đối soát cơ sở dữ liệu đe dọa toàn cầu (Threat Intelligence)"}
             )
 
-        network_actions = self._collect_network_actions(url_report, ti_result)
+        network_actions = recorder.get_actions() if (recorder is not None and allow_net) else []
 
         resp = {
             "session_id": session_id,
@@ -997,6 +1085,7 @@ class SafeGuardOrchestrator:
             "url_analysis": url_report,
             "network_actions": network_actions,
             "image_analysis": image_analysis,
+            "online_check": bool(online_check),
         }
         if ti_result is not None:
             resp["threat_intel"] = ti_result

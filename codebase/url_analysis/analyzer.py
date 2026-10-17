@@ -299,11 +299,15 @@ class UrlAnalyzer:
         resolver: Any,
         deadline_s: float,
         depth: int = 0,
+        recorder: Any = None,
     ) -> None:
         finding.network_used = True
         target_url = finding.final_url or finding.raw
         try:
-            chain = resolver.resolve(target_url)
+            try:
+                chain = resolver.resolve(target_url, deadline_s=deadline_s, recorder=recorder)
+            except TypeError:
+                chain = resolver.resolve(target_url)
         except Exception as e:
             finding.errors.append(f"resolver_error:{type(e).__name__}")
             return
@@ -477,6 +481,7 @@ class UrlAnalyzer:
         self,
         finding: UrlFinding,
         deadline_s: float = 5.0,
+        recorder: Any = None,
     ) -> None:
         """
         Query passive intelligence (RDAP age, crt.sh first seen, TLS probe, DNS status)
@@ -488,7 +493,13 @@ class UrlAnalyzer:
 
         intel = self._get_passive_intel()
         try:
-            res = intel.analyze(finding, deadline_s=deadline_s)
+            try:
+                res = intel.analyze(finding, deadline_s=deadline_s, recorder=recorder)
+            except TypeError:
+                try:
+                    res = intel.analyze(finding, deadline_s=deadline_s)
+                except TypeError:
+                    res = intel.analyze(finding)
         except Exception as ex:
             finding.errors.append(f"passive_intel_error:{type(ex).__name__}")
             return
@@ -656,6 +667,7 @@ class UrlAnalyzer:
         extra_urls: list[tuple[str, str]] | None = None,
         allow_network: bool = False,
         deadline_s: float = 6.0,
+        recorder: Any = None,
     ) -> UrlAnalysisReport:
         """
         Analyze all URLs inside a given text string.
@@ -782,26 +794,36 @@ class UrlAnalyzer:
                     elapsed = time.perf_counter() - start_time
                     if elapsed >= deadline_s:
                         is_truncated = True
+                        if recorder:
+                            recorder.record("resolver_lookup", f.effective_host, status="timeout")
                         break
-                    rem_time = max(0.5, deadline_s - elapsed)
+                    rem_time = max(0.01, deadline_s - elapsed)
                     try:
-                        self._resolve_finding(f, res, deadline_s=rem_time, depth=0)
+                        self._resolve_finding(f, res, deadline_s=rem_time, depth=0, recorder=recorder)
                     except Exception as ex:
                         f.errors.append(f"resolver_unhandled:{type(ex).__name__}")
 
-            # 3.6 Passive intelligence for eligible findings (max 3 non-official with risk >= 15 or antibot/shortener)
+            # 3.6 Passive intelligence for eligible findings (max 3 non-official with risk >= 15 or antibot/shortener or resolved destination)
             if self._is_network_permitted(allow_network):
                 passive_eligible: list[UrlFinding] = []
+                all_candidates: list[UrlFinding] = []
                 for f in findings:
-                    if f.is_official:
+                    all_candidates.append(f)
+                    for ch in getattr(f, "children", []) or []:
+                        all_candidates.append(ch)
+
+                child_ids = {id(ch) for f in findings for ch in getattr(f, "children", []) or []}
+                for item in all_candidates:
+                    if item.is_official:
                         continue
-                    has_antibot = any(s.code == "ANTIBOT_CHALLENGE" for s in f.signals) or bool(getattr(f, "redirect_chain", None))
+                    has_antibot = any(s.code == "ANTIBOT_CHALLENGE" for s in item.signals) or bool(getattr(item, "redirect_chain", None))
                     has_shortener = (
-                        self._is_shortener(f.effective_host)
-                        or any(s.code in ("SHORTENER", "SHORTENER_RESOLVED") for s in f.signals)
+                        self._is_shortener(item.effective_host)
+                        or any(s.code in ("SHORTENER", "SHORTENER_RESOLVED") for s in item.signals)
                     )
-                    if f.url_risk_score >= 15 or has_antibot or has_shortener:
-                        passive_eligible.append(f)
+                    is_child_target = id(item) in child_ids
+                    if item.url_risk_score >= 15 or has_antibot or has_shortener or is_child_target:
+                        passive_eligible.append(item)
 
                 # Sort by risk score
                 passive_eligible.sort(key=lambda item: item.url_risk_score, reverse=True)
@@ -811,12 +833,26 @@ class UrlAnalyzer:
                     elapsed = time.perf_counter() - start_time
                     if elapsed >= deadline_s:
                         is_truncated = True
+                        if recorder:
+                            recorder.record("passive_lookup", f.effective_host or f.registrable_domain, status="timeout")
                         break
-                    rem_time = max(0.5, deadline_s - elapsed)
+                    rem_time = max(0.01, deadline_s - elapsed)
                     try:
-                        self._analyze_passive(f, deadline_s=rem_time)
+                        self._analyze_passive(f, deadline_s=rem_time, recorder=recorder)
                     except Exception as ex:
                         f.errors.append(f"passive_unhandled:{type(ex).__name__}")
+
+                # If child findings were updated, re-calculate parents' risk scores
+                for f in findings:
+                    if f.children:
+                        self_risk = min(99, sum(s.weight for s in f.signals))
+                        max_child_risk = max((ch.url_risk_score for ch in f.children), default=0)
+                        f.url_risk_score = max(self_risk, max_child_risk)
+                        if not f.is_official:
+                            if f.url_risk_score >= 70:
+                                f.verdict = "dangerous"
+                            elif f.url_risk_score >= 40:
+                                f.verdict = "suspicious"
 
             # 4. Aggregates
             max_url_risk = max((f.url_risk_score for f in findings), default=0)
@@ -905,7 +941,7 @@ class UrlAnalyzer:
                 has_obfuscation=False,
                 has_only_official_urls=False,
                 critical_codes=[],
-                summary_vi=[f"Lỗi khi phân tích liên kết: {e}"],
+                summary_vi=[f"Lỗi khi phân tích liên kết: {type(e).__name__}"],
                 truncated=False,
                 elapsed_ms=elapsed_ms,
             )

@@ -184,6 +184,16 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
                     self.send_json_response({"error": "Invalid session_id: must match ^[\\w-]{1,100}$"}, status=400)
                     return
 
+                # Validate online_check flag (P1)
+                if 'online_check' in data:
+                    raw_online = data['online_check']
+                    if not isinstance(raw_online, bool):
+                        self.send_json_response({"error": "online_check must be a boolean"}, status=400)
+                        return
+                    online_check = raw_online
+                else:
+                    online_check = False
+
                 raw_image_base64 = data.get('image_base64', None)
                 if raw_image_base64 is not None and not isinstance(raw_image_base64, str):
                     self.send_json_response({"error": "image_base64 must be string or null"}, status=400)
@@ -206,7 +216,8 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
                     user_text=user_text,
                     image_input=image_input,
                     session_id=session_id,
-                    image_base64=raw_image_base64
+                    image_base64=raw_image_base64,
+                    online_check=online_check,
                 )
 
                 self.send_json_response(result)

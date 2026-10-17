@@ -16,6 +16,9 @@ class Settings:
     max_text_chars: int = 20000
     rate_limit_per_min: int = 20
     url_module_enabled: bool = True
+    passive_tls: bool = False
+    phishtank_enabled: bool = False
+    request_budget_s: float = 6.0
 
 
 _SETTINGS_INSTANCE: Settings | None = None
@@ -32,15 +35,30 @@ def _parse_bool(val: str | None, default: bool) -> bool:
     return default
 
 
+_API_KEY_PLACEHOLDERS = {
+    "your_api_key_here",
+    "<your-key>",
+    "changeme",
+    "xxx",
+    "placeholder",
+    "none",
+    "null",
+    "test",
+}
+
+
 def get_api_key(name: str) -> str:
     """
     Get API key from environment variables.
-    Returns empty string if empty, contains 'YOUR_', or ends with '_HERE'.
+    Returns empty string if empty, matches known placeholders, contains 'YOUR_', or ends with '_HERE'.
     """
     val = os.environ.get(name, "").strip()
     if not val:
         return ""
-    if "YOUR_" in val or val.endswith("_HERE"):
+    val_lower = val.lower()
+    if val_lower in _API_KEY_PLACEHOLDERS:
+        return ""
+    if "your_" in val_lower or val_lower.endswith("_here"):
         return ""
     return val
 
@@ -93,6 +111,14 @@ def get_settings(refresh: bool = False) -> Settings:
         rate_limit_per_min = 20
 
     url_module_enabled = _parse_bool(os.environ.get("SAFEGUARD_URL_MODULE"), True)
+    passive_tls = _parse_bool(os.environ.get("SAFEGUARD_PASSIVE_TLS"), False)
+    phishtank_enabled = _parse_bool(os.environ.get("SAFEGUARD_PHISHTANK"), False)
+
+    try:
+        request_budget_s = float(os.environ.get("SAFEGUARD_NET_BUDGET", "6.0").strip())
+        request_budget_s = max(1.0, min(15.0, request_budget_s))
+    except (ValueError, TypeError):
+        request_budget_s = 6.0
 
     _SETTINGS_INSTANCE = Settings(
         offline=offline,
@@ -107,5 +133,8 @@ def get_settings(refresh: bool = False) -> Settings:
         max_text_chars=max_text_chars,
         rate_limit_per_min=rate_limit_per_min,
         url_module_enabled=url_module_enabled,
+        passive_tls=passive_tls,
+        phishtank_enabled=phishtank_enabled,
+        request_budget_s=request_budget_s,
     )
     return _SETTINGS_INSTANCE

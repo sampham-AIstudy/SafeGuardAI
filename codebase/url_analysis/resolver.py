@@ -766,6 +766,62 @@ class Hop:
         return res
 
 
+def _sanitize_action_target(target: str) -> str:
+    """Sanitize target to host or registrable domain (never path, query, or userinfo)."""
+    if not target or not isinstance(target, str):
+        return ""
+    t = target.strip()
+    if "://" in t:
+        try:
+            t = urllib.parse.urlsplit(t).netloc or t
+        except Exception:
+            pass
+    if "@" in t:
+        t = t.split("@")[-1]
+    if ":" in t and not t.startswith("["):
+        t = t.split(":")[0]
+    if "/" in t:
+        t = t.split("/")[0]
+    if "?" in t:
+        t = t.split("?")[0]
+    if "#" in t:
+        t = t.split("#")[0]
+    return t.strip().lower()
+
+
+class NetworkRecorder:
+    """
+    Thread-safe recorder for outbound network requests.
+    Records actions as: {type: str, target: str, status: 'sent'|'ok'|'error'|'timeout'|'blocked'}.
+    """
+    def __init__(self):
+        self._actions: list[dict[str, str]] = []
+        self._lock = threading.Lock()
+
+    def record_request(self, atype: str, target: str, status: str = "sent") -> int:
+        clean_target = _sanitize_action_target(target)
+        with self._lock:
+            idx = len(self._actions)
+            self._actions.append({
+                "type": atype,
+                "target": clean_target,
+                "status": status,
+            })
+            return idx
+
+    def record(self, atype: str, target: str, status: str = "sent") -> int:
+        return self.record_request(atype, target, status=status)
+
+    def update_status(self, idx: int, status: str) -> None:
+        with self._lock:
+            if 0 <= idx < len(self._actions):
+                self._actions[idx]["status"] = status
+
+    def get_actions(self) -> list[dict[str, str]]:
+        with self._lock:
+            return copy.deepcopy(self._actions)
+
+
 @dataclass
 class RedirectChain:
     hops: list[Hop] = field(default_factory=list)
@@ -775,6 +831,7 @@ class RedirectChain:
     elapsed_ms: float = 0.0
     from_cache: bool = False
     antibot: dict | None = None
+    stopped_at_non_shortener: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         displayed_blocked = self.blocked_reason
@@ -792,6 +849,7 @@ class RedirectChain:
             "elapsed_ms": self.elapsed_ms,
             "from_cache": self.from_cache,
             "antibot": self.antibot,
+            "stopped_at_non_shortener": self.stopped_at_non_shortener,
         }
 
 
@@ -820,7 +878,6 @@ class SafeRedirectResolver:
         _test_allowed_ports: tuple[int, ...] | None = None,
         allowed_ports: tuple[int, ...] = (80, 443),
         lists: dict[str, Any] | None = None,
-        ip_validator: Any = None,
     ):
         if mode is _SENTINEL_MODE or mode is None:
             cfg_mode = get_settings().redirect_mode
@@ -836,8 +893,6 @@ class SafeRedirectResolver:
         self.getaddrinfo = getaddrinfo
         self.cache_ttl_s = cache_ttl_s
         self.cache_max = cache_max
-        if _test_ip_filter is None and ip_validator is not None:
-            _test_ip_filter = ip_validator
         self._test_ip_filter = _test_ip_filter
         self.allowed_ports = (
             set(_test_allowed_ports)
@@ -850,6 +905,13 @@ class SafeRedirectResolver:
             collections.OrderedDict()
         )
         self._cache_lock = threading.Lock()
+
+    def _is_shortener_host(self, host: str, reg_dom: str = "") -> bool:
+        """Check if host or registrable domain is in known shorteners list."""
+        h = (host or "").lower().rstrip(".")
+        r = (reg_dom or "").lower().rstrip(".")
+        shorteners = {s.lower().rstrip(".") for s in self.lists.get("shorteners", [])}
+        return h in shorteners or r in shorteners
 
     def should_resolve(self, parsed_url: Any) -> bool:
         """
@@ -915,13 +977,19 @@ class SafeRedirectResolver:
             _test_ip_filter=self._test_ip_filter,
         )
 
-    def resolve(self, url: str) -> RedirectChain:
+    def resolve(
+        self,
+        url: str,
+        *,
+        deadline_s: float | None = None,
+        recorder: NetworkRecorder | None = None,
+    ) -> RedirectChain:
         """
         Safely resolve redirects for the given URL, strictly adhering to anti-SSRF,
         IP pinning, budget limits, and exception safety rules. Never raises outside.
         """
         try:
-            return self._resolve_internal(url)
+            return self._resolve_internal(url, deadline_s=deadline_s, recorder=recorder)
         except Exception as e:
             return RedirectChain(
                 hops=[],
@@ -931,11 +999,19 @@ class SafeRedirectResolver:
                 elapsed_ms=0.0,
                 from_cache=False,
                 antibot=None,
+                stopped_at_non_shortener=False,
             )
 
-    def _resolve_internal(self, url: str) -> RedirectChain:
+    def _resolve_internal(
+        self,
+        url: str,
+        *,
+        deadline_s: float | None = None,
+        recorder: NetworkRecorder | None = None,
+    ) -> RedirectChain:
         t_start = time.monotonic()
-        deadline = t_start + self.total_budget
+        budget = min(self.total_budget, max(0.01, deadline_s)) if deadline_s is not None else self.total_budget
+        deadline = t_start + budget
 
         # Rule 9: Check network settings
         settings = get_settings()
@@ -1010,6 +1086,7 @@ class SafeRedirectResolver:
         final_url: str | None = None
         antibot_data: dict | None = None
         retry_429_used: bool = False
+        stopped_at_non_shortener: bool = False
 
         while True:
             # Check hops limit
@@ -1076,6 +1153,9 @@ class SafeRedirectResolver:
                 bare_host, port, timeout=dns_timeout
             )
             if not ok:
+                if recorder is not None:
+                    act_status = "blocked" if ("private" in reason or "loopback" in reason or "disallowed" in reason) else ("timeout" if "timeout" in reason else "error")
+                    recorder.record_request("resolver_lookup", bare_host, status=act_status)
                 if reason == "dns_busy":
                     blocked_reason = "dns_busy"
                 elif "timeout" in reason:
@@ -1094,6 +1174,8 @@ class SafeRedirectResolver:
                 break
 
             if not ips:
+                if recorder is not None:
+                    recorder.record_request("resolver_lookup", bare_host, status="error")
                 blocked_reason = "dns_error"
                 break
 
@@ -1101,12 +1183,17 @@ class SafeRedirectResolver:
             pinned_ip = ips[0]
 
             # Path and query - percent-encoded per S3, fragment dropped
+            # P4: If host is a shortener, strip query parameters to prevent token leaks
+            is_shortener = self._is_shortener_host(bare_host, getattr(p, "registrable_domain", ""))
             safe_path = urllib.parse.quote(p.path or "/", safe="/:@!$&'()*+,;=-_.~%")
-            safe_query = (
-                urllib.parse.quote(p.query, safe="&;=/?%-_.~!$'()*+,:@")
-                if p.query
-                else ""
-            )
+            if is_shortener:
+                safe_query = ""
+            else:
+                safe_query = (
+                    urllib.parse.quote(p.query, safe="&;=/?%-_.~!$'()*+,:@")
+                    if p.query
+                    else ""
+                )
             path_and_query = safe_path + (f"?{safe_query}" if safe_query else "")
 
             host_hdr = host if port in (80, 443) else f"{host}:{port}"
@@ -1127,6 +1214,10 @@ class SafeRedirectResolver:
             hop_flags: list[str] = []
 
             # Rule 6: Request HEAD first
+            rec_idx = None
+            if recorder is not None:
+                rec_idx = recorder.record_request("resolver_lookup", bare_host)
+
             try:
                 status, resp_headers, body = _invoke_transport(
                     transport_fn,
@@ -1141,7 +1232,21 @@ class SafeRedirectResolver:
                     self.max_body_bytes,
                     deadline,
                 )
+                if rec_idx is not None:
+                    recorder.update_status(rec_idx, "ok")
             except Exception as e:
+                if rec_idx is not None:
+                    if (
+                        isinstance(e, (TimeoutError, socket.timeout))
+                        or "budget_exceeded" in str(e)
+                        or "timeout" in str(e).lower()
+                    ):
+                        recorder.update_status(rec_idx, "timeout")
+                    elif "blocked" in str(e).lower() or "disallowed" in str(e).lower():
+                        recorder.update_status(rec_idx, "blocked")
+                    else:
+                        recorder.update_status(rec_idx, "error")
+
                 if (
                     isinstance(e, (TimeoutError, socket.timeout))
                     or "budget_exceeded" in str(e)
@@ -1212,9 +1317,10 @@ class SafeRedirectResolver:
                 )
                 break
 
-            # If HEAD returns 405/501/403/429/503, fallback to GET
+            # If HEAD returns 405/501/403/429/503, fallback to GET (P2: only for shorteners in default mode; all in 'all' mode)
             # Note: 403, 429, 503 are retained because Phase 3B needs the body to detect antibot challenge pages
-            if status in (405, 501, 403, 429, 503):
+            can_fallback_get = (self.mode == "all") or self._is_shortener_host(bare_host, getattr(p, "registrable_domain", ""))
+            if status in (405, 501, 403, 429, 503) and can_fallback_get:
                 remaining_budget = deadline - time.monotonic()
                 if remaining_budget <= 0:
                     error = "budget_exceeded"
@@ -1270,8 +1376,8 @@ class SafeRedirectResolver:
 
             raw_location = resp_headers_lower.get("location")
 
-            # S4: Meta refresh check for HEAD 2xx without Location
-            if 200 <= status < 300 and not raw_location:
+            # S4: Meta refresh check for HEAD 2xx without Location (P2: only for shorteners in default mode; all in 'all' mode)
+            if 200 <= status < 300 and not raw_location and can_fallback_get:
                 ct = resp_headers_lower.get("content-type", "").lower()
                 if not ct or "text/html" in ct:
                     remaining_budget = deadline - time.monotonic()
@@ -1377,6 +1483,13 @@ class SafeRedirectResolver:
                     )
                 )
 
+                # P2: In default 'shorteners' mode, stop if next destination is not a shortener
+                p_next = parse_url(next_url)
+                if self.mode == "shorteners" and not self.should_resolve(p_next):
+                    final_url = next_url
+                    stopped_at_non_shortener = True
+                    break
+
                 if len(hops) >= self.max_hops:
                     error = "too_many_hops"
                     break
@@ -1413,6 +1526,7 @@ class SafeRedirectResolver:
             elapsed_ms=elapsed_ms,
             from_cache=False,
             antibot=antibot_data,
+            stopped_at_non_shortener=stopped_at_non_shortener,
         )
 
         # Cache entry
