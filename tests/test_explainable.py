@@ -75,7 +75,7 @@ def test_f1_redos_explain_speed(agent, case_id, payload):
 
 @pytest.mark.parametrize("case_id,payload", REDOS_TEST_CASES[:4], ids=[c[0] for c in REDOS_TEST_CASES[:4]])
 def test_f1_redos_process_request_speed(orchestrator, case_id, payload):
-    # TODO Phase 2: RAG blacklist substring scan
+    # Phase 2D-2: RAG blacklist uses UrlAnalyzer/PhishBlacklist instead of 36k substring loop (< 1.0s)
     durations = []
     res = None
     for _ in range(2):
@@ -83,7 +83,7 @@ def test_f1_redos_process_request_speed(orchestrator, case_id, payload):
         res = orchestrator.process_request(payload)
         durations.append(time.perf_counter() - t0)
     best_duration = min(durations)
-    assert best_duration < 3.0, f"[{case_id}] process_request took {best_duration:.3f}s (must be < 3.0s)"
+    assert best_duration < 1.0, f"[{case_id}] process_request took {best_duration:.3f}s (must be < 1.0s)"
     assert "risk_score" in res
 
     half_payload = payload[:len(payload)//2]
@@ -96,6 +96,35 @@ def test_f1_redos_process_request_speed(orchestrator, case_id, payload):
     if best_half > 0.05:
         ratio = best_duration / best_half
         assert ratio <= 3.0, f"[{case_id}] scaling ratio {ratio:.2f}x exceeds linear limit (<= 3.0x)"
+
+
+def test_f1_redos_process_request_a_dot_10000_speed(orchestrator):
+    """Performance test: process_request('a.' * 10000) must execute in < 1.0s (Phase 2D-2)."""
+    payload = "a." * 10000
+    durations = []
+    res = None
+    for _ in range(2):
+        t0 = time.perf_counter()
+        res = orchestrator.process_request(payload)
+        durations.append(time.perf_counter() - t0)
+    best = min(durations)
+    assert best < 1.0, f"process_request('a.' * 10000) took {best:.3f}s (must be < 1.0s)"
+    assert "risk_score" in res
+
+
+def test_f1_redos_process_request_20k_vietcombank_loop_speed(orchestrator):
+    """Performance test: 20k chars of 'tai khoan vietcombank.com ' loop must execute in < 1.0s (Phase 2D-2)."""
+    unit = "tai khoan vietcombank.com "
+    payload = (unit * (20000 // len(unit) + 1))[:20000]
+    durations = []
+    res = None
+    for _ in range(2):
+        t0 = time.perf_counter()
+        res = orchestrator.process_request(payload)
+        durations.append(time.perf_counter() - t0)
+    best = min(durations)
+    assert best < 1.0, f"process_request(20k chars 'tai khoan vietcombank.com ') took {best:.3f}s (must be < 1.0s)"
+    assert "risk_score" in res
 
 
 # ─────────────────────────────────────────────────────────────────────────────

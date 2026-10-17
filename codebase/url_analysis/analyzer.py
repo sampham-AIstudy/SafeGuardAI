@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 import urllib.parse
 from typing import Any
@@ -48,6 +49,20 @@ class UrlAnalyzer:
         self.redirectors = self.lists.get("redirectors", {})
         self.lure_tokens = [t.lower().strip() for t in self.lists.get("lure_tokens", []) if t.strip()]
 
+        # Free hosting platforms
+        self.free_hosting.add("notion.site")
+
+        plat_from_catalog = {
+            p.lower().strip(".") for p in getattr(self.catalog, "platform_domains", set())
+        }
+        if not plat_from_catalog:
+            from codebase.url_analysis.blacklist import _get_platform_and_free_hosting
+            plat_from_catalog = _get_platform_and_free_hosting()
+
+        self.platform_domains = {
+            p.lower().strip(".") for p in self.lists.get("platform_domains", [])
+        } | plat_from_catalog
+
     def _is_official_or_platform(self, host: str, registrable: str) -> bool:
         if not host:
             return False
@@ -56,14 +71,25 @@ class UrlAnalyzer:
         is_off, _ = self.catalog.is_official(h)
         if is_off:
             return True
-        plats = getattr(self.catalog, "platform_domains", set())
-        for p in plats:
+        for p in self.platform_domains:
             p_clean = p.lower().strip(".")
             # Exclude free hosting domains from protected platform exemption
             if p_clean not in self.free_hosting:
                 if h == p_clean or reg == p_clean or h.endswith("." + p_clean):
                     return True
         return False
+
+    def _is_platform_domain(self, host: str, registrable: str) -> bool:
+        if not host:
+            return False
+        h = host.lower().strip(".")
+        reg = (registrable or "").lower().strip(".")
+        if h in self.platform_domains or reg in self.platform_domains:
+            return True
+        return any(h.endswith("." + p) for p in self.platform_domains)
+
+    def _is_platform_or_free_hosting(self, host: str, registrable: str) -> bool:
+        return self._is_free_hosting(host, registrable) or self._is_platform_domain(host, registrable)
 
     def _find_lure_tokens(self, host: str, registrable: str) -> list[str]:
         if not host:
@@ -97,6 +123,45 @@ class UrlAnalyzer:
                         break
             if is_match:
                 matched.append(tok)
+        return matched
+
+    def _find_lure_tokens_in_path(self, path: str, query: str = "") -> list[str]:
+        raw_text = f"{path or ''} {query or ''}"
+        if not raw_text.strip():
+            return []
+
+        # Safe decode percent-encoding
+        try:
+            unquoted = urllib.parse.unquote(raw_text).lower()
+        except Exception:
+            unquoted = raw_text.lower()
+
+        # Split path and query into segments by slash and query separators
+        segments = [s for s in re.split(r"[/\\?&=]+", unquoted) if s]
+
+        matched: list[str] = []
+        for token in self.lure_tokens:
+            tok = token.lower().strip()
+            if not tok:
+                continue
+
+            is_match = False
+            for seg in segments:
+                sub_parts = [p for p in re.split(r"[-_.]+", seg) if p]
+                no_sep = re.sub(r"[-_.]+", "", seg)
+
+                if len(tok) >= 5:
+                    if tok in seg or tok in no_sep or any(tok in p for p in sub_parts):
+                        is_match = True
+                        break
+                else:
+                    if tok == seg or tok == no_sep or any(tok == p for p in sub_parts):
+                        is_match = True
+                        break
+
+            if is_match:
+                matched.append(tok)
+
         return matched
 
     def _is_shortener(self, host: str) -> bool:
@@ -625,6 +690,19 @@ class UrlAnalyzer:
                     25,
                     f"Tên miền chứa từ khóa mồi nhử lừa đảo '{matched_str}' kết hợp với các yếu tố bất thường.",
                     f"host={effective_host}, tokens={matched_str}",
+                )
+
+        # Signal: LURE KEYWORD PATH
+        if not is_off and self._is_platform_or_free_hosting(effective_host, registrable):
+            lure_path_matches = self._find_lure_tokens_in_path(parsed.path, parsed.query)
+            if lure_path_matches:
+                matched_path_str = ", ".join(sorted(list(set(lure_path_matches))))
+                add_sig(
+                    "LURE_KEYWORD_PATH",
+                    "medium",
+                    20,
+                    f"Đường dẫn URL chứa từ khóa mồi nhử lừa đảo '{matched_path_str}' trên nền tảng người dùng/hosting miễn phí.",
+                    f"path={parsed.path}, tokens={matched_path_str}",
                 )
 
         # Signal: INVALID TLD

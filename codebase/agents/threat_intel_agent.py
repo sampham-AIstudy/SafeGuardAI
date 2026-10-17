@@ -149,16 +149,6 @@ class ThreatIntelAgent:
         Newly registered domains (< 30 days) are high risk.
         """
         domain = domain.strip().lower()
-        settings = get_settings()
-        if settings.offline or not settings.network_enabled:
-            return {
-                "domain": domain,
-                "is_suspicious": False,
-                "age_days": None,
-                "registrar": None,
-                "urlscan_verdict": None
-            }
-
         result = {
             "domain": domain,
             "is_suspicious": False,
@@ -167,8 +157,13 @@ class ThreatIntelAgent:
             "urlscan_verdict": None
         }
 
-        # URLScan.io domain lookup
-        if self.urlscan_key:
+        target_host = self._extract_domain(domain)
+        if not target_host:
+            target_host = domain
+
+        settings = get_settings()
+        # URLScan.io domain lookup (only when online and network enabled)
+        if not (settings.offline or not settings.network_enabled) and self.urlscan_key:
             try:
                 urlscan_res = self._urlscan_search_domain(domain)
                 result["urlscan_verdict"] = urlscan_res
@@ -177,24 +172,47 @@ class ThreatIntelAgent:
             except Exception as e:
                 result["urlscan_error"] = str(e)
 
-        from codebase.agents.explainable_agent import OFFICIAL_WHITELIST_DOMAINS
-        for official in OFFICIAL_WHITELIST_DOMAINS:
-            if domain == official or domain.endswith("." + official):
-                result["is_suspicious"] = False
-                result["is_official"] = True
-                result["reason"] = f"Tên miền chính thức hợp pháp thuộc Whitelist (Official): {domain}"
-                return result
+        # Check official whitelist via BrandCatalog
+        is_official = False
+        try:
+            from codebase.url_analysis.brands import BrandCatalog
+            catalog = BrandCatalog.load()
+            is_off, brand = catalog.is_official(target_host)
+            if is_off:
+                is_official = True
+        except Exception:
+            pass
 
-        # Heuristic: suspicious TLDs + impersonation patterns
-        suspicious_tlds = [".xyz", ".cc", ".tk", ".ml", ".ga", ".cf", ".info", ".top", ".pw"]
+        if not is_official:
+            from codebase.agents.explainable_agent import OFFICIAL_WHITELIST_DOMAINS
+            for official in OFFICIAL_WHITELIST_DOMAINS:
+                if target_host == official or target_host.endswith("." + official):
+                    is_official = True
+                    break
+
+        if is_official:
+            result["is_suspicious"] = False
+            result["is_official"] = True
+            result["reason"] = f"Tên miền chính thức hợp pháp thuộc Whitelist (Official): {domain}"
+            return result
+
+        # Heuristic: suspicious TLDs (exact suffix matching) + impersonation patterns
+        try:
+            from codebase.url_analysis.normalize import load_url_lists
+            _lists = load_url_lists()
+            raw_tlds = _lists.get("suspicious_tlds", [])
+            suspicious_tlds = {f".{t.lower().lstrip('.')}" for t in raw_tlds if t}
+        except Exception:
+            suspicious_tlds = {".xyz", ".cc", ".tk", ".ml", ".ga", ".cf", ".info", ".top", ".pw"}
+
         impersonation = [
             "vietcombank-", "techcombank-", "agribank-", "vneid-",
             "bankingvn", "banking-vn", "chinhphu-", "canhsat-", "mofa-"
         ]
-        if any(tld in domain for tld in suspicious_tlds):
+        if any(target_host.endswith(tld) for tld in suspicious_tlds):
             result["is_suspicious"] = True
             result["reason"] = f"TLD đáng ngờ trong domain: {domain}"
-        if any(p in domain for p in impersonation):
+        if any(p in target_host for p in impersonation):
             result["is_suspicious"] = True
             result["reason"] = f"Domain giả mạo tổ chức/ngân hàng: {domain}"
 
@@ -431,11 +449,28 @@ class ThreatIntelAgent:
     # UTILS
     # ─────────────────────────────────────────────────────────────────────────
     def _extract_domain(self, url: str) -> str:
+        if not url:
+            return ""
         try:
-            parsed = urllib.parse.urlparse(url)
-            return parsed.netloc.lower().replace("www.", "")
+            from codebase.url_analysis.parse import parse_url
+            parsed = parse_url(url)
+            host = (parsed.effective_host or "").strip().lower()
+            if host.startswith("www."):
+                host = host[4:]
+            return host if host else url.strip().lower()
         except Exception:
-            return url
+            try:
+                parsed = urllib.parse.urlparse(url)
+                netloc = parsed.netloc.lower()
+                if "@" in netloc:
+                    netloc = netloc.rsplit("@", 1)[1]
+                if ":" in netloc:
+                    netloc = netloc.split(":", 1)[0]
+                if netloc.startswith("www."):
+                    netloc = netloc[4:]
+                return netloc if netloc else url.strip().lower()
+            except Exception:
+                return url
 
     def extract_urls_from_text(self, text: str) -> list:
         """Extract all URLs from a text string."""

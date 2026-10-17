@@ -489,7 +489,7 @@ class SafeGuardOrchestrator:
         rag_text = full_text
         if len(full_text) > 1000 and " " not in full_text and "." not in full_text:
             rag_text = full_text[:1000]
-        rag_result = self.rag_agent.search(rag_text)
+        rag_result = self.rag_agent.search(rag_text, url_report=url_report)
 
         # Step 4: Memory Agent Escalation Check
         escalation_info = self.memory_agent.analyze_escalation(full_text, session_id=session_id)

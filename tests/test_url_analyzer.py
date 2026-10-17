@@ -523,3 +523,75 @@ class TestLureKeywordDomain:
         assert not any(s.code == "LURE_KEYWORD_DOMAIN" for s in f4.signals), "Mutation 4 survived: Official domain got LURE!"
 
 
+class TestLureKeywordPath:
+    """Phase 2D-2b: Tests for LURE_KEYWORD_PATH signal on user content / free-hosting platforms."""
+
+    def test_sites_google_alone_with_lure_and_brand(self, analyzer):
+        """sites.google.com/view/vcb-xacminh >= 40 (LURE_KEYWORD_PATH 20 + BRAND_IN_PATH 15 + FREE_HOSTING 15 = 50)."""
+        finding = analyzer.analyze_url("https://sites.google.com/view/vcb-xacminh")
+        sig_codes = {s.code for s in finding.signals}
+        assert "LURE_KEYWORD_PATH" in sig_codes
+        assert "BRAND_IN_PATH" in sig_codes
+        assert "FREE_HOSTING" in sig_codes
+        assert finding.url_risk_score >= 40
+        assert finding.verdict in ("suspicious", "dangerous")
+
+        lure_sig = next(s for s in finding.signals if s.code == "LURE_KEYWORD_PATH")
+        assert lure_sig.severity == "medium"
+        assert lure_sig.weight == 20
+        assert "mồi nhử" in lure_sig.message_vi
+        assert "xacminh" in lure_sig.evidence
+
+    def test_docs_google_no_lure_not_suspicious(self, analyzer):
+        """docs.google.com/document/d/abc (no lure) is NOT suspicious (< 40)."""
+        finding = analyzer.analyze_url("https://docs.google.com/document/d/abc")
+        sig_codes = {s.code for s in finding.signals}
+        assert "LURE_KEYWORD_PATH" not in sig_codes
+        assert finding.verdict not in ("suspicious", "dangerous")
+        assert finding.url_risk_score < 40
+
+    def test_facebook_groups_benign_not_suspicious(self, analyzer):
+        """facebook.com/groups/hoc-tieng-anh is NOT suspicious."""
+        finding = analyzer.analyze_url("https://facebook.com/groups/hoc-tieng-anh")
+        sig_codes = {s.code for s in finding.signals}
+        assert "LURE_KEYWORD_PATH" not in sig_codes
+        assert finding.verdict not in ("suspicious", "dangerous")
+        assert finding.url_risk_score < 40
+
+    def test_facebook_groups_promo_low_only(self, analyzer):
+        """facebook.com/groups/khuyen-mai-shopee is strictly low (< 40)."""
+        finding = analyzer.analyze_url("https://facebook.com/groups/khuyen-mai-shopee")
+        sig_codes = {s.code for s in finding.signals}
+        assert "LURE_KEYWORD_PATH" in sig_codes
+        assert finding.url_risk_score < 40
+        assert finding.verdict == "low"
+
+    def test_notion_site_lure_suspicious(self, analyzer):
+        """notion.site/xac-thuc-tai-khoan-ngan-hang >= 40 (lure + free-hosting + suspicious tld)."""
+        finding = analyzer.analyze_url("https://notion.site/xac-thuc-tai-khoan-ngan-hang")
+        sig_codes = {s.code for s in finding.signals}
+        assert "LURE_KEYWORD_PATH" in sig_codes
+        assert "FREE_HOSTING" in sig_codes
+        assert finding.url_risk_score >= 40
+        assert finding.verdict in ("suspicious", "dangerous")
+
+    def test_mutation_killed_non_platform_and_official(self, analyzer):
+        """
+        Mutation tests for LURE_KEYWORD_PATH:
+        Mutation 1: Dropping platform/free-hosting condition -> would falsely flag regular sites.
+        Mutation 2: Applying to official domains -> would falsely flag official brand URLs.
+        """
+        # Mutation 1: Regular non-platform domain with lure path MUST NOT trigger LURE_KEYWORD_PATH
+        f_reg = analyzer.analyze_url("https://example-news.com/xac-thuc-tai-khoan")
+        assert "LURE_KEYWORD_PATH" not in {s.code for s in f_reg.signals}, (
+            "Mutation 1 survived: LURE_KEYWORD_PATH fired on non-platform host!"
+        )
+
+        # Mutation 2: Official domain with lure path MUST NOT trigger LURE_KEYWORD_PATH
+        f_off = analyzer.analyze_url("https://shopee.vn/m/khuyen-mai-hom-nay")
+        assert "LURE_KEYWORD_PATH" not in {s.code for s in f_off.signals}, (
+            "Mutation 2 survived: LURE_KEYWORD_PATH fired on official domain!"
+        )
+
+
+
