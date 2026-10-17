@@ -72,7 +72,7 @@ def build_subprocess_env(extra_env: dict[str, str] | None = None) -> dict[str, s
     return env
 
 
-def run_command(cmd: list[str], env: dict[str, str], timeout_s: int = 180) -> subprocess.CompletedProcess:
+def run_command(cmd: list[str], env: dict[str, str], timeout_s: int = 1200) -> subprocess.CompletedProcess:
     """Run evaluation command in foreground with timeout."""
     return subprocess.run(
         cmd,
