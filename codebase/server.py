@@ -86,6 +86,7 @@ class TokenBucketRateLimiter:
 
 _DEFAULT_SEMAPHORE = threading.BoundedSemaphore(4)
 _DEFAULT_RATE_LIMITER = TokenBucketRateLimiter(20, max_ips=10_000)
+_DEFAULT_HEALTH_RATE_LIMITER = TokenBucketRateLimiter(60, max_ips=10_000)
 
 
 def get_client_ip(handler) -> str:
@@ -164,6 +165,23 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
+
+        # 0. API: Health status (light rate limit 60/min/ip, no X-Client-Id required)
+        if path in ('/api/health', '/api/health/'):
+            limiter = getattr(self.server, "health_rate_limiter", _DEFAULT_HEALTH_RATE_LIMITER)
+            client_ip = get_client_ip(self)
+            allowed, wait_s = limiter.check_and_consume(client_ip)
+            if not allowed:
+                err_id = str(uuid.uuid4())
+                retry_str = str(max(1, int(math.ceil(wait_s))))
+                self.send_json_response(
+                    {"error": "rate_limited", "error_id": err_id},
+                    status=429,
+                    headers={"Retry-After": retry_str}
+                )
+                return
+            self.send_json_response(orchestrator.health_info())
+            return
 
         # 1. API: Get all chat sessions from MySQL (client-isolated)
         if path == '/api/sessions':
@@ -247,6 +265,14 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path
+
+        if path in ('/api/health', '/api/health/'):
+            self.send_json_response(
+                {"error": "Method Not Allowed"},
+                status=405,
+                headers={"Allow": "GET"}
+            )
+            return
 
         if path == '/api/analyze':
             # Rate limiting check
@@ -456,6 +482,7 @@ class SafeGuardServer(ThreadingHTTPServer):
         max_conc = max(1, min(16, getattr(settings, "max_concurrency", 4)))
         self.analyze_semaphore = threading.BoundedSemaphore(max_conc)
         self.rate_limiter = TokenBucketRateLimiter(rate_per_min=settings.rate_limit_per_min, max_ips=10_000)
+        self.health_rate_limiter = TokenBucketRateLimiter(rate_per_min=60, max_ips=10_000)
 
 
 def create_server(host=None, port=None, handler_class=SafeGuardAPIHandler):
@@ -470,6 +497,10 @@ def create_server(host=None, port=None, handler_class=SafeGuardAPIHandler):
 def run_server(host=None, port=None):
     _configure_streams()
     os.makedirs(PUBLIC_DIR, exist_ok=True)
+    t_warm = time.perf_counter()
+    warm_res = orchestrator.warm_up()
+    warm_dur = time.perf_counter() - t_warm
+    print(f"🔥 SafeGuard AI Warm-up hoàn tất trong {warm_dur:.2f}s (status: {warm_res.get('status', 'ok')})")
     httpd = create_server(host=host, port=port)
     actual_host, actual_port = httpd.server_address[:2]
     print(f"============================================================")

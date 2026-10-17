@@ -68,17 +68,22 @@ class DatasetLoader:
                     phish_df = df[df["label"] == "phishing"]
                     total_records += len(phish_df)
 
-                    for _, row in phish_df.iterrows():
-                        domain = str(row.get("domain", "")).strip().lower()
-                        url = str(row.get("url", "")).strip().lower()
-                        scenario = str(row.get("scenario", "other")).strip().lower()
+                    if "domain" in phish_df.columns:
+                        s_dom = phish_df["domain"].dropna().astype(str).str.strip().str.lower()
+                        valid_doms = s_dom[(s_dom != "") & (s_dom != "nan")]
+                        phishing_domains.update(valid_doms.tolist())
 
-                        if domain and domain != "nan":
-                            phishing_domains.add(domain)
-                        if url and url != "nan":
-                            phishing_urls.add(url)
+                    if "url" in phish_df.columns:
+                        s_url = phish_df["url"].dropna().astype(str).str.strip().str.lower()
+                        valid_urls = s_url[(s_url != "") & (s_url != "nan")]
+                        phishing_urls.update(valid_urls.tolist())
 
-                        scenario_counts[scenario] = scenario_counts.get(scenario, 0) + 1
+                    if "scenario" in phish_df.columns:
+                        s_scen = phish_df["scenario"].fillna("nan").astype(str).str.strip().str.lower()
+                        for sc, count in s_scen.value_counts().items():
+                            scenario_counts[sc] = scenario_counts.get(sc, 0) + int(count)
+                    else:
+                        scenario_counts["other"] = scenario_counts.get("other", 0) + len(phish_df)
                 except Exception as e:
                     print(f"[DatasetLoader] Error loading {csv_path}: {e}")
 
@@ -112,20 +117,23 @@ class DatasetLoader:
         total_global_files = 0
 
         if os.path.exists(global_dir):
+            target_cols_pattern = ("text", "email", "body", "message", "subject")
+            keywords_pattern = "urgent|wire transfer|lottery|account locked|verify now|click here|bank|security"
             for fname in os.listdir(global_dir):
                 if fname.endswith(".csv"):
                     total_global_files += 1
-                    try:
-                        fpath = os.path.join(global_dir, fname)
-                        df = pd.read_csv(fpath, nrows=500, encoding="utf-8", on_bad_lines="skip")
-                        for text_col in df.columns:
-                            if any(c in text_col.lower() for c in ["text", "email", "body", "message", "subject"]):
-                                sample_texts = df[text_col].dropna().astype(str).str.lower()
-                                for t in sample_texts:
-                                    if any(k in t for k in ["urgent", "wire transfer", "lottery", "account locked", "verify now", "click here", "bank", "security"]):
+                    if "global_phishing_pattern" not in global_keywords:
+                        try:
+                            fpath = os.path.join(global_dir, fname)
+                            df = pd.read_csv(fpath, nrows=500, encoding="utf-8", on_bad_lines="skip")
+                            for text_col in df.columns:
+                                if any(c in text_col.lower() for c in target_cols_pattern):
+                                    sample_texts = df[text_col].dropna().astype(str).str.lower()
+                                    if sample_texts.str.contains(keywords_pattern, regex=True).any():
                                         global_keywords.add("global_phishing_pattern")
-                    except Exception:
-                        pass
+                                        break
+                        except Exception:
+                            pass
 
         result = {
             "total_global_files": total_global_files,
