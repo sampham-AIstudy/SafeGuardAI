@@ -1,6 +1,16 @@
 import os
+import sys
 import json
 import time
+import re
+import concurrent.futures
+from typing import Any
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 try:
     from dotenv import load_dotenv
@@ -14,6 +24,9 @@ except ImportError:
     Image = None
 
 from codebase.config import get_settings, get_api_key
+from codebase.agents.prompt_guard import PromptGuard
+
+BIDI_AND_CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 
 
 class MultiLLMClient:
@@ -54,6 +67,7 @@ class MultiLLMClient:
         self._groq_client = None
         self._gemini_genai = None
         self._mistral_client = None
+        self._is_active_override = None
 
         self._report_active_providers()
 
@@ -79,8 +93,15 @@ class MultiLLMClient:
     # ─────────────────────────────────────────────────────────────────────────
     # PUBLIC API
     # ─────────────────────────────────────────────────────────────────────────
-    def analyze_scam(self, user_text: str, matched_flags: list,
-                     ocr_anomalies: list, pil_image=None) -> dict | None:
+    def analyze_scam(
+        self,
+        user_text: str,
+        matched_flags: list,
+        ocr_anomalies: list,
+        pil_image=None,
+        deadline: float | None = None,
+        timeout_s: float | None = None,
+    ) -> dict | None:
         """
         Analyze scam content using the best available LLM provider.
         Falls through the routing chain automatically on failure.
@@ -97,27 +118,129 @@ class MultiLLMClient:
             ("mistral", self._call_mistral),
         ]
 
-        for provider_name, provider_fn in providers:
-            try:
-                result = provider_fn(prompt, pil_image)
-                if result:
-                    self.last_successful_provider = provider_name
-                    self.last_successful_model = self._get_model_name(provider_name)
-                    print(f"[MultiLLMClient] ✅ Used: {provider_name} ({self.last_successful_model})")
-                    return result
-            except Exception as e:
-                print(f"[MultiLLMClient] ⚠️  {provider_name} failed: {type(e).__name__}: {e}")
-                continue
+        now = time.monotonic()
+        total_deadline = deadline if deadline is not None else (now + (timeout_s or 15.0))
 
-        print("[MultiLLMClient] ❌ All providers failed — returning None (will use ExplainableAgent score)")
+        for provider_name, provider_fn in providers:
+            now = time.monotonic()
+            rem_deadline = total_deadline - now
+            if rem_deadline <= 0.05:
+                print(f"[MultiLLMClient] ⚠️ Deadline expired before trying {provider_name}")
+                break
+
+            provider_timeout = min(getattr(self, "PROVIDER_TIMEOUT", 8.0), 8.0, rem_deadline)
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            try:
+                future = executor.submit(provider_fn, prompt, pil_image)
+                try:
+                    raw_result = future.result(timeout=provider_timeout)
+                    validated = self._sanitize_output(raw_result)
+                    if validated is not None:
+                        self.last_successful_provider = provider_name
+                        self.last_successful_model = self._get_model_name(provider_name)
+                        print(f"[MultiLLMClient] ✅ Used: {provider_name} ({self.last_successful_model})")
+                        return validated
+                except concurrent.futures.TimeoutError:
+                    print(f"[MultiLLMClient] ⚠️  {provider_name} timed out after {provider_timeout:.1f}s — skipping to next provider")
+                except Exception as e:
+                    err_cls = type(e).__name__
+                    print(f"[MultiLLMClient] ⚠️  {provider_name} failed: {err_cls}")
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
+
+        print("[MultiLLMClient] ❌ All providers failed — returning None")
         return None
+
+    def _has_package(self, pkg_name: str) -> bool:
+        try:
+            __import__(pkg_name)
+            return True
+        except (ImportError, Exception):
+            return False
 
     @property
     def is_active(self) -> bool:
+        if self._is_active_override is not None:
+            return self._is_active_override
         settings = get_settings()
         if settings.offline or settings.llm_mode == "off":
             return False
-        return bool(self.groq_key or self.gemini_key or self.mistral_key)
+        if bool(self.groq_key) and self._has_package("groq"):
+            return True
+        if bool(self.gemini_key) and self._has_package("google.generativeai"):
+            return True
+        if bool(self.mistral_key) and self._has_package("mistralai"):
+            return True
+        return False
+
+    @is_active.setter
+    def is_active(self, val: bool | None):
+        self._is_active_override = val
+
+    @is_active.deleter
+    def is_active(self):
+        self._is_active_override = None
+
+    def _sanitize_output(self, raw: Any) -> dict | None:
+        """Validate and sanitize raw output from LLM."""
+        if not raw or not isinstance(raw, dict):
+            return None
+
+        # 1. Validate risk_score: must be coercible to int, clamped 0..99
+        if "risk_score" not in raw:
+            return None
+        try:
+            raw_risk = raw["risk_score"]
+            if isinstance(raw_risk, bool):
+                return None
+            risk_val = int(raw_risk)
+        except (ValueError, TypeError):
+            return None
+
+        risk_score = max(0, min(99, risk_val))
+
+        # 2. String cleaner (bounded regex, bidi / control character removal)
+        def _clean_text(val: Any, max_len: int = 500) -> str:
+            if val is None:
+                return ""
+            s = str(val)
+            # Remove HTML tags using linear bounded regex
+            s = re.sub(r"<[^>\n]{0,200}>", "", s)
+            s = BIDI_AND_CONTROL_RE.sub("", s).strip()
+            return s[:max_len]
+
+        intent_type = _clean_text(raw.get("intent_type", "scam_analysis"), max_len=50)
+        if not intent_type:
+            intent_type = "scam_analysis"
+
+        conversational_reply = _clean_text(raw.get("conversational_reply", ""), max_len=1500)
+
+        # 3. Clean list fields (max 10 items, each str <= 300 chars, drop non-strings)
+        def _clean_str_list(val: Any) -> list[str]:
+            if not isinstance(val, list):
+                return []
+            res = []
+            for item in val:
+                if not isinstance(item, str):
+                    continue
+                cleaned = _clean_text(item, max_len=300)
+                if cleaned:
+                    res.append(cleaned)
+                if len(res) >= 10:
+                    break
+            return res
+
+        explanation_breakdown = _clean_str_list(raw.get("explanation_breakdown"))
+        recommendations = _clean_str_list(raw.get("recommendations"))
+
+        # Whitelist fields only — unknown fields dropped
+        return {
+            "intent_type": intent_type,
+            "conversational_reply": conversational_reply,
+            "risk_score": risk_score,
+            "explanation_breakdown": explanation_breakdown,
+            "recommendations": recommendations,
+        }
 
     @property
     def model_name(self) -> str:
@@ -146,6 +269,9 @@ class MultiLLMClient:
         except ImportError:
             print("[MultiLLMClient] groq package not installed. Run: pip install groq")
             return None
+        except Exception as e:
+            print(f"[MultiLLMClient] groq error: {type(e).__name__}")
+            return None
 
     # ─────────────────────────────────────────────────────────────────────────
     # PROVIDER: GEMINI
@@ -172,10 +298,14 @@ class MultiLLMClient:
                     res = model.generate_content(content_inputs)
                     if res.text:
                         return self._parse_json(res.text)
-                except Exception:
+                except Exception as ex:
+                    print(f"[MultiLLMClient] gemini model {m} notice: {type(ex).__name__}")
                     continue
             return None
         except ImportError:
+            return None
+        except Exception as e:
+            print(f"[MultiLLMClient] gemini error: {type(e).__name__}")
             return None
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -200,6 +330,9 @@ class MultiLLMClient:
         except ImportError:
             print("[MultiLLMClient] mistralai package not installed. Run: pip install mistralai")
             return None
+        except Exception as e:
+            print(f"[MultiLLMClient] mistral error: {type(e).__name__}")
+            return None
 
     # ─────────────────────────────────────────────────────────────────────────
     # SHARED PROMPT BUILDER
@@ -207,12 +340,13 @@ class MultiLLMClient:
     def _build_prompt(self, user_text: str, matched_flags: list, ocr_anomalies: list) -> str:
         flags_str = "\n".join([f"  • {f}" for f in matched_flags]) if matched_flags else "  (Không có)"
         anomalies_str = "\n".join([f"  • {a}" for a in ocr_anomalies]) if ocr_anomalies else "  (Không có)"
+        wrapped_user_text = PromptGuard.wrap_untrusted_input(user_text)
 
         return f"""Bạn là SafeGuard AI — Chuyên gia phân tích an ninh mạng và phòng chống lừa đảo tại Việt Nam.
 
 ════════════════════════════════════════
 NỘI DUNG NGƯỜI DÙNG GỬI:
-"{user_text}"
+{wrapped_user_text}
 ════════════════════════════════════════
 
 BẰNG CHỨNG TỪ HỆ THỐNG RAG & OCR:

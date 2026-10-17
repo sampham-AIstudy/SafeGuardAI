@@ -26,4 +26,4 @@ def test_orchestrator_smoke_offline(orchestrator):
 
     assert res["decision"]["risk_level"] in ("LOW", "MEDIUM", "HIGH", "CRITICAL")
     assert isinstance(res["risk_score"], int)
-    assert res["execution_path"] == "sequential_fallback"
+    assert res["execution_path"] in ("deterministic_only", "sequential_fallback")

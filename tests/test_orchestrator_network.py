@@ -53,6 +53,7 @@ def mock_net_env(monkeypatch):
     """Enable mock network environment with dummy keys."""
     monkeypatch.setenv("SAFEGUARD_OFFLINE", "0")
     monkeypatch.setenv("SAFEGUARD_NETWORK", "on")
+    monkeypatch.setenv("SAFEGUARD_LLM_MODE", "agentic")
     monkeypatch.setenv("VIRUSTOTAL_API_KEY", "dummy_vt_key")
     monkeypatch.setenv("URLSCAN_API_KEY", "dummy_urlscan_key")
     monkeypatch.setenv("GOOGLE_SAFE_BROWSING_KEY", "dummy_gsb_key")
@@ -210,6 +211,7 @@ def test_agentic_branch_reuses_tool_cache_threat_intel(mock_net_env, monkeypatch
     }
 
     monkeypatch.setattr(orch.agent_runner, "run", lambda **kwargs: mock_agentic_result)
+    monkeypatch.setattr(orch.agent_runner, "is_active", True)
 
     scan_called = False
     monkeypatch.setattr(orch.threat_intel_agent, "scan_url", lambda u: scan_called.__setitem__(0, True))

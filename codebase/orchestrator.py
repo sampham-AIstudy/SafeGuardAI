@@ -115,9 +115,6 @@ class SafeGuardOrchestrator:
             "confidence": self.confidence_agent,
             "threat_intel": self.threat_intel_agent,
         })
-        # TODO (Phase 4B): GeminiAgentRunner retains state per instance (_tool_results_cache).
-        # Temporarily guard with Lock until request-scoped ctx refactor in Phase 4B.
-        self._agent_runner_lock = threading.Lock()
 
     # ─────────────────────────────────────────────────────────────────────────
     # PUBLIC ENTRY POINT
@@ -132,12 +129,27 @@ class SafeGuardOrchestrator:
         pil_image=None,
         online_check: bool = False,
         client_id: str = None,
+        llm_mode: str | None = None,
+        network: bool | None = None,
     ) -> dict:
         start_time = time.time()
         settings = get_settings()
-        allow_net = bool(settings.network_enabled and not settings.offline and online_check)
+
+        if network is not None:
+            allow_net = bool(network and not settings.offline)
+        else:
+            allow_net = bool(settings.network_enabled and not settings.offline and online_check)
+
         recorder = NetworkRecorder() if allow_net else None
         deadline = time.monotonic() + settings.request_budget_s
+
+        if settings.offline:
+            effective_llm_mode = "off"
+        else:
+            chosen = (llm_mode if llm_mode is not None else settings.llm_mode).strip().lower()
+            if chosen not in ("off", "single", "agentic"):
+                chosen = "single"
+            effective_llm_mode = chosen
 
         max_chars = settings.max_text_chars
         input_truncated = False
@@ -242,11 +254,18 @@ class SafeGuardOrchestrator:
                 )
                 url_report = _wrap_report_dict(raw_rep)
             net_actions = recorder.get_actions() if (recorder and allow_net) else []
+            pipeline_trace = [
+                {"stage": "A_deterministic", "ms": round((time.time() - start_time) * 1000, 2), "status": "ok"},
+                {"stage": "B_network", "ms": 0.0, "status": "skipped"},
+                {"stage": "B_llm", "ms": 0.0, "status": "skipped"},
+                {"stage": "merge", "ms": 0.0, "status": "skipped"},
+            ]
             return {
                 "session_id": session_id,
                 "user_input": user_text,
                 "input_truncated": input_truncated,
                 "execution_path": "prompt_guard_refusal",
+                "pipeline_trace": pipeline_trace,
                 "tool_calls_made": [{"tool": "prompt_guard", "desc": "Bảo vệ an toàn & Từ chối yêu cầu độc hại"}],
                 "model_used": "security_guardrail",
                 "decision": {
@@ -261,86 +280,507 @@ class SafeGuardOrchestrator:
                 "network_actions": net_actions,
                 "image_analysis": image_analysis,
                 "online_check": bool(online_check),
+                "status": "ok",
+                "llm_status": "ok",
             }
 
         injection_detected = bool(guard_eval.get("injection_detected", False))
+
+        pipeline_trace = []
+        stage_a_start = time.time()
 
         # ── Step 1: Hydrate Memory Agent from MySQL ────────────────────────
         if persist and self.db_manager.is_connected:
             self.memory_agent.load_history_from_db(self.db_manager, session_id, client_id=client_id)
 
-        # ══════════════════════════════════════════════════════════════════
-        # PRIMARY PATH: Gemini Agentic Tool-Calling
-        # ══════════════════════════════════════════════════════════════════
-        agent_result = None
-        if not injection_detected:
-            effective_user_text = user_text
-            if pil_image:
-                if allow_net:
-                    effective_user_text = f"{user_text}\n[Người dùng đính kèm ảnh bằng chứng màn hình nghi vấn - BẮT BUỘC gọi ocr_extract() và scan_url_threat_intel() để kiểm tra link/chữ trên ảnh]".strip()
-                else:
-                    effective_user_text = f"{user_text}\n[Người dùng đính kèm ảnh bằng chứng màn hình nghi vấn - BẮT BUỘC gọi ocr_extract() để kiểm tra chữ trên ảnh]".strip()
+        # ── Stage A: Deterministic Stage (always runs, offline < 100ms) ────
+        # Step A1: Emergency Check
+        emergency_info = self.emergency_agent.check_trigger(user_text)
 
-            # TODO (Phase 4B): GeminiAgentRunner retains state per instance (_tool_results_cache).
-            # Temporarily guard with a lock until request-scoped ctx refactor in Phase 4B.
-            with self._agent_runner_lock:
-                agent_result = self.agent_runner.run(
-                    user_text=effective_user_text,
-                    pil_image=pil_image,
-                    session_id=session_id,
-                    allow_net=allow_net,
-                    recorder=recorder,
-                    deadline=deadline,
-                )
+        # Step A2: Vision / OCR Agent
+        ocr_result = self.ocr_agent.process(image_input=pil_image or image_input, raw_text=user_text)
+        ocr_extracted = (ocr_result.get("extracted_text") or "").strip()
+        has_image = bool(
+            ocr_result.get("has_image", False)
+            or pil_image
+            or image_input
+            or image_base64
+            or (ocr_extracted and ocr_extracted != (user_text or "").strip())
+        )
+        if ocr_extracted and ocr_extracted != (user_text or "").strip():
+            full_text = f"{user_text}\n{ocr_extracted}".strip() if user_text else ocr_extracted
         else:
-            print("[Orchestrator] ⚠️ Prompt injection detected — bypassing LLM agent runner.")
+            full_text = user_text
 
-        if agent_result is not None:
-            return self._finalize_agentic_result(
-                agent_result=agent_result,
-                user_text=user_text,
-                session_id=session_id,
-                start_time=start_time,
-                image_base64=image_base64,
-                persist=persist,
-                injection_detected=injection_detected,
-                input_truncated=input_truncated,
-                pil_image=pil_image,
+        # Step A3: Local Deterministic URL Analysis
+        url_report = None
+        if settings.url_module_enabled:
+            rem_time = max(0.01, deadline - time.monotonic()) if deadline is not None else 6.0
+            raw_rep = self.url_analyzer.analyze_text(
+                _clean_text_for_url_analysis(full_text),
                 extra_urls=extra_urls,
-                image_analysis=image_analysis,
-                has_risky_qr=has_risky_qr,
-                vietqr_crc_failed=vietqr_crc_failed,
-                deadline=deadline,
-                recorder=recorder,
-                allow_net=allow_net,
-                online_check=online_check,
+                allow_network=False,
+                deadline_s=rem_time,
+            )
+            url_report = _wrap_report_dict(raw_rep)
+
+        # Step A4: RAG Knowledge Match
+        rag_text = full_text
+        if len(full_text) > 1000 and " " not in full_text and "." not in full_text:
+            rag_text = full_text[:1000]
+        rag_result = self.rag_agent.search(rag_text, url_report=url_report)
+
+        # Step A5: Memory Agent Escalation Check
+        escalation_info = self.memory_agent.analyze_escalation(full_text, session_id=session_id, client_id=client_id)
+
+        # Step A6: Explainable Agent Risk Score
+        explain_info = self.explainable_agent.explain(
+            text=full_text,
+            matched_flags=rag_result["matched_flags"],
+            ocr_anomalies=ocr_result["anomalies"],
+            escalation_info=escalation_info,
+            url_report=url_report
+        )
+
+        if injection_detected:
+            explain_info.setdefault("risk_breakdown", []).append({
+                "factor": "Tin chứa câu lệnh thao túng AI (Prompt Injection)",
+                "score": 20
+            })
+            explain_info.setdefault("reasons", []).append(
+                "Phát hiện dấu hiệu chèn câu lệnh thao túng AI nhằm né tránh kiểm duyệt an toàn."
+            )
+            explain_info["risk_score"] = min(99, explain_info.get("risk_score", 0) + 20)
+
+        if has_risky_qr:
+            explain_info.setdefault("reasons", []).append("Mã QR chứa lệnh hoặc định dạng rủi ro cao (URI nguy hiểm)")
+            explain_info.setdefault("risk_breakdown", []).append({
+                "factor": "Mã QR chứa lệnh hoặc định dạng rủi ro cao",
+                "code": "RISKY_QR_PAYLOAD",
+                "severity": "critical",
+                "score": 60,
+            })
+
+        if vietqr_crc_failed:
+            explain_info.setdefault("reasons", []).append("Mã VietQR bị chỉnh sửa/không hợp lệ (sai CRC)")
+            explain_info.setdefault("risk_breakdown", []).append({
+                "factor": "Mã VietQR không hợp lệ hoặc bị chỉnh sửa (sai mã kiểm tra CRC)",
+                "code": "VIETQR_CRC_INVALID",
+                "severity": "medium",
+                "score": 30,
+            })
+            explain_info["risk_score"] = min(99, explain_info.get("risk_score", 0) + 30)
+            explain_info["risk_score"] = max(explain_info["risk_score"], 45)
+
+        det_risk = emergency_info.get("risk_score", explain_info["risk_score"])
+        breakdown_count = len(explain_info.get("risk_breakdown", []))
+        if breakdown_count >= 2:
+            det_risk = max(det_risk, 50)
+        if breakdown_count >= 3:
+            det_risk = max(det_risk, 70)
+
+        extra_crit = set()
+        if has_risky_qr:
+            extra_crit.add("RISKY_QR_PAYLOAD")
+
+        if settings.url_module_enabled or extra_crit:
+            det_risk, critical_evidence = self._apply_evidence_floors(
+                risk_score=det_risk,
+                url_report=url_report,
+                explain_info=explain_info,
+                extra_critical_codes=extra_crit or None
+            )
+        else:
+            critical_evidence = False
+
+        if has_risky_qr:
+            det_risk = max(det_risk, 85)
+            critical_evidence = True
+
+        explain_info["risk_score"] = det_risk
+
+        det_confidence = self.confidence_agent.evaluate(
+            matched_flags_count=len(rag_result["matched_flags"]),
+            total_patterns_matched=rag_result["total_patterns_matched"],
+            risk_score=det_risk
+        )
+        det_decision = self.decision_agent.evaluate_decision(
+            risk_score=det_risk,
+            confidence_info=det_confidence,
+            explainable_info=explain_info,
+            emergency_info=emergency_info,
+            user_text=user_text,
+            real_llm_result=None,
+            critical_evidence=critical_evidence,
+            url_report=url_report,
+            has_image=has_image,
+            full_text=full_text
+        )
+
+        stage_a_ms = round((time.time() - stage_a_start) * 1000, 2)
+        pipeline_trace.append({"stage": "A_deterministic", "ms": stage_a_ms, "status": "ok"})
+
+        # ── Stage B: Concurrent Network (B1) & LLM (B2) Pipeline ─────────────
+        stage_b_start = time.time()
+        need_network = bool(allow_net)
+        need_llm = bool(not injection_detected and effective_llm_mode in ("single", "agentic"))
+
+        ti_result = None
+        b1_ms = 0.0
+        b1_status = "skipped" if not allow_net else "ok"
+        if settings.offline or not settings.network_enabled:
+            b1_status = "disabled"
+
+        llm_res = None
+        b2_ms = 0.0
+        b2_status = "disabled"
+        b2_flag = None
+
+        if injection_detected:
+            b2_status = "skipped"
+        elif settings.offline or effective_llm_mode == "off":
+            b2_status = "disabled"
+
+        if not need_network and not need_llm:
+            # Zero extraneous threads created in offline/disabled mode!
+            pipeline_trace.append({"stage": "B_network", "ms": b1_ms, "status": b1_status})
+            pipeline_trace.append({"stage": "B_llm", "ms": b2_ms, "status": b2_status})
+        else:
+            def _task_network() -> tuple[dict | None, Any, float, str]:
+                t0 = time.time()
+                rem = max(0.01, deadline - time.monotonic())
+                rep = url_report
+                if settings.url_module_enabled:
+                    try:
+                        raw_r = self.url_analyzer.analyze_text(
+                            _clean_text_for_url_analysis(full_text),
+                            extra_urls=extra_urls,
+                            allow_network=True,
+                            deadline_s=rem,
+                            recorder=recorder,
+                        )
+                        rep = _wrap_report_dict(raw_r)
+                    except Exception as ex:
+                        print(f"[Orchestrator] Network analyzer notice: {type(ex).__name__}")
+                ti = None
+                rem_ti = max(0.0, deadline - time.monotonic())
+                if rem_ti >= 0.3:
+                    try:
+                        ti = self._run_threat_intel_for_report(
+                            url_report=rep,
+                            budget_s=rem_ti,
+                            recorder=recorder,
+                        )
+                    except Exception as ex:
+                        print(f"[Orchestrator] ThreatIntel notice: {type(ex).__name__}")
+                return ti, rep, round((time.time() - t0) * 1000, 2), "ok"
+
+            def _task_llm() -> tuple[dict | None, float, str, str | None]:
+                t0 = time.time()
+                llm_budget = min(settings.llm_timeout_s, max(0.1, deadline - time.monotonic()))
+                llm_deadline_abs = time.monotonic() + llm_budget
+                try:
+                    if effective_llm_mode == "agentic":
+                        if not self.agent_runner.is_active:
+                            return None, round((time.time() - t0) * 1000, 2), "disabled", None
+                        evidence = {
+                            "emergency": emergency_info,
+                            "url_analysis": url_report,
+                            "matched_flags": rag_result.get("matched_flags", []),
+                            "risk_breakdown": explain_info.get("risk_breakdown", []),
+                        }
+                        res = self.agent_runner.run(
+                            user_text=full_text,
+                            pil_image=pil_image,
+                            session_id=session_id,
+                            allow_net=allow_net,
+                            recorder=recorder,
+                            deadline=llm_deadline_abs,
+                            client_id=client_id,
+                            system_evidence=evidence,
+                        )
+                        el = round((time.time() - t0) * 1000, 2)
+                        if res is None:
+                            return None, el, "error", "llm_error"
+                        return res, el, "ok", None
+                    else:
+                        if not self.multi_llm_client.is_active:
+                            return None, round((time.time() - t0) * 1000, 2), "disabled", None
+                        res = self.multi_llm_client.analyze_scam(
+                            user_text=full_text,
+                            matched_flags=rag_result["matched_flags"],
+                            ocr_anomalies=ocr_result["anomalies"],
+                            pil_image=pil_image,
+                            deadline=llm_deadline_abs,
+                            timeout_s=llm_budget,
+                        )
+                        el = round((time.time() - t0) * 1000, 2)
+                        if res is None:
+                            return None, el, "error", "llm_error"
+                        return res, el, "ok", None
+                except TimeoutError:
+                    return None, round((time.time() - t0) * 1000, 2), "timeout", "llm_timeout"
+                except Exception as ex:
+                    print(f"[Orchestrator] LLM error: {type(ex).__name__}")
+                    return None, round((time.time() - t0) * 1000, 2), "error", "llm_error"
+
+            workers = (1 if need_network else 0) + (1 if need_llm else 0)
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=workers)
+            try:
+                net_future = executor.submit(_task_network) if need_network else None
+                llm_future = executor.submit(_task_llm) if need_llm else None
+
+                if net_future is not None:
+                    try:
+                        net_ti, net_rep, b1_ms, b1_status = net_future.result(timeout=settings.request_budget_s + 0.5)
+                        ti_result = net_ti
+                        if net_rep is not None:
+                            url_report = net_rep
+                    except concurrent.futures.TimeoutError:
+                        b1_ms = round((time.time() - stage_b_start) * 1000, 2)
+                        b1_status = "timeout"
+                    except Exception:
+                        b1_ms = round((time.time() - stage_b_start) * 1000, 2)
+                        b1_status = "error"
+
+                if llm_future is not None:
+                    try:
+                        l_res, b2_ms, b2_status, b2_flag = llm_future.result(timeout=settings.llm_timeout_s + 0.5)
+                        llm_res = l_res
+                    except concurrent.futures.TimeoutError:
+                        b2_ms = round((time.time() - stage_b_start) * 1000, 2)
+                        b2_status = "timeout"
+                        b2_flag = "llm_timeout"
+                    except Exception:
+                        b2_ms = round((time.time() - stage_b_start) * 1000, 2)
+                        b2_status = "error"
+                        b2_flag = "llm_error"
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
+
+            pipeline_trace.append({"stage": "B_network", "ms": b1_ms, "status": b1_status})
+            pipeline_trace.append({"stage": "B_llm", "ms": b2_ms, "status": b2_status})
+
+        # ── Merge Stage ──────────────────────────────────────────────────────
+        merge_start = time.time()
+
+        if llm_res and isinstance(llm_res, dict) and not ti_result:
+            cached_ti = llm_res.get("_tool_cache", {}).get("threat_intel")
+            if cached_ti:
+                ti_result = self._run_threat_intel_for_report(
+                    url_report=url_report,
+                    tool_cache_ti=cached_ti,
+                    budget_s=max(0.1, deadline - time.monotonic()),
+                    recorder=recorder,
+                )
+
+        if ti_result and ti_result.get("is_malicious"):
+            explain_info.setdefault("risk_breakdown", []).append({
+                "factor": "Cảnh báo cơ sở dữ liệu đe dọa toàn cầu (Threat Intelligence): Độc hại",
+                "score": 60
+            })
+            explain_info.setdefault("reasons", []).append(
+                f"Cơ sở dữ liệu an ninh mạng cảnh báo URL độc hại: {ti_result.get('verdict_summary', '')}"
+            )
+            extra_crit.add("THREAT_INTEL_MALICIOUS")
+
+        llm_risk = 0
+        llm_status_final = b2_flag
+        if llm_res is not None:
+            if not isinstance(llm_res, dict) or "risk_score" not in llm_res:
+                llm_status_final = "llm_invalid"
+            else:
+                try:
+                    raw_val = llm_res["risk_score"]
+                    if isinstance(raw_val, bool):
+                        llm_status_final = "llm_invalid"
+                    else:
+                        llm_risk = max(0, min(99, int(raw_val)))
+                except (ValueError, TypeError):
+                    llm_status_final = "llm_invalid"
+
+        # Risk merge: max(det_risk, llm_risk); LLM never pulls score below deterministic
+        risk_score = max(det_risk, llm_risk)
+
+        # Merge recommendations and explanations from LLM (without overwriting)
+        BIDI_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u200e\u200f\u202a-\u202e\u2066-\u2069]")
+        def _clean_s(s: Any, max_len: int = 300) -> str:
+            if not isinstance(s, str):
+                return ""
+            cleaned = re.sub(r"<[^>\n]{0,200}>", "", s)
+            cleaned = BIDI_RE.sub("", cleaned).strip()
+            return cleaned[:max_len]
+
+        if llm_res and isinstance(llm_res, dict) and llm_status_final not in ("llm_invalid", "llm_error", "llm_timeout"):
+            llm_recs = llm_res.get("recommendations", [])
+            if isinstance(llm_recs, list):
+                existing_recs = set(det_decision.get("recommendations", []))
+                for r in llm_recs:
+                    cr = _clean_s(r, max_len=300)
+                    if cr and cr not in existing_recs:
+                        det_decision.setdefault("recommendations", []).append(cr)
+                        existing_recs.add(cr)
+
+            llm_breakdown = llm_res.get("explanation_breakdown", [])
+            if isinstance(llm_breakdown, list):
+                existing_reasons = set(explain_info.get("reasons", []))
+                for r in llm_breakdown:
+                    cr = _clean_s(r, max_len=300)
+                    if cr and cr not in existing_reasons:
+                        explain_info.setdefault("reasons", []).append(cr)
+                        existing_reasons.add(cr)
+
+        # Apply evidence floors AFTER merge
+        if settings.url_module_enabled or extra_crit:
+            risk_score, critical_evidence = self._apply_evidence_floors(
+                risk_score=risk_score,
+                url_report=url_report,
+                explain_info=explain_info,
+                extra_critical_codes=extra_crit or None
+            )
+        if has_risky_qr:
+            risk_score = max(risk_score, 85)
+            critical_evidence = True
+
+        explain_info["risk_score"] = risk_score
+
+        # Confidence calculation
+        confidence_info = self.confidence_agent.evaluate(
+            matched_flags_count=len(rag_result["matched_flags"]),
+            total_patterns_matched=rag_result["total_patterns_matched"],
+            risk_score=risk_score
+        )
+        if llm_res and isinstance(llm_res, dict) and llm_status_final not in ("llm_invalid", "llm_error", "llm_timeout"):
+            if abs(det_risk - llm_risk) > 40:
+                confidence_info["confidence_score"] = max(20, confidence_info["confidence_score"] - 25)
+                if confidence_info["confidence_score"] < 50:
+                    confidence_info["confidence_level"] = "LOW"
+                elif confidence_info["confidence_score"] <= 80:
+                    confidence_info["confidence_level"] = "MEDIUM"
+                else:
+                    confidence_info["confidence_level"] = "HIGH"
+                confidence_info["recommend_human_verification"] = True
+                confidence_info["reason"] += " (Độ đồng thuận giữa hệ thống tất định và LLM có độ phân kỳ cao >40 điểm)."
+
+        # Decision Agent evaluation
+        decision_info = self.decision_agent.evaluate_decision(
+            risk_score=risk_score,
+            confidence_info=confidence_info,
+            explainable_info=explain_info,
+            emergency_info=emergency_info,
+            user_text=user_text,
+            real_llm_result=llm_res,
+            critical_evidence=critical_evidence,
+            url_report=url_report,
+            has_image=has_image,
+            full_text=full_text
+        )
+        if "recommendations" in det_decision:
+            for r in det_decision["recommendations"]:
+                if r not in decision_info.setdefault("recommendations", []):
+                    decision_info["recommendations"].append(r)
+
+        if input_truncated:
+            decision_info.setdefault("recommendations", []).append(
+                "Nội dung đầu vào vượt quá giới hạn độ dài cho phép (20.000 ký tự) và đã được cắt bớt để xử lý an toàn."
+            )
+
+        # Memory update
+        self.memory_agent.add_interaction(
+            full_text, decision_info["risk_level"], rag_result["matched_flags"],
+            session_id=session_id, client_id=client_id
+        )
+
+        elapsed_ms = round((time.time() - start_time) * 1000, 2)
+        if persist and self.db_manager.is_connected:
+            self.db_manager.log_user_analysis(
+                user_text=full_text,
+                risk_score=risk_score,
+                risk_level=decision_info["risk_level"],
+                confidence_score=confidence_info["confidence_score"],
+                matched_flags=rag_result["matched_flags"],
+                latency_ms=elapsed_ms,
+                session_id=session_id,
+                bot_response=decision_info["headline"],
+                image_base64=image_base64,
                 client_id=client_id,
             )
 
-        # ══════════════════════════════════════════════════════════════════
-        # FALLBACK PATH: Sequential Pipeline (no Gemini API)
-        # ══════════════════════════════════════════════════════════════════
-        print("[Orchestrator] ↩️  Gemini Agent unavailable — using sequential fallback.")
-        return self._run_sequential_fallback(
-            user_text=user_text,
-            pil_image=pil_image,
-            image_input=image_input,
-            session_id=session_id,
-            start_time=start_time,
-            image_base64=image_base64,
-            persist=persist,
-            injection_detected=injection_detected,
-            input_truncated=input_truncated,
-            extra_urls=extra_urls,
-            image_analysis=image_analysis,
-            has_risky_qr=has_risky_qr,
-            vietqr_crc_failed=vietqr_crc_failed,
-            deadline=deadline,
-            recorder=recorder,
-            allow_net=allow_net,
-            online_check=online_check,
-            client_id=client_id,
-        )
+        # Determine execution_path
+        if settings.offline or (effective_llm_mode == "off" and not allow_net):
+            execution_path = "deterministic_only"
+        elif effective_llm_mode == "agentic":
+            if b2_status == "ok":
+                execution_path = "gemini_agentic"
+            else:
+                execution_path = "sequential_fallback"
+        elif effective_llm_mode == "single":
+            execution_path = "single_llm"
+        else:
+            execution_path = "deterministic_only"
+
+        # Trace merge
+        pipeline_trace.append({"stage": "merge", "ms": round((time.time() - merge_start) * 1000, 2), "status": "ok"})
+
+        network_actions = recorder.get_actions() if (recorder is not None and allow_net) else []
+
+        tool_calls_log = [
+            {"tool": "emergency_check", "desc": "Kiểm tra tình huống khẩn cấp (Emergency Check)"},
+            {"tool": "ocr_extract", "desc": "Trích xuất chữ & dấu hiệu bất thường trên ảnh (Vision OCR)"},
+            {"tool": "rag_search", "desc": "Đối soát CSDL vector PhishVN & dữ liệu lừa đảo quốc tế"},
+            {"tool": "memory_escalation", "desc": "Đánh giá mức độ leo thang rủi ro qua lịch sử"},
+            {"tool": "explainable_score", "desc": "Tính ma trận trọng số rủi ro (Explainable AI Score)"},
+            {"tool": "confidence_eval", "desc": "Đánh giá mức độ tin cậy AI & đưa ra quyết định (Confidence Agent)"}
+        ]
+        if ti_result is not None:
+            tool_calls_log.append(
+                {"tool": "threat_intel_scan", "desc": "Đối soát cơ sở dữ liệu đe dọa toàn cầu (Threat Intelligence)"}
+            )
+        if llm_res and effective_llm_mode == "agentic":
+            tool_calls_made = llm_res.get("tool_calls_made", tool_calls_log)
+        else:
+            tool_calls_made = tool_calls_log
+
+        model_used = "offline"
+        if effective_llm_mode == "agentic" and llm_res:
+            model_used = llm_res.get("model_used", self.agent_runner.model_name)
+        elif effective_llm_mode == "single" and self.multi_llm_client.is_active:
+            model_used = self.multi_llm_client.model_name
+
+        resp = {
+            "session_id": session_id,
+            "user_input": user_text,
+            "input_truncated": input_truncated,
+            "execution_path": execution_path,
+            "pipeline_trace": pipeline_trace,
+            "tool_calls_made": tool_calls_made,
+            "model_used": model_used,
+            "ocr": ocr_result,
+            "rag": rag_result,
+            "memory": escalation_info,
+            "explainable": explain_info,
+            "confidence": confidence_info,
+            "emergency": emergency_info,
+            "decision": decision_info,
+            "risk_score": risk_score,
+            "real_ai_call": bool(b2_status == "ok"),
+            "latency_ms": elapsed_ms,
+            "url_analysis": url_report,
+            "network_actions": network_actions,
+            "image_analysis": image_analysis,
+            "online_check": bool(online_check),
+        }
+        if llm_status_final:
+            resp["status"] = llm_status_final
+            resp["llm_status"] = llm_status_final
+        else:
+            resp["status"] = "ok"
+            resp["llm_status"] = "ok"
+
+        if ti_result is not None:
+            resp["threat_intel"] = ti_result
+
+        return resp
 
 
     # ─────────────────────────────────────────────────────────────────────────

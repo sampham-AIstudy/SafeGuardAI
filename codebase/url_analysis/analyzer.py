@@ -786,6 +786,8 @@ class UrlAnalyzer:
           - Execution time < 150ms on 20k chars / 20 URLs.
         """
         start_time = time.perf_counter()
+        if deadline_s is None:
+            deadline_s = 6.0
 
         try:
             if not isinstance(text, str):

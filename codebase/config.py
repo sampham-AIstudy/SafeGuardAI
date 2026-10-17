@@ -5,7 +5,7 @@ from dataclasses import dataclass
 @dataclass
 class Settings:
     offline: bool = False
-    llm_mode: str = "agentic"  # agentic | single | off
+    llm_mode: str = "single"  # single | agentic | off
     network_enabled: bool = True
     db_enabled: bool = True
     redirect_mode: str = "shorteners"  # off | shorteners | all
@@ -22,6 +22,8 @@ class Settings:
     max_concurrency: int = 4
     cors_origins: tuple[str, ...] = ()
     trust_proxy: bool = False
+    llm_timeout_s: float = 15.0
+    runner_deadline_s: float = 20.0
 
 
 _SETTINGS_INSTANCE: Settings | None = None
@@ -82,10 +84,9 @@ def get_settings(refresh: bool = False) -> Settings:
         network_enabled = False
         db_enabled = False
     else:
-        llm_mode = os.environ.get("SAFEGUARD_LLM_MODE", "agentic").strip().lower()
-        # TODO: llm_mode=="single" chưa có tác dụng, nối ở Phase 4
+        llm_mode = os.environ.get("SAFEGUARD_LLM_MODE", "single").strip().lower()
         if llm_mode not in ("agentic", "single", "off"):
-            llm_mode = "agentic"
+            llm_mode = "single"
         network_enabled = _parse_bool(os.environ.get("SAFEGUARD_NETWORK"), True)
         db_enabled = _parse_bool(os.environ.get("SAFEGUARD_DB"), True)
 
@@ -137,6 +138,18 @@ def get_settings(refresh: bool = False) -> Settings:
 
     trust_proxy = _parse_bool(os.environ.get("SAFEGUARD_TRUST_PROXY"), False)
 
+    try:
+        raw_llm_timeout = float(os.environ.get("SAFEGUARD_LLM_TIMEOUT", "15.0").strip())
+        llm_timeout_s = max(3.0, min(60.0, raw_llm_timeout))
+    except (ValueError, TypeError):
+        llm_timeout_s = 15.0
+
+    try:
+        raw_runner_deadline = float(os.environ.get("SAFEGUARD_RUNNER_DEADLINE", "20.0").strip())
+        runner_deadline_s = max(5.0, min(60.0, raw_runner_deadline))
+    except (ValueError, TypeError):
+        runner_deadline_s = 20.0
+
     _SETTINGS_INSTANCE = Settings(
         offline=offline,
         llm_mode=llm_mode,
@@ -156,5 +169,7 @@ def get_settings(refresh: bool = False) -> Settings:
         max_concurrency=max_concurrency,
         cors_origins=cors_origins,
         trust_proxy=trust_proxy,
+        llm_timeout_s=llm_timeout_s,
+        runner_deadline_s=runner_deadline_s,
     )
     return _SETTINGS_INSTANCE

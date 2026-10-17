@@ -48,7 +48,7 @@ def test_get_settings_defaults(monkeypatch):
 
     s = get_settings(refresh=True)
     assert s.offline is False
-    assert s.llm_mode == "agentic"
+    assert s.llm_mode == "single"
     assert s.network_enabled is True
     assert s.db_enabled is True
     assert s.host == "127.0.0.1"
@@ -57,6 +57,8 @@ def test_get_settings_defaults(monkeypatch):
     assert s.max_text_chars == 20000
     assert s.rate_limit_per_min == 20
     assert s.url_module_enabled is True
+    assert s.llm_timeout_s == 15.0
+    assert s.runner_deadline_s == 20.0
 
 
 def test_get_settings_offline_enforcement(monkeypatch):
@@ -79,10 +81,10 @@ def test_get_settings_invalid_fallbacks(monkeypatch):
     s = get_settings(refresh=True)
     assert s.port == 8000
 
-    # Invalid llm_mode falls back to "agentic"
+    # Invalid llm_mode falls back to "single"
     monkeypatch.setenv("SAFEGUARD_LLM_MODE", "unsupported_mode")
     s = get_settings(refresh=True)
-    assert s.llm_mode == "agentic"
+    assert s.llm_mode == "single"
 
     # Invalid max_body_bytes falls back to default
     monkeypatch.setenv("SAFEGUARD_MAX_BODY_BYTES", "not_an_int")

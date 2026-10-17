@@ -307,16 +307,21 @@ def test_e8_orchestrator_session_id_isolation():
 def test_e8_agent_runner_session_id_spy(monkeypatch):
     """Orchestrator must forward request session_id to agent_runner.run."""
     from codebase.orchestrator import SafeGuardOrchestrator
+    from codebase.config import get_settings
     orch = SafeGuardOrchestrator()
     captured_session_ids = []
 
-    def spy_run(user_text, pil_image=None, session_id="default", **_ctx):  # run() also receives allow_net/recorder/deadline
+    def spy_run(user_text, pil_image=None, session_id="default", **kwargs):
         captured_session_ids.append(session_id)
         return None  # fall back to sequential
 
     monkeypatch.setattr(orch.agent_runner, "run", spy_run)
+    monkeypatch.setattr(orch.agent_runner, "is_active", True)
+    monkeypatch.setenv("SAFEGUARD_OFFLINE", "0")
+    monkeypatch.setenv("SAFEGUARD_LLM_MODE", "agentic")
+    get_settings(refresh=True)
     test_sid = "test_custom_session_id_999"
-    orch.process_request(user_text="Kiểm tra tin nhắn này", session_id=test_sid)
+    orch.process_request(user_text="Kiểm tra tin nhắn này", session_id=test_sid, llm_mode="agentic")
     assert test_sid in captured_session_ids, f"Expected {test_sid} passed to runner, got {captured_session_ids}"
 
 

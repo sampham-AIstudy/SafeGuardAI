@@ -1,9 +1,17 @@
 import os
+import sys
 import json
 import time
 import base64
 import threading
 from typing import Any
+from dataclasses import dataclass, field
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 try:
     from PIL import Image
@@ -19,6 +27,7 @@ except ImportError:
     pass
 
 from codebase.config import get_settings, get_api_key
+from codebase.agents.prompt_guard import PromptGuard
 
 NETWORK_TOOL_NAMES = {"scan_url_threat_intel", "lookup_domain_info", "check_phishing_db"}
 
@@ -220,6 +229,18 @@ SAFEGUARD_TOOL_DECLARATIONS = [
 ]
 
 
+@dataclass
+class RunContext:
+    tool_cache: dict = field(default_factory=dict)
+    allow_net: bool = False
+    recorder: Any = None
+    deadline: float | None = None
+    session_id: str = "default"
+    client_id: str | None = None
+    original_text: str = ""
+    pil_image: Any = None
+
+
 class GeminiAgentRunner:
     """
     Gemini Agentic Tool-Calling Runner for SafeGuard AI.
@@ -259,26 +280,35 @@ class GeminiAgentRunner:
         self._local = threading.local()
         self._init_sdk()
 
-    @property
-    def _tool_results_cache(self) -> dict:
-        if not hasattr(self._local, "cache"):
-            self._local.cache = {}
-        return self._local.cache
-
-    @_tool_results_cache.setter
-    def _tool_results_cache(self, val: dict):
-        self._local.cache = val
-
-    def set_request_context(self, allow_net: bool = False, recorder: Any = None, deadline: float | None = None):
-        self._local.allow_net = allow_net
-        self._local.recorder = recorder
-        self._local.deadline = deadline
+    def set_request_context(self, allow_net: bool = False, recorder: Any = None, deadline: float | None = None, session_id: str = "default", client_id: str | None = None, original_text: str = ""):
+        self._local.ctx = RunContext(
+            tool_cache={},
+            allow_net=allow_net,
+            recorder=recorder,
+            deadline=deadline,
+            session_id=session_id,
+            client_id=client_id,
+            original_text=original_text,
+        )
 
     def get_request_context(self) -> dict:
+        ctx = getattr(self._local, "ctx", None)
+        if ctx:
+            return {
+                "allow_net": ctx.allow_net,
+                "recorder": ctx.recorder,
+                "deadline": ctx.deadline,
+                "session_id": ctx.session_id,
+                "client_id": ctx.client_id,
+                "original_text": ctx.original_text,
+            }
         return {
-            "allow_net": getattr(self._local, "allow_net", False),
-            "recorder": getattr(self._local, "recorder", None),
-            "deadline": getattr(self._local, "deadline", None),
+            "allow_net": False,
+            "recorder": None,
+            "deadline": None,
+            "session_id": "default",
+            "client_id": None,
+            "original_text": "",
         }
 
     def _init_sdk(self):
@@ -310,31 +340,48 @@ class GeminiAgentRunner:
         self,
         tool_name: str,
         tool_args: dict,
+        ctx: RunContext | dict | None = None,
         context: dict | None = None,
         allow_net: bool | None = None,
         recorder: Any = None,
         deadline: float | None = None,
     ) -> dict:
         """Dispatch a Gemini tool call to the correct sub-agent and return result."""
-        # Resolve runtime context with thread safety
-        if context:
-            if allow_net is None:
-                allow_net = context.get("allow_net")
-            if recorder is None:
-                recorder = context.get("recorder")
-            if deadline is None:
-                deadline = context.get("deadline")
-        if allow_net is None:
-            allow_net = getattr(self._local, "allow_net", False)
-        if recorder is None:
-            recorder = getattr(self._local, "recorder", None)
-        if deadline is None:
-            deadline = getattr(self._local, "deadline", None)
+        # Resolve ctx object
+        if ctx is None and context is not None:
+            ctx = context
+
+        if isinstance(ctx, dict):
+            ctx_obj = RunContext(
+                tool_cache=ctx.get("tool_cache", {}),
+                allow_net=ctx.get("allow_net", False),
+                recorder=ctx.get("recorder"),
+                deadline=ctx.get("deadline"),
+                session_id=ctx.get("session_id", "default"),
+                client_id=ctx.get("client_id"),
+                original_text=ctx.get("original_text", ""),
+                pil_image=ctx.get("pil_image"),
+            )
+        elif isinstance(ctx, RunContext):
+            ctx_obj = ctx
+        else:
+            ctx_local = getattr(self._local, "ctx", None)
+            if ctx_local is not None:
+                ctx_obj = ctx_local
+            else:
+                ctx_obj = RunContext()
+
+        if allow_net is not None:
+            ctx_obj.allow_net = allow_net
+        if recorder is not None:
+            ctx_obj.recorder = recorder
+        if deadline is not None:
+            ctx_obj.deadline = deadline
 
         try:
             # Check network permission for network-facing tools (B1)
             if tool_name in NETWORK_TOOL_NAMES:
-                if not allow_net:
+                if not ctx_obj.allow_net:
                     return {
                         "status": "network_checks_disabled",
                         "note": "Người dùng chưa bật Kiểm tra trực tuyến"
@@ -342,12 +389,12 @@ class GeminiAgentRunner:
 
             if tool_name == "emergency_check":
                 result = self.agents["emergency"].check_trigger(tool_args.get("text", ""))
-                self._tool_results_cache["emergency"] = result
+                ctx_obj.tool_cache["emergency"] = result
                 return result
 
             elif tool_name == "rag_search":
                 result = self.agents["rag"].search(tool_args.get("query", ""))
-                self._tool_results_cache["rag"] = result
+                ctx_obj.tool_cache["rag"] = result
                 # Return simplified version for Gemini context window efficiency
                 return {
                     "matched_flags": result.get("matched_flags", []),
@@ -358,12 +405,12 @@ class GeminiAgentRunner:
 
             elif tool_name == "ocr_extract":
                 # Use cached PIL image if available
-                pil_image = self._tool_results_cache.get("_pil_image")
+                pil_image = ctx_obj.pil_image or ctx_obj.tool_cache.get("_pil_image")
                 result = self.agents["ocr"].process(
                     image_input=pil_image,
                     raw_text=tool_args.get("raw_text", "")
                 )
-                self._tool_results_cache["ocr"] = result
+                ctx_obj.tool_cache["ocr"] = result
                 return {
                     "extracted_text": result.get("extracted_text", ""),
                     "anomalies": result.get("anomalies", []),
@@ -374,28 +421,31 @@ class GeminiAgentRunner:
                 matched_flags = tool_args.get("matched_flags", [])
                 ocr_anomalies = tool_args.get("ocr_anomalies", [])
                 # Also pull from cache if Gemini didn't pass them
-                if not matched_flags and "rag" in self._tool_results_cache:
-                    matched_flags = self._tool_results_cache["rag"].get("matched_flags", [])
-                if not ocr_anomalies and "ocr" in self._tool_results_cache:
-                    ocr_anomalies = self._tool_results_cache["ocr"].get("anomalies", [])
+                if not matched_flags and "rag" in ctx_obj.tool_cache:
+                    matched_flags = ctx_obj.tool_cache["rag"].get("matched_flags", [])
+                if not ocr_anomalies and "ocr" in ctx_obj.tool_cache:
+                    ocr_anomalies = ctx_obj.tool_cache["ocr"].get("anomalies", [])
 
-                escalation_info = self._tool_results_cache.get("memory", {})
+                escalation_info = ctx_obj.tool_cache.get("memory", {})
+                # ALWAYS score on ctx_obj.original_text, ignoring text passed by LLM
+                text_to_score = ctx_obj.original_text if (ctx_obj and ctx_obj.original_text) else tool_args.get("text", "")
                 result = self.agents["explainable"].explain(
-                    text=tool_args.get("text", ""),
+                    text=text_to_score,
                     matched_flags=matched_flags,
                     ocr_anomalies=ocr_anomalies,
                     escalation_info=escalation_info
                 )
-                self._tool_results_cache["explainable"] = result
+                ctx_obj.tool_cache["explainable"] = result
                 return result
 
             elif tool_name == "check_memory":
-                sess_id = self._tool_results_cache.get("_session_id", "session_default")
+                sess_id = ctx_obj.session_id or "session_default"
                 result = self.agents["memory"].analyze_escalation(
                     tool_args.get("current_text", ""),
-                    session_id=sess_id
+                    session_id=sess_id,
+                    client_id=ctx_obj.client_id
                 )
-                self._tool_results_cache["memory"] = result
+                ctx_obj.tool_cache["memory"] = result
                 return result
 
             elif tool_name == "confidence_eval":
@@ -404,7 +454,7 @@ class GeminiAgentRunner:
                     total_patterns_matched=tool_args.get("total_patterns_matched", 0),
                     risk_score=tool_args.get("risk_score", 0)
                 )
-                self._tool_results_cache["confidence"] = result
+                ctx_obj.tool_cache["confidence"] = result
                 return result
 
             # ── THREAT INTELLIGENCE TOOLS ──────────────────────────────────
@@ -413,15 +463,15 @@ class GeminiAgentRunner:
                 if not threat_agent:
                     return {"error": "ThreatIntelAgent not injected", "is_malicious": False}
                 url = tool_args.get("url", "")
-                rem_ti = max(0.01, deadline - time.monotonic()) if deadline is not None else 6.0
+                rem_ti = max(0.01, ctx_obj.deadline - time.monotonic()) if ctx_obj.deadline is not None else 6.0
                 try:
-                    result = threat_agent.scan_url(url, deadline_s=rem_ti, recorder=recorder)
+                    result = threat_agent.scan_url(url, deadline_s=rem_ti, recorder=ctx_obj.recorder)
                 except TypeError:
                     result = threat_agent.scan_url(url)
                 # Accumulate threat intel results
-                existing = self._tool_results_cache.get("threat_intel", [])
-                existing.append(result)
-                self._tool_results_cache["threat_intel"] = existing
+                existing = ctx_obj.tool_cache.setdefault("threat_intel", [])
+                if isinstance(existing, list):
+                    existing.append(result)
                 print(f"[GeminiAgentRunner] 🔍 ThreatIntel: {url} → malicious={result.get('is_malicious')} [{', '.join(result.get('sources_checked',[]))}]")
                 return {
                     "url": url,
@@ -436,12 +486,12 @@ class GeminiAgentRunner:
                 if not threat_agent:
                     return {"error": "ThreatIntelAgent not injected", "is_suspicious": False}
                 domain = tool_args.get("domain", "")
-                rem_ti = max(0.01, deadline - time.monotonic()) if deadline is not None else 6.0
+                rem_ti = max(0.01, ctx_obj.deadline - time.monotonic()) if ctx_obj.deadline is not None else 6.0
                 try:
-                    result = threat_agent.lookup_domain(domain, deadline_s=rem_ti, recorder=recorder)
+                    result = threat_agent.lookup_domain(domain, deadline_s=rem_ti, recorder=ctx_obj.recorder)
                 except TypeError:
                     result = threat_agent.lookup_domain(domain)
-                self._tool_results_cache.setdefault("domain_lookups", {})[domain] = result
+                ctx_obj.tool_cache.setdefault("domain_lookups", {})[domain] = result
                 return result
 
             elif tool_name == "check_phishing_db":
@@ -450,7 +500,7 @@ class GeminiAgentRunner:
                     return {"error": "ThreatIntelAgent not injected", "is_malicious": False}
                 url = tool_args.get("url", "")
                 try:
-                    result = threat_agent._check_phishtank(url, recorder=recorder)
+                    result = threat_agent._check_phishtank(url, recorder=ctx_obj.recorder)
                 except TypeError:
                     result = threat_agent._check_phishtank(url)
                 return result
@@ -535,6 +585,9 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
         allow_net: bool = False,
         recorder: Any = None,
         deadline: float | None = None,
+        client_id: str | None = None,
+        ctx: RunContext | None = None,
+        system_evidence: Any = None,
     ) -> dict | None:
         """
         Execute the Gemini Agentic Tool-Calling loop.
@@ -547,13 +600,33 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
         if not self.is_active:
             return None
 
-        # Reset thread-local context & cache for this run
-        self._local.allow_net = allow_net
-        self._local.recorder = recorder
-        self._local.deadline = deadline
-        self._local.cache = {"_session_id": session_id}
-        if pil_image:
-            self._local.cache["_pil_image"] = pil_image
+        settings = get_settings()
+        runner_budget = getattr(settings, "runner_deadline_s", 20.0)
+        runner_budget = max(5.0, min(60.0, runner_budget))
+        now = time.monotonic()
+        effective_deadline = min(deadline, now + runner_budget) if deadline is not None else (now + runner_budget)
+
+        if ctx is None:
+            ctx = RunContext(
+                tool_cache={},
+                allow_net=allow_net,
+                recorder=recorder,
+                deadline=effective_deadline,
+                session_id=session_id,
+                client_id=client_id,
+                original_text=user_text,
+                pil_image=pil_image,
+            )
+        else:
+            ctx.allow_net = allow_net
+            ctx.recorder = recorder
+            ctx.deadline = effective_deadline
+            ctx.session_id = session_id
+            ctx.client_id = client_id
+            ctx.original_text = user_text
+            ctx.pil_image = pil_image
+            if ctx.tool_cache is None:
+                ctx.tool_cache = {}
 
         start_time = time.time()
         tool_calls_log = []
@@ -585,8 +658,34 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
                 print("[GeminiAgentRunner] No working model found.")
                 return None
 
-            # Build initial message (optionally multimodal)
-            initial_content = [user_text]
+            # Build initial message (always wrap user text)
+            wrapped_text = PromptGuard.wrap_untrusted_input(user_text)
+            initial_content = []
+
+            if system_evidence:
+                if isinstance(system_evidence, dict):
+                    ev_lines = []
+                    if "emergency" in system_evidence:
+                        em = system_evidence["emergency"]
+                        is_em = em.get("is_emergency", False) if isinstance(em, dict) else False
+                        ev_lines.append(f"- Emergency: {'CÓ (Khẩn cấp)' if is_em else 'Không'}")
+                    if "url_analysis" in system_evidence:
+                        url_rep = system_evidence["url_analysis"]
+                        max_risk = getattr(url_rep, "max_url_risk", 0) if not isinstance(url_rep, dict) else url_rep.get("max_url_risk", 0)
+                        ev_lines.append(f"- URL Analysis Max Risk: {max_risk}")
+                    if "matched_flags" in system_evidence:
+                        ev_lines.append(f"- Matched Flags: {', '.join(str(f) for f in system_evidence['matched_flags'])}")
+                    if "risk_breakdown" in system_evidence:
+                        factors = [b.get("factor", "") for b in system_evidence["risk_breakdown"] if isinstance(b, dict)]
+                        ev_lines.append(f"- Risk Breakdown Factors: {'; '.join(factors)}")
+                    ev_str = "\n".join(ev_lines)
+                else:
+                    ev_str = str(system_evidence).strip()
+
+                initial_content.append(f"SYSTEM EVIDENCE (deterministic, trusted):\n{ev_str}")
+
+            initial_content.append(wrapped_text)
+
             if pil_image and Image and isinstance(pil_image, Image.Image):
                 if pil_image.mode != "RGB":
                     pil_image = pil_image.convert("RGB")
@@ -594,7 +693,7 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
 
             # Start chat session
             chat = model.start_chat()
-            response = self._send_message_with_retry(chat, initial_content)
+            response = self._send_message_with_retry(chat, initial_content, deadline=effective_deadline)
 
             # ── Tool-calling loop ──────────────────────────────────────────
             for _round in range(self.MAX_TOOL_ROUNDS):
@@ -617,9 +716,7 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
                     result = self._execute_tool(
                         tool_name,
                         tool_args,
-                        allow_net=allow_net,
-                        recorder=recorder,
-                        deadline=deadline,
+                        ctx=ctx,
                     )
 
                     tool_responses.append(
@@ -632,7 +729,7 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
                     )
 
                 # Send all tool results back to Gemini in one round
-                response = self._send_message_with_retry(chat, tool_responses)
+                response = self._send_message_with_retry(chat, tool_responses, deadline=effective_deadline)
 
             # ── Parse final answer ─────────────────────────────────────────
             final_text = self._get_response_text(response)
@@ -646,32 +743,46 @@ TRẢ VỀ: JSON hợp lệ duy nhất, không thêm markdown."""
 
             # Merge tool cache data into parsed for orchestrator aggregation
             parsed["_tool_cache"] = {
-                k: v for k, v in self._tool_results_cache.items()
+                k: v for k, v in ctx.tool_cache.items()
                 if not k.startswith("_")
             }
 
             return parsed
 
         except Exception as e:
-            print(f"[GeminiAgentRunner] ❌ Agentic loop error: {e}")
+            err_name = type(e).__name__
+            print(f"[GeminiAgentRunner] ❌ Agentic loop error: {err_name}")
             return None
 
     # ─────────────────────────────────────────────────────────────────────────
     # HELPERS
     # ─────────────────────────────────────────────────────────────────────────
-    def _send_message_with_retry(self, chat, content, max_retries=3):
+    def _send_message_with_retry(self, chat, content, deadline: float | None = None, max_retries: int = 1):
         import re
-        for attempt in range(max_retries):
+        for attempt in range(max_retries + 1):
+            now = time.monotonic()
+            rem_time = max(0.01, (deadline - now)) if deadline is not None else 20.0
+            if rem_time <= 0.05:
+                raise TimeoutError("Runner deadline exceeded")
+
             try:
-                return chat.send_message(content)
+                try:
+                    return chat.send_message(content, request_options={"timeout": rem_time})
+                except TypeError:
+                    return chat.send_message(content)
             except Exception as e:
                 err_str = str(e)
-                if "429" in err_str or "Quota exceeded" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                    wait_sec = 15.0
+                is_429 = "429" in err_str or "Quota exceeded" in err_str or "RESOURCE_EXHAUSTED" in err_str
+                if is_429 and attempt < max_retries:
+                    wait_sec = 2.0
                     m = re.search(r'Please retry in (\d+(?:\.\d+)?)s', err_str)
                     if m:
-                        wait_sec = min(float(m.group(1)) + 1.0, 35.0)
-                    print(f"[GeminiAgentRunner] ⏳ Rate limit 429 encountered — auto-retrying in {wait_sec:.1f}s (attempt {attempt+1}/{max_retries})...")
+                        wait_sec = float(m.group(1))
+                    wait_sec = max(0.5, min(wait_sec, 5.0))
+                    now = time.monotonic()
+                    if deadline is not None and (now + wait_sec >= deadline):
+                        raise TimeoutError("Cannot wait for 429 retry: deadline would be exceeded")
+                    print(f"[GeminiAgentRunner] ⏳ Rate limit 429 encountered — auto-retrying in {wait_sec:.1f}s (retry 1/1)...")
                     time.sleep(wait_sec)
                 else:
                     raise e
