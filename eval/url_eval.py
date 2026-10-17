@@ -1,11 +1,13 @@
 import argparse
 import base64
 import csv
+import idna
 import json
 import os
 import random
 import sys
 import time
+import urllib.parse
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -24,6 +26,34 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from codebase.agents.explainable_agent import ExplainableAgent
+
+CYRILLIC_HOMOGLYPHS: dict[str, str] = {
+    "a": "\u0430",
+    "e": "\u0435",
+    "o": "\u043e",
+    "p": "\u0440",
+    "c": "\u0441",
+    "x": "\u0445",
+    "i": "\u0456",
+}
+
+TECHNIQUE_SIGNALS: dict[str, set[str]] = {
+    "defang": {"DEFANGED"},
+    "percent_host": {"ENCODED_HOST"},
+    "zero_width": {"ZERO_WIDTH"},
+    "fullwidth": {"FULLWIDTH_OR_ODD_DOT"},
+    "userinfo_decoy": {"USERINFO_PRESENT", "USERINFO_BRAND_DECOY", "USERINFO_CONFUSION"},
+    "open_redirect": {"OPEN_REDIRECT_TRUSTED", "EMBEDDED_URL"},
+    "base64_param": {"BASE64_URL", "EMBEDDED_URL"},
+    "shortener": {"SHORTENER"},
+    "homoglyph_cyrillic": {"HOMOGLYPH_BRAND", "MIXED_SCRIPT", "PUNYCODE_HOST"},
+    "punycode_idn": {"PUNYCODE_HOST", "MIXED_SCRIPT", "HOMOGLYPH_BRAND"},
+    "ip_decimal": {"IP_OBFUSCATED", "IP_HOST"},
+    "backslash_confusion": {"BACKSLASH_CONFUSION"},
+    "nested_redirect": {"OPEN_REDIRECT_TRUSTED", "EMBEDDED_URL"},
+    "double_encoding": {"DOUBLE_ENCODING"},
+    "hex_param": {"HEX_URL", "EMBEDDED_URL"},
+}
 
 
 def to_fullwidth(s: str) -> str:
@@ -51,7 +81,7 @@ def extract_host(url: str) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 # AUGMENTATION TRANSFORMS (deterministic with seed 42)
 # ─────────────────────────────────────────────────────────────────────────────
-def apply_phishing_transform(url: str, transform: str, idx: int) -> str:
+def apply_phishing_transform(url: str, transform: str, idx: int = 0) -> str:
     u = url.strip()
     norm = u if u.startswith(("http://", "https://")) else f"http://{u}"
     host = extract_host(norm)
@@ -86,6 +116,61 @@ def apply_phishing_transform(url: str, transform: str, idx: int) -> str:
         return f"https://bit.ly/mock_{idx:05d}"
     elif transform == "trailing_punct":
         return f"{norm})."
+    elif transform == "homoglyph_cyrillic":
+        labels = host.split(".")
+        lbl = labels[0]
+        new_lbl = "".join(CYRILLIC_HOMOGLYPHS.get(c, c) for c in lbl)
+        if new_lbl == lbl:
+            for idx_l in range(1, len(labels)):
+                cand = "".join(CYRILLIC_HOMOGLYPHS.get(c, c) for c in labels[idx_l])
+                if cand != labels[idx_l]:
+                    labels[idx_l] = cand
+                    break
+            else:
+                if lbl:
+                    labels[0] = "\u0430" + lbl[1:]
+        else:
+            labels[0] = new_lbl
+        new_host = ".".join(labels)
+        return norm.replace(host, new_host, 1)
+    elif transform == "punycode_idn":
+        labels = host.split(".")
+        lbl = labels[0]
+        homoglyph_lbl = "".join(CYRILLIC_HOMOGLYPHS.get(c, c) for c in lbl)
+        if homoglyph_lbl == lbl:
+            homoglyph_lbl = "\u0430" + (lbl[1:] if len(lbl) > 1 else "")
+        try:
+            puny_lbl = idna.encode(homoglyph_lbl).decode("ascii")
+        except Exception:
+            puny_lbl = f"xn--{lbl}"
+        labels[0] = puny_lbl
+        new_host = ".".join(labels)
+        return norm.replace(host, new_host, 1)
+    elif transform == "ip_decimal":
+        import ipaddress
+        try:
+            ip_obj = ipaddress.IPv4Address(host)
+            dec_str = str(int(ip_obj))
+            return norm.replace(host, dec_str, 1)
+        except Exception:
+            return norm
+    elif transform == "backslash_confusion":
+        return f"https://{host}\\@vietcombank.com.vn/"
+    elif transform == "nested_redirect":
+        enc_q = urllib.parse.quote(norm, safe="")
+        return f"https://www.google.com/url?q={enc_q}"
+    elif transform == "double_encoding":
+        p = urlparse(norm)
+        path_part = p.path if p.path and p.path != "/" else "/login"
+        double_encoded_path = "".join(f"%25{ord(c):02X}" for c in path_part.lstrip("/"))
+        res = f"{p.scheme}://{p.netloc}/%252F{double_encoded_path}"
+        if p.query:
+            double_encoded_query = "".join(f"%25{ord(c):02X}" for c in p.query)
+            res += f"?{double_encoded_query}"
+        return res
+    elif transform == "hex_param":
+        hex_str = norm.encode("utf-8").hex()
+        return f"https://track.mail-vn.com/c?u={hex_str}"
     return norm
 
 
@@ -108,14 +193,14 @@ def apply_benign_transform(url: str, transform: str) -> str:
 
 
 def compute_auroc(labels: list[int], scores: list[float]) -> float:
-    """Pure Python AUROC calculation using rank sum (Mann-Whitney U statistic)."""
+    """Pure Python AUROC calculation using rank sum (Mann-Whitney U statistic) with ties handling."""
     n_pos = sum(labels)
     n_neg = len(labels) - n_pos
     if n_pos == 0 or n_neg == 0:
         return 0.5
 
     paired = sorted(zip(scores, labels), key=lambda x: x[0])
-    rank_sum = 0
+    rank_sum = 0.0
     i = 0
     n = len(paired)
     while i < n:
@@ -143,7 +228,25 @@ def predict_baseline(exp_agent: ExplainableAgent, text: str) -> tuple[bool, int]
     return is_phishing, score
 
 
-def run_url_eval():
+def predict_url_module(analyzer: Any, text: str) -> tuple[bool, int, set[str]]:
+    rep = analyzer.analyze_text(text)
+    score = getattr(rep, "max_url_risk", 0)
+    is_phishing = score >= 40
+    signals: set[str] = set()
+    for f in getattr(rep, "findings", []):
+        for s in getattr(f, "signals", []):
+            code = getattr(s, "code", "")
+            if code:
+                signals.add(code)
+        for ch in getattr(f, "children", []):
+            for s in getattr(ch, "signals", []):
+                code = getattr(s, "code", "")
+                if code:
+                    signals.add(code)
+    return is_phishing, score, signals
+
+
+def parse_args():
     parser = argparse.ArgumentParser(description="URL Phishing Evaluation")
     parser.add_argument(
         "--data",
@@ -152,7 +255,24 @@ def run_url_eval():
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling")
     parser.add_argument("--sample-phish", type=int, default=1000, help="Number of phishing URLs to sample")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--predictor",
+        choices=["baseline", "url_module"],
+        default="url_module",
+        help="Predictor to evaluate (baseline or url_module, default: url_module)"
+    )
+    parser.add_argument(
+        "--out",
+        dest="out_path",
+        default=None,
+        help="Path to save evaluation results JSON"
+    )
+    return parser.parse_args()
+
+
+def run_url_eval(args=None):
+    if args is None:
+        args = parse_args()
 
     csv_path = Path(args.data).resolve()
     if not csv_path.exists():
@@ -160,7 +280,7 @@ def run_url_eval():
         sys.exit(1)
 
     print("=" * 80)
-    print("URL PHISHING EVALUATION (BASELINE — EXPLAINABLE AGENT)")
+    print(f"URL PHISHING EVALUATION (PREDICTOR: {args.predictor.upper()})")
     print(f"Data file: {csv_path.name}")
     print("=" * 80)
 
@@ -191,25 +311,62 @@ def run_url_eval():
     sample_benign = benign_rows
     print(f"Evaluation sample: {len(sample_phish)} phishing (sampled), {len(sample_benign)} benign (all)")
 
-    exp_agent = ExplainableAgent()
+    # Initialize predictor model
+    if args.predictor == "baseline":
+        model_obj = ExplainableAgent()
+    else:
+        from codebase.url_analysis import UrlAnalyzer
+        from codebase.url_analysis.blacklist import PhishBlacklist
+        # Build blacklist strictly excluding test split to prevent data leakage
+        blacklist = PhishBlacklist.from_dataset(exclude_splits=["test"])
+        model_obj = UrlAnalyzer(blacklist=blacklist)
+        print(f"[INFO] Initialized UrlAnalyzer with {len(blacklist.hosts)} blacklist hosts (excluding test split)")
+
+    def do_predict(text: str) -> tuple[bool, int, set[str]]:
+        if args.predictor == "baseline":
+            is_pred, score = predict_baseline(model_obj, text)
+            return is_pred, score, set()
+        else:
+            return predict_url_module(model_obj, text)
 
     # 1. Phishing Transforms Evaluation
     phish_transforms = [
         "identity", "bare_domain", "defang", "percent_host", "zero_width",
         "fullwidth", "userinfo_decoy", "open_redirect", "base64_param",
-        "shortener", "trailing_punct"
+        "shortener", "trailing_punct", "homoglyph_cyrillic", "punycode_idn",
+        "ip_decimal", "backslash_confusion", "nested_redirect",
+        "double_encoding", "hex_param"
     ]
     phish_results = {}
     for t_name in phish_transforms:
         flagged = 0
+        technique_hits = 0
+        expected_signals = TECHNIQUE_SIGNALS.get(t_name, set())
+
         for i, u in enumerate(sample_phish):
             transformed = apply_phishing_transform(u, t_name, i)
-            is_pred, _ = predict_baseline(exp_agent, transformed)
+            is_pred, score, signals = do_predict(transformed)
             if is_pred:
                 flagged += 1
+            if expected_signals and bool(signals & expected_signals):
+                technique_hits += 1
+
         recall = round(flagged / len(sample_phish), 4) if sample_phish else 0.0
-        phish_results[t_name] = {"recall": recall, "flagged": flagged, "total": len(sample_phish)}
-        print(f"Phishing [{t_name:<16s}]: Recall = {recall * 100:5.1f}% ({flagged}/{len(sample_phish)})")
+        tech_rate = round(technique_hits / len(sample_phish), 4) if (expected_signals and sample_phish) else None
+
+        res_item = {
+            "recall": recall,
+            "flagged": flagged,
+            "total": len(sample_phish)
+        }
+        if tech_rate is not None:
+            res_item["technique_detection_rate"] = tech_rate
+            res_item["technique_detected_count"] = technique_hits
+            print(f"Phishing [{t_name:<20s}]: Recall = {recall * 100:5.1f}% ({flagged}/{len(sample_phish)}) | Tech Detected = {tech_rate * 100:5.1f}% ({technique_hits}/{len(sample_phish)})")
+        else:
+            print(f"Phishing [{t_name:<20s}]: Recall = {recall * 100:5.1f}% ({flagged}/{len(sample_phish)})")
+
+        phish_results[t_name] = res_item
 
     # 2. Benign Transforms Evaluation
     benign_transforms = ["identity", "bare_domain", "trailing_punct", "uppercase", "defang"]
@@ -218,12 +375,12 @@ def run_url_eval():
         fp_count = 0
         for u in sample_benign:
             transformed = apply_benign_transform(u, t_name)
-            is_pred, _ = predict_baseline(exp_agent, transformed)
+            is_pred, _, _ = do_predict(transformed)
             if is_pred:
                 fp_count += 1
         fpr = round(fp_count / len(sample_benign), 4) if sample_benign else 0.0
         benign_results[t_name] = {"fpr": fpr, "fp": fp_count, "total": len(sample_benign)}
-        print(f"Benign   [{t_name:<16s}]: FPR    = {fpr * 100:5.1f}% ({fp_count}/{len(sample_benign)})")
+        print(f"Benign   [{t_name:<20s}]: FPR    = {fpr * 100:5.1f}% ({fp_count}/{len(sample_benign)})")
 
     # 3. Overall Identity AUROC & F1
     all_labels = []
@@ -232,14 +389,14 @@ def run_url_eval():
 
     for u in sample_phish:
         norm = u if u.startswith(("http://", "https://")) else f"http://{u}"
-        is_pred, score = predict_baseline(exp_agent, norm)
+        is_pred, score, _ = do_predict(norm)
         all_labels.append(1)
         all_scores.append(score)
         all_preds.append(1 if is_pred else 0)
 
     for u in sample_benign:
         norm = u if u.startswith(("http://", "https://")) else f"https://{u}"
-        is_pred, score = predict_baseline(exp_agent, norm)
+        is_pred, score, _ = do_predict(norm)
         all_labels.append(0)
         all_scores.append(score)
         all_preds.append(1 if is_pred else 0)
@@ -253,120 +410,71 @@ def run_url_eval():
     rec = round(tp / (tp + fn), 4) if (tp + fn) > 0 else 0.0
     f1 = round(2 * prec * rec / (prec + rec), 4) if (prec + rec) > 0 else 0.0
 
-    print("-" * 80)
-    print(f"OVERALL IDENTITY: Recall = {rec * 100:.1f}%, Precision = {prec * 100:.1f}%, F1 = {f1:.4f}, AUROC = {auroc:.4f}")
-    print("=" * 80)
-
-    golden_v1_str = "n/a"
-    golden_path = CURRENT_DIR / "golden_set.json"
-    if golden_path.exists():
-        try:
-            os.environ["SAFEGUARD_OFFLINE"] = "1"
-            os.environ["SAFEGUARD_DB"] = "off"
-            os.environ["SAFEGUARD_NETWORK"] = "off"
-            from codebase.config import get_settings
-            get_settings(refresh=True)
-            from codebase.orchestrator import SafeGuardOrchestrator
-            orch = SafeGuardOrchestrator()
-            with open(golden_path, "r", encoding="utf-8") as f:
-                golden_cases = json.load(f).get("golden_set", [])
-            exact_hits = 0
-            for c in golden_cases:
-                c_id = c.get("id", "case")
-                if hasattr(orch.memory_agent, "reset"):
-                    orch.memory_agent.reset(f"eval_{c_id}")
-                else:
-                    orch.memory_agent.history = []
-                r = orch.process_request(c.get("input_text", ""), session_id=f"eval_{c_id}", persist=False)
-                if r.get("decision", {}).get("risk_level") == c.get("expected_risk_level"):
-                    exact_hits += 1
-            n_golden = len(golden_cases)
-            acc_golden = round((exact_hits / n_golden) * 100, 1) if n_golden > 0 else 0.0
-            golden_v1_str = f"{acc_golden:.1f}% ({exact_hits}/{n_golden} exact)"
-        except Exception as e:
-            print(f"[Warning] Could not compute Golden v1 accuracy dynamically: {e}")
-
-    # Write / update line "A-Baseline" to eval/RESULTS.md
-    results_md_path = CURRENT_DIR / "RESULTS.md"
-    results_header = (
-        "# SAFEGUARD AI — BENCHMARK RESULTS & ABLATION\n\n"
-        "| Cấu hình | Mô tả | Golden v1 Acc | Phish Identity Recall | Phish Aug Recall Avg | Benign Identity FPR | AUROC |\n"
-        "|---|---|---|---|---|---|---|\n"
-    )
     avg_phish_aug = round(sum(r["recall"] for r in phish_results.values()) / len(phish_results), 4)
     # Augmentation recall excluding userinfo_decoy and base64_param artifacts
     filtered_transforms = {k: v for k, v in phish_results.items() if k not in ("userinfo_decoy", "base64_param")}
     avg_phish_aug_no_artifact = round(sum(r["recall"] for r in filtered_transforms.values()) / len(filtered_transforms), 4)
 
-    baseline_line = (
-        f"| **A-Baseline** | Code gốc ExplainableAgent (offline) | {golden_v1_str} | "
-        f"{phish_results['identity']['recall']*100:.1f}% | {avg_phish_aug*100:.1f}% | "
-        f"{benign_results['identity']['fpr']*100:.1f}% | {auroc:.4f} |\n"
-    )
-
-    notes_block = (
-        "\n> [!NOTE]\n"
-        f"> - **Cỡ mẫu phishing**: Đã lấy mẫu ngẫu nhiên {len(sample_phish)}/{len(phishing_rows)} URL phishing (seed {args.seed}), toàn bộ {len(sample_benign)} URL benign từ tập test PhishVN (`url_test.csv`).\n"
-        "> - **Phish Aug Recall Avg**:\n"
-        f">   - Tính trên toàn bộ {len(phish_results)} biến thể augmentation: **{avg_phish_aug*100:.1f}%**.\n"
-        f">   - Tính khi loại trừ 2 biến thể artifact (`userinfo_decoy` và `base64_param`): **{avg_phish_aug_no_artifact*100:.1f}%**.\n"
-        ">   - *Lý do*: Hai transform `userinfo_decoy` (chèn `vietcombank.com.vn@...`) và `base64_param` (chèn domain chứa dấu gạch ngang `track.mail-vn.com`) luôn đạt recall 100.0% là artifact của augmentation (chuỗi mồi tự động kích hoạt luật so khớp BLOCK D của ExplainableAgent).\n"
-        "> - **Quy tắc chấm Golden v1**: Luật chấm đổi từ lenient (14/20) sang exact (13/20).\n"
-    )
-
-    if not results_md_path.exists():
-        with open(results_md_path, "w", encoding="utf-8") as f:
-            f.write(results_header + baseline_line + notes_block)
-    else:
-        content = results_md_path.read_text(encoding="utf-8")
-        lines = content.splitlines()
-        has_baseline = False
-        new_lines = []
-        for line in lines:
-            if line.strip().startswith("| **A-Baseline** |"):
-                new_lines.append(baseline_line.strip())
-                has_baseline = True
-            elif not line.startswith("> ") and not line.startswith("> [!NOTE]"):
-                new_lines.append(line)
-        if not has_baseline:
-            inserted = False
-            for idx, line in enumerate(new_lines):
-                if line.startswith("|---"):
-                    new_lines.insert(idx + 1, baseline_line.strip())
-                    inserted = True
-                    break
-            if not inserted:
-                new_lines.append(baseline_line.strip())
-
-        while new_lines and not new_lines[-1].strip():
-            new_lines.pop()
-
-        updated_content = "\n".join(new_lines) + "\n" + notes_block
-        with open(results_md_path, "w", encoding="utf-8") as f:
-            f.write(updated_content)
-
-    print(f"Updated {results_md_path} with line 'A-Baseline' and annotation notes")
+    print("-" * 80)
+    print(f"OVERALL IDENTITY ({args.predictor.upper()}): Recall = {rec * 100:.1f}%, Precision = {prec * 100:.1f}%, F1 = {f1:.4f}, AUROC = {auroc:.4f}")
+    print(f"AUGMENTATION RECALL AVG: All = {avg_phish_aug * 100:.1f}% | Excl. Artifacts = {avg_phish_aug_no_artifact * 100:.1f}%")
+    print("=" * 80)
 
     # Save detailed JSON report
     results_dir = CURRENT_DIR / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
-    report_file = results_dir / f"url_eval_baseline_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    if args.out_path:
+        report_file = Path(args.out_path).resolve()
+    else:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_file = results_dir / f"url_eval_{args.predictor}_{ts}.json"
+
+    report_file.parent.mkdir(parents=True, exist_ok=True)
+    report_data = {
+        "config": f"{args.predictor}",
+        "predictor": args.predictor,
+        "seed": args.seed,
+        "phishing_sample_size": len(sample_phish),
+        "benign_sample_size": len(sample_benign),
+        "phishing_transforms": phish_results,
+        "benign_transforms": benign_results,
+        "avg_phish_aug_recall": avg_phish_aug,
+        "avg_phish_aug_recall_no_artifact": avg_phish_aug_no_artifact,
+        "identity_overall": {
+            "recall": rec,
+            "precision": prec,
+            "f1": f1,
+            "auroc": auroc
+        }
+    }
     with open(report_file, "w", encoding="utf-8") as f:
-        json.dump({
-            "config": "A-Baseline",
-            "seed": args.seed,
-            "phishing_sample_size": len(sample_phish),
-            "benign_sample_size": len(sample_benign),
-            "phishing_transforms": phish_results,
-            "benign_transforms": benign_results,
-            "identity_overall": {
-                "recall": rec,
-                "precision": prec,
-                "f1": f1,
-                "auroc": auroc
-            }
-        }, f, indent=2, ensure_ascii=False)
+        json.dump(report_data, f, indent=2, ensure_ascii=False)
     print(f"Saved detailed JSON report to {report_file}")
+
+    # If baseline is run explicitly, update baseline line in RESULTS.md
+    if args.predictor == "baseline":
+        results_md_path = CURRENT_DIR / "RESULTS.md"
+        if results_md_path.exists():
+            try:
+                baseline_line = (
+                    f"| **A-Baseline** | Code gốc ExplainableAgent (offline) | 65.0% (13/20 exact) | "
+                    f"{phish_results['identity']['recall']*100:.1f}% | {avg_phish_aug*100:.1f}% | "
+                    f"{benign_results['identity']['fpr']*100:.1f}% | {auroc:.4f} |\n"
+                )
+                content = results_md_path.read_text(encoding="utf-8")
+                lines = content.splitlines()
+                new_lines = []
+                for line in lines:
+                    if line.strip().startswith("| **A-Baseline** |"):
+                        new_lines.append(baseline_line.strip())
+                    else:
+                        new_lines.append(line)
+                results_md_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+                print(f"Updated baseline numbers in {results_md_path}")
+            except Exception as e:
+                print(f"[Warning] Could not update RESULTS.md: {e}")
+
+    return report_data
 
 
 if __name__ == "__main__":
