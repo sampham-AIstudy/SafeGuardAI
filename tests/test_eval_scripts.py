@@ -9,8 +9,11 @@ from eval.url_eval import (
     apply_benign_transform,
     apply_phishing_transform,
     compute_auroc,
+    compute_threshold_metrics,
+    evaluate_thresholds,
     extract_host,
     predict_url_module,
+    select_best_threshold,
 )
 from codebase.url_analysis import UrlAnalyzer
 from codebase.url_analysis.blacklist import PhishBlacklist
@@ -149,6 +152,8 @@ def test_ablation_format_table_and_marker_update():
                 "v2_crit_strict": "40.0%",
                 "p95_ms": "—",
                 "url_id_recall": "22.1%",
+                "url_recall_best_f1": "—",
+                "url_fpr_best_f1": "—",
                 "url_aug_recall_avg": "26.9%",
                 "url_aug_recall_no_art": "10.7%",
                 "url_benign_fpr": "7.4%",
@@ -167,6 +172,8 @@ def test_ablation_format_table_and_marker_update():
                 "v2_crit_strict": "80.0%",
                 "p95_ms": "120.5",
                 "url_id_recall": "22.1%",
+                "url_recall_best_f1": "35.8%",
+                "url_fpr_best_f1": "2.5%",
                 "url_aug_recall_avg": "26.9%",
                 "url_aug_recall_no_art": "10.7%",
                 "url_benign_fpr": "7.4%",
@@ -187,6 +194,8 @@ def test_ablation_format_table_and_marker_update():
                 "v2_crit_strict": "100.0%",
                 "p95_ms": "145.2",
                 "url_id_recall": "68.5%",
+                "url_recall_best_f1": "74.1%",
+                "url_fpr_best_f1": "9.6%",
                 "url_aug_recall_avg": "88.2%",
                 "url_aug_recall_no_art": "86.1%",
                 "url_benign_fpr": "0.5%",
@@ -199,9 +208,12 @@ def test_ablation_format_table_and_marker_update():
 
     table_md = format_ablation_table(mock_records)
     assert "| Cấu hình |" in table_md
+    assert "| URL recall@bestF1 |" in table_md
+    assert "| URL FPR@bestF1 |" in table_md
     assert "**A (Phase 0)**" in table_md
     assert "**B (URL Off)**" in table_md
     assert "**C (URL On)**" in table_md
+    assert "74.1%" in table_md
     assert "Chi tiết v2 B (URL Off)" in table_md
     assert "Chi tiết v2 C (URL On)" in table_md
 
@@ -227,3 +239,98 @@ def test_ablation_format_table_and_marker_update():
     assert "# SAFEGUARD AI\n\nNo markers here." in appended
     assert MARKER_START in appended
     assert MARKER_END in appended
+
+
+def test_threshold_sweep_manual_example():
+    """Verify compute_threshold_metrics and select_best_threshold on 6 hand-calculated points."""
+    labels = [1, 1, 1, 0, 0, 0]
+    scores = [15.0, 30.0, 50.0, 5.0, 20.0, 40.0]
+
+    sweep = compute_threshold_metrics(labels, scores, thresholds=[15, 20, 30, 40, 50])
+
+    # Check metrics at threshold 20:
+    # Pos >= 20: 30, 50 (TP=2, FN=1); Neg >= 20: 20, 40 (FP=2, TN=1)
+    # Precision = 2/4 = 0.5, Recall = 2/3 ≈ 0.6667, FPR = 2/3 ≈ 0.6667
+    m20 = sweep[20]
+    assert m20["tp"] == 2
+    assert m20["fp"] == 2
+    assert m20["fn"] == 1
+    assert m20["tn"] == 1
+    assert m20["precision"] == 0.5
+    assert m20["recall"] == 0.6667
+    assert m20["fpr"] == 0.6667
+    assert m20["f1"] == 0.5714
+
+    # Check metrics at threshold 30:
+    # Pos >= 30: 30, 50 (TP=2, FN=1); Neg >= 30: 40 (FP=1, TN=2)
+    # Precision = 2/3 ≈ 0.6667, Recall = 2/3 ≈ 0.6667, FPR = 1/3 ≈ 0.3333, F1 ≈ 0.6667
+    m30 = sweep[30]
+    assert m30["tp"] == 2
+    assert m30["fp"] == 1
+    assert m30["fn"] == 1
+    assert m30["tn"] == 2
+    assert m30["precision"] == 0.6667
+    assert m30["recall"] == 0.6667
+    assert m30["fpr"] == 0.3333
+    assert m30["f1"] == 0.6667
+
+    # Optimal threshold for this hand example is 15 (TP=3, FP=2, FN=0, TN=1, Prec=0.6, Rec=1.0, F1=0.75)
+    best = select_best_threshold(sweep)
+    assert best["threshold"] == 15
+    assert best["f1"] == 0.75
+
+
+def test_select_best_threshold_tie_breaker():
+    """Verify tie breaking: when F1 is tied, select lower FPR; when FPR also tied, higher recall."""
+    # Case 1: Same F1, different FPR -> lower FPR wins
+    sweep_tie_fpr = {
+        10: {"threshold": 10, "f1": 0.8000, "fpr": 0.15, "recall": 0.80, "precision": 0.80},
+        20: {"threshold": 20, "f1": 0.8000, "fpr": 0.05, "recall": 0.80, "precision": 0.80},
+    }
+    best_fpr = select_best_threshold(sweep_tie_fpr)
+    assert best_fpr["threshold"] == 20, "Tie breaker must prefer lower FPR"
+
+    # Case 2: Same F1 and same FPR, different Recall -> higher Recall wins
+    sweep_tie_rec = {
+        15: {"threshold": 15, "f1": 0.7500, "fpr": 0.10, "recall": 0.85, "precision": 0.67},
+        25: {"threshold": 25, "f1": 0.7500, "fpr": 0.10, "recall": 0.70, "precision": 0.81},
+    }
+    best_rec = select_best_threshold(sweep_tie_rec)
+    assert best_rec["threshold"] == 15, "Tie breaker must prefer higher Recall when FPR is equal"
+
+
+def test_evaluate_thresholds_selected_on_val_not_test():
+    """
+    Verify best_f1 selects optimal threshold on validation set, NOT on test set.
+    Synthetic setup:
+      - Val set has optimal F1 at t = 20
+      - Test set has optimal F1 at t = 40
+    evaluate_thresholds must select t = 20, report test metrics at t = 20, and set selected_on = 'val'.
+    """
+    # Val: optimal at t = 20 (F1 = 1.0), zero at t = 40
+    val_labels = [1, 1, 0, 0]
+    val_scores = [20.0, 30.0, 5.0, 10.0]
+
+    # Test: optimal at t = 40 (F1 = 1.0), suboptimal at t = 20 (F1 = 0.8)
+    test_labels = [1, 1, 0, 0]
+    test_scores = [45.0, 50.0, 15.0, 25.0]
+
+    test_sweep, best_f1 = evaluate_thresholds(
+        test_labels=test_labels,
+        test_scores=test_scores,
+        val_labels=val_labels,
+        val_scores=val_scores,
+        thresholds=[10, 20, 30, 40],
+    )
+
+    # Must pick t = 20 (from val), NOT t = 40 (which would be test tuning)
+    assert best_f1["threshold"] == 20, f"Expected threshold 20 from val set, got {best_f1['threshold']}"
+    assert best_f1["selected_on"] == "val"
+    assert best_f1["val_f1"] == 1.0
+
+    # Test metrics reported must be those at t = 20 on test set
+    assert best_f1["f1"] == test_sweep[20]["f1"]
+    assert best_f1["recall"] == test_sweep[20]["recall"]
+    assert best_f1["fpr"] == test_sweep[20]["fpr"]
+    assert best_f1["precision"] == test_sweep[20]["precision"]
+

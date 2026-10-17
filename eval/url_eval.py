@@ -246,12 +246,124 @@ def predict_url_module(analyzer: Any, text: str) -> tuple[bool, int, set[str]]:
     return is_phishing, score, signals
 
 
+DEFAULT_THRESHOLDS: list[int] = [1, 10, 15, 20, 25, 30, 40, 50, 60, 75]
+
+
+def compute_threshold_metrics(
+    labels: list[int],
+    scores: list[float],
+    thresholds: list[int] | None = None,
+) -> dict[int, dict[str, Any]]:
+    """
+    Compute classification metrics (precision, recall, fpr, f1) for each threshold.
+    Positive label is 1, negative is 0. Predicted positive if score >= threshold.
+    """
+    if thresholds is None:
+        thresholds = DEFAULT_THRESHOLDS
+
+    res: dict[int, dict[str, Any]] = {}
+    for t in thresholds:
+        tp = sum(1 for y, s in zip(labels, scores) if y == 1 and s >= t)
+        fp = sum(1 for y, s in zip(labels, scores) if y == 0 and s >= t)
+        fn = sum(1 for y, s in zip(labels, scores) if y == 1 and s < t)
+        tn = sum(1 for y, s in zip(labels, scores) if y == 0 and s < t)
+
+        prec = round(tp / (tp + fp), 4) if (tp + fp) > 0 else 0.0
+        rec = round(tp / (tp + fn), 4) if (tp + fn) > 0 else 0.0
+        fpr = round(fp / (fp + tn), 4) if (fp + tn) > 0 else 0.0
+        f1 = round(2 * prec * rec / (prec + rec), 4) if (prec + rec) > 0 else 0.0
+
+        res[t] = {
+            "threshold": t,
+            "precision": prec,
+            "recall": rec,
+            "fpr": fpr,
+            "f1": f1,
+            "tp": tp,
+            "fp": fp,
+            "fn": fn,
+            "tn": tn,
+        }
+    return res
+
+
+def select_best_threshold(sweep: dict[int, dict[str, Any]]) -> dict[str, Any]:
+    """
+    Select the optimal threshold maximizing F1.
+    Tie-breaking:
+      1. Maximize F1
+      2. Minimize FPR (fewer false positives on benign URLs)
+      3. Maximize Recall
+      4. Minimize threshold (more sensitive trigger)
+    """
+    best_candidate = None
+    for t in sorted(sweep.keys()):
+        m = sweep[t]
+        key = (m["f1"], -m["fpr"], m["recall"], -m["threshold"])
+        if best_candidate is None or key > best_candidate[0]:
+            best_candidate = (key, m)
+    return best_candidate[1] if best_candidate else {}
+
+
+def evaluate_thresholds(
+    test_labels: list[int],
+    test_scores: list[float],
+    val_labels: list[int] | None = None,
+    val_scores: list[float] | None = None,
+    thresholds: list[int] | None = None,
+) -> tuple[dict[int, dict[str, Any]], dict[str, Any]]:
+    """
+    Compute threshold sweep on test set and select optimal threshold on val set (or test fallback).
+    Returns:
+      (test_sweep, best_f1_dict)
+    """
+    if thresholds is None:
+        thresholds = DEFAULT_THRESHOLDS
+
+    test_sweep = compute_threshold_metrics(test_labels, test_scores, thresholds)
+
+    if val_labels and val_scores and len(val_labels) > 0:
+        val_sweep = compute_threshold_metrics(val_labels, val_scores, thresholds)
+        best_val = select_best_threshold(val_sweep)
+        best_t = best_val["threshold"]
+        best_test_item = test_sweep[best_t]
+        best_f1 = {
+            "threshold": best_t,
+            "f1": best_test_item["f1"],
+            "recall": best_test_item["recall"],
+            "fpr": best_test_item["fpr"],
+            "precision": best_test_item["precision"],
+            "selected_on": "val",
+            "val_f1": best_val["f1"],
+        }
+    else:
+        best_test = select_best_threshold(test_sweep)
+        best_t = best_test["threshold"]
+        best_test_item = test_sweep[best_t]
+        best_f1 = {
+            "threshold": best_t,
+            "f1": best_test_item["f1"],
+            "recall": best_test_item["recall"],
+            "fpr": best_test_item["fpr"],
+            "precision": best_test_item["precision"],
+            "selected_on": "test",
+            "warning": "ngưỡng chọn trên chính tập test, chỉ mang tính tham khảo",
+        }
+
+    return test_sweep, best_f1
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="URL Phishing Evaluation")
     parser.add_argument(
         "--data",
         default=str(PROJECT_ROOT / "data" / "data-phising-VN-ver2" / "splits" / "url_test.csv"),
         help="Path to url_test.csv"
+    )
+    parser.add_argument(
+        "--val-data",
+        default=None,
+        help="Path to url_val.csv for threshold tuning (optional, auto-detected if omitted)"
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling")
     parser.add_argument("--sample-phish", type=int, default=1000, help="Number of phishing URLs to sample")
@@ -420,6 +532,95 @@ def run_url_eval(args=None):
     print(f"AUGMENTATION RECALL AVG: All = {avg_phish_aug * 100:.1f}% | Excl. Artifacts = {avg_phish_aug_no_artifact * 100:.1f}%")
     print("=" * 80)
 
+    # 4. Threshold Sweep & Optimal Threshold Selection (on val split if available)
+    val_csv_path = None
+    if getattr(args, "val_data", None):
+        val_cand = Path(args.val_data).resolve()
+        if val_cand.exists():
+            val_csv_path = val_cand
+    if val_csv_path is None:
+        sibling_val = csv_path.parent / "url_val.csv"
+        if sibling_val.exists():
+            val_csv_path = sibling_val
+        else:
+            default_val = PROJECT_ROOT / "data" / "data-phising-VN-ver2" / "splits" / "url_val.csv"
+            if default_val.exists():
+                val_csv_path = default_val
+
+    val_labels = None
+    val_scores = None
+
+    if val_csv_path and val_csv_path.exists():
+        val_phish_rows = []
+        val_benign_rows = []
+        with open(val_csv_path, "r", encoding="utf-8", errors="replace") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                lbl = row.get("label", "").strip().lower()
+                u = row.get("url", "").strip() or row.get("url_norm", "").strip()
+                if not u:
+                    continue
+                if lbl == "phishing":
+                    val_phish_rows.append(u)
+                elif lbl == "benign":
+                    val_benign_rows.append(u)
+
+        if val_phish_rows and val_benign_rows:
+            val_rng = random.Random(args.seed)
+            if len(val_phish_rows) > args.sample_phish:
+                val_sample_phish = val_rng.sample(val_phish_rows, args.sample_phish)
+            else:
+                val_sample_phish = val_phish_rows
+            val_sample_benign = val_benign_rows
+
+            print(f"[INFO] Evaluating validation split for threshold tuning ({len(val_sample_phish)} phish, {len(val_sample_benign)} benign)...")
+
+            if args.predictor == "baseline":
+                val_model_obj = model_obj
+            else:
+                val_blacklist = PhishBlacklist.from_dataset(exclude_splits=["test", "val"])
+                val_model_obj = UrlAnalyzer(blacklist=val_blacklist)
+
+            val_labels = []
+            val_scores = []
+            for u in val_sample_phish:
+                norm = u if u.startswith(("http://", "https://")) else f"http://{u}"
+                if args.predictor == "baseline":
+                    _, s = predict_baseline(val_model_obj, norm)
+                else:
+                    _, s, _ = predict_url_module(val_model_obj, norm)
+                val_labels.append(1)
+                val_scores.append(s)
+
+            for u in val_sample_benign:
+                norm = u if u.startswith(("http://", "https://")) else f"https://{u}"
+                if args.predictor == "baseline":
+                    _, s = predict_baseline(val_model_obj, norm)
+                else:
+                    _, s, _ = predict_url_module(val_model_obj, norm)
+                val_labels.append(0)
+                val_scores.append(s)
+
+    test_sweep, best_f1 = evaluate_thresholds(all_labels, all_scores, val_labels, val_scores, DEFAULT_THRESHOLDS)
+
+    print("-" * 80)
+    print(f"THRESHOLD SWEEP (IDENTITY TEST SET, PREDICTOR: {args.predictor.upper()})")
+    print(f"{'Threshold':>9} | {'Precision':>9} | {'Recall':>9} | {'FPR':>9} | {'F1':>8}")
+    print("-" * 55)
+    for t in DEFAULT_THRESHOLDS:
+        m = test_sweep[t]
+        print(f"{t:>9} | {m['precision']*100:>8.1f}% | {m['recall']*100:>8.1f}% | {m['fpr']*100:>8.1f}% | {m['f1']:>8.4f}")
+    print("-" * 55)
+    if best_f1.get("selected_on") == "val":
+        print(f"Optimal Threshold: t = {best_f1['threshold']} (chọn trên split: val, val F1 = {best_f1.get('val_f1', 0.0):.4f})")
+    else:
+        print(f"[CẢNH BÁO] Optimal Threshold: t = {best_f1['threshold']} ({best_f1.get('warning', 'ngưỡng chọn trên chính tập test, chỉ mang tính tham khảo')})")
+    print(
+        f"At t = {best_f1['threshold']} (Test): Recall = {best_f1['recall']*100:.1f}%, "
+        f"FPR = {best_f1['fpr']*100:.1f}%, Precision = {best_f1['precision']*100:.1f}%, F1 = {best_f1['f1']:.4f}"
+    )
+    print("=" * 80)
+
     # Save detailed JSON report
     results_dir = CURRENT_DIR / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -445,7 +646,9 @@ def run_url_eval(args=None):
             "precision": prec,
             "f1": f1,
             "auroc": auroc
-        }
+        },
+        "threshold_sweep": {str(k): v for k, v in test_sweep.items()},
+        "best_f1": best_f1,
     }
     with open(report_file, "w", encoding="utf-8") as f:
         json.dump(report_data, f, indent=2, ensure_ascii=False)

@@ -43,6 +43,8 @@ CONFIG_A_DATA: dict[str, Any] = {
     "v2_crit_strict": "40.0%",
     "p95_ms": "—",
     "url_id_recall": "22.1%",
+    "url_recall_best_f1": "—",
+    "url_fpr_best_f1": "—",
     "url_aug_recall_avg": "26.9%",
     "url_aug_recall_no_art": "10.7%",
     "url_benign_fpr": "7.4%",
@@ -186,6 +188,14 @@ def evaluate_config(
     p95 = v2_all_metrics.get("latency", {}).get("p95_ms", 0.0)
 
     url_id_rec = url_data.get("identity_overall", {}).get("recall", 0.0) * 100
+    best_f1_dict = url_data.get("best_f1", {})
+    if best_f1_dict and "recall" in best_f1_dict and "fpr" in best_f1_dict:
+        url_rec_best = f"{best_f1_dict.get('recall', 0.0) * 100:.1f}%"
+        url_fpr_best = f"{best_f1_dict.get('fpr', 0.0) * 100:.1f}%"
+    else:
+        url_rec_best = "—"
+        url_fpr_best = "—"
+
     url_aug_rec = url_data.get("avg_phish_aug_recall", 0.0) * 100
     url_aug_no_art = url_data.get("avg_phish_aug_recall_no_artifact", 0.0) * 100
     url_fpr = url_data.get("benign_transforms", {}).get("identity", {}).get("fpr", 0.0) * 100
@@ -207,6 +217,8 @@ def evaluate_config(
             "v2_crit_strict": f"{v2_crit:.1f}%",
             "p95_ms": f"{p95:.1f}",
             "url_id_recall": f"{url_id_rec:.1f}%",
+            "url_recall_best_f1": url_rec_best,
+            "url_fpr_best_f1": url_fpr_best,
             "url_aug_recall_avg": f"{url_aug_rec:.1f}%",
             "url_aug_recall_no_art": f"{url_aug_no_art:.1f}%",
             "url_benign_fpr": f"{url_fpr:.1f}%",
@@ -228,6 +240,8 @@ def format_ablation_table(records: list[dict[str, Any]]) -> str:
         "Recall CRIT chặt (v2)",
         "p95 (ms)",
         "URL Identity Recall",
+        "URL recall@bestF1",
+        "URL FPR@bestF1",
         "URL Aug Recall (Avg / No-art)",
         "URL Benign FPR",
         "AUROC",
@@ -260,6 +274,8 @@ def format_ablation_table(records: list[dict[str, Any]]) -> str:
             str(fmt.get("v2_crit_strict", "—")),
             str(fmt.get("p95_ms", "—")),
             str(fmt.get("url_id_recall", "—")),
+            str(fmt.get("url_recall_best_f1", "—")),
+            str(fmt.get("url_fpr_best_f1", "—")),
             f"{fmt.get('url_aug_recall_avg', '—')} / {fmt.get('url_aug_recall_no_art', '—')}",
             str(fmt.get("url_benign_fpr", "—")),
             str(fmt.get("url_auroc", "—")),
@@ -273,6 +289,7 @@ def format_ablation_table(records: list[dict[str, Any]]) -> str:
         "> - **Cấu hình A (Phase 0)**: Đo ở Phase 0 (commit 250d938), giữ nguyên làm đối chứng, không chạy lại.",
         "> - **Cấu hình B (URL Off)**: Tắt module URL (`SAFEGUARD_URL_MODULE=off`), giữ nguyên logic ExplainableAgent cũ và cải tiến Phase 1.",
         "> - **Cấu hình C (URL On)**: Bật module URL Deobfuscation & Analysis đầy đủ (WhatWG URL parsing, multi-layer decoding, IDN homoglyph, Brand catalog, PhishBlacklist train+val).",
+        "> - **Ngưỡng tối ưu**: Cột `URL recall@bestF1` và `URL FPR@bestF1` đo hiệu năng tại ngưỡng tối ưu F1 chọn trên tập validation (url_val.csv), tránh chọn ngưỡng trên test.",
     ]
 
     for rec in records:
