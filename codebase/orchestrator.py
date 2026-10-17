@@ -1,6 +1,7 @@
 import sys
 import os
 import time
+import re
 
 try:
     from PIL import Image
@@ -17,12 +18,57 @@ from codebase.agents.explainable_agent import ExplainableAgent
 from codebase.agents.confidence_agent import ConfidenceAgent
 from codebase.agents.emergency_agent import EmergencyAgent
 from codebase.agents.decision_agent import DecisionAgent
+from typing import Any
 from codebase.agents.multi_llm_client import MultiLLMClient      # NEW: multi-platform router
 from codebase.agents.gemini_agent_runner import GeminiAgentRunner
 from codebase.agents.threat_intel_agent import ThreatIntelAgent  # NEW: threat intelligence
 from codebase.agents.prompt_guard import PromptGuard
+from codebase.agents.url_analysis_agent import URLAnalysisAgent
+from codebase.url_analysis.analyzer import UrlAnalyzer
+from codebase.url_analysis.blacklist import PhishBlacklist
 from codebase.knowledge_base.db_connect import MySQLManager
 from codebase.config import get_settings
+
+
+class AnalysisDict(dict):
+    """
+    A dict subclass supporting attribute access (e.g. report.findings, finding.effective_host)
+    and transparent JSON serialization with standard json.dumps.
+    """
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        self[name] = value
+
+    def to_dict(self) -> dict[str, Any]:
+        return dict(self)
+
+
+def _wrap_report_dict(val: Any) -> Any:
+    """Recursively wrap dictionaries/lists into AnalysisDict for attribute access."""
+    if val is None:
+        return None
+    if hasattr(val, "to_dict") and not isinstance(val, dict):
+        val = val.to_dict()
+    if isinstance(val, dict):
+        return AnalysisDict({k: _wrap_report_dict(v) for k, v in val.items()})
+    if isinstance(val, list):
+        return [_wrap_report_dict(item) for item in val]
+    return val
+
+
+def _clean_text_for_url_analysis(text: str) -> str:
+    """
+    Sanitize text before URL analysis to remove standalone clock times (e.g. '14:30', '08:00').
+    Prevents WHATWG single-integer IPv4 parser from misinterpreting '14:30' as host '0.0.0.14' port 30.
+    """
+    if not text:
+        return text
+    return re.sub(r'(?<![0-9a-zA-Z/])(?:[01]?[0-9]|2[0-3]):[0-5][0-9](?![0-9a-zA-Z/]|(?:\.[a-zA-Z]))', ' ', text)
 
 
 class SafeGuardOrchestrator:
@@ -44,6 +90,16 @@ class SafeGuardOrchestrator:
         self.multi_llm_client = MultiLLMClient()
         self.llm_client = self.multi_llm_client
         self.db_manager = MySQLManager()
+
+        # URL Analysis Agent — single instantiation in __init__
+        try:
+            phish_data = getattr(self.rag_agent, "phish_data", None)
+            blacklist = PhishBlacklist.from_dataset(phish_data)
+        except Exception:
+            blacklist = PhishBlacklist()
+
+        self.url_analyzer = UrlAnalyzer(blacklist=blacklist)
+        self.url_agent = URLAnalysisAgent(analyzer=self.url_analyzer)
 
         # Gemini Agentic Runner — primary execution path
         self.agent_runner = GeminiAgentRunner(agents={
@@ -71,6 +127,10 @@ class SafeGuardOrchestrator:
         guard_eval = self.prompt_guard.evaluate_input(user_text)
         if not guard_eval.get("is_safe", True):
             print(f"[Orchestrator] Refused malicious request: {guard_eval.get('reason')}")
+            url_report = None
+            if get_settings().url_module_enabled:
+                raw_rep = self.url_agent.analyze(_clean_text_for_url_analysis(user_text))
+                url_report = _wrap_report_dict(raw_rep)
             return {
                 "session_id": session_id,
                 "user_input": user_text,
@@ -85,7 +145,8 @@ class SafeGuardOrchestrator:
                     "hitl_disclaimer": "SafeGuard AI Security & Ethics Policy Enforced."
                 },
                 "risk_score": 0,
-                "latency_ms": round((time.time() - start_time) * 1000, 2)
+                "latency_ms": round((time.time() - start_time) * 1000, 2),
+                "url_analysis": url_report
             }
 
         injection_detected = bool(guard_eval.get("injection_detected", False))
@@ -152,6 +213,90 @@ class SafeGuardOrchestrator:
             injection_detected=injection_detected,
             input_truncated=input_truncated
         )
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # URL EVIDENCE FLOORS
+    # ─────────────────────────────────────────────────────────────────────────
+    def _apply_evidence_floors(
+        self,
+        risk_score: int,
+        url_report: Any = None,
+        explain_info: dict | None = None
+    ) -> tuple[int, bool]:
+        """
+        Apply evidence-based floors according to Phase 2D:
+        - When module is disabled or url_report is None: returns (risk_score, False)
+        - Critical codes (USERINFO_BRAND_DECOY, HOMOGLYPH_BRAND, BLACKLIST_HIT,
+          APK_DOWNLOAD, DATA_OR_JS_URI, BACKSLASH_CONFUSION...) => risk >= 85
+          (APK/DATA => >= 90)
+        - max_url_risk >= 70 => risk >= 75
+        - max_url_risk 40-69 => risk >= 45
+        - critical_evidence = True if any critical code is present
+        """
+        if not get_settings().url_module_enabled or url_report is None:
+            return risk_score, False
+
+        crit_codes = set()
+        raw_crit = getattr(url_report, "critical_codes", None)
+        if raw_crit is None and isinstance(url_report, dict):
+            raw_crit = url_report.get("critical_codes", [])
+        if raw_crit:
+            crit_codes.update(raw_crit)
+
+        findings = getattr(url_report, "findings", None)
+        if findings is None and isinstance(url_report, dict):
+            findings = url_report.get("findings", [])
+
+        has_apk_or_data = False
+        all_signal_codes = set()
+
+        def _scan_finding(f_item):
+            nonlocal has_apk_or_data
+            sigs = getattr(f_item, "signals", None)
+            if sigs is None and isinstance(f_item, dict):
+                sigs = f_item.get("signals", [])
+            for s in sigs or []:
+                code = getattr(s, "code", None) if not isinstance(s, dict) else s.get("code")
+                sev = getattr(s, "severity", None) if not isinstance(s, dict) else s.get("severity")
+                if code:
+                    all_signal_codes.add(code)
+                if sev == "critical":
+                    crit_codes.add(code)
+                if code in ("APK_DOWNLOAD", "DATA_OR_JS_URI") or (code and ("APK" in code or "DATA_OR_JS" in code)):
+                    has_apk_or_data = True
+
+            children = getattr(f_item, "children", None)
+            if children is None and isinstance(f_item, dict):
+                children = f_item.get("children", [])
+            for ch in children or []:
+                _scan_finding(ch)
+
+        for f in findings or []:
+            _scan_finding(f)
+
+        critical_url_codes = {
+            "USERINFO_BRAND_DECOY", "HOMOGLYPH_BRAND", "BLACKLIST_HIT",
+            "APK_DOWNLOAD", "DATA_OR_JS_URI", "BACKSLASH_CONFUSION"
+        }
+        has_critical = bool(crit_codes) or bool(all_signal_codes & critical_url_codes)
+        critical_evidence = has_critical
+
+        max_url_risk = getattr(url_report, "max_url_risk", None)
+        if max_url_risk is None and isinstance(url_report, dict):
+            max_url_risk = url_report.get("max_url_risk", 0)
+        max_url_risk = max_url_risk or 0
+
+        res_risk = risk_score
+        if has_critical:
+            res_risk = max(res_risk, 85)
+        if has_apk_or_data:
+            res_risk = max(res_risk, 90)
+        if max_url_risk >= 70:
+            res_risk = max(res_risk, 75)
+        elif max_url_risk >= 40:
+            res_risk = max(res_risk, 45)
+
+        return min(99, res_risk), critical_evidence
 
     # ─────────────────────────────────────────────────────────────────────────
     # PATH A: Finalize result from Gemini Agentic Runner
@@ -224,6 +369,19 @@ class SafeGuardOrchestrator:
         else:
             full_text = user_text
 
+        url_report = None
+        if get_settings().url_module_enabled:
+            raw_rep = self.url_agent.analyze(_clean_text_for_url_analysis(full_text))
+            url_report = _wrap_report_dict(raw_rep)
+
+        critical_evidence = False
+        if get_settings().url_module_enabled:
+            risk_score, critical_evidence = self._apply_evidence_floors(
+                risk_score=risk_score,
+                url_report=url_report,
+                explain_info=explain_info
+            )
+
         decision_info = self.decision_agent.evaluate_decision(
             risk_score=risk_score,
             confidence_info=confidence_info,
@@ -231,6 +389,8 @@ class SafeGuardOrchestrator:
             emergency_info=emergency_info,
             user_text=user_text,
             real_llm_result=agent_result,
+            critical_evidence=critical_evidence,
+            url_report=url_report,
             has_image=has_image,
             full_text=full_text
         )
@@ -286,7 +446,8 @@ class SafeGuardOrchestrator:
             "decision": decision_info,
             "risk_score": risk_score,
             "real_ai_call": True,
-            "latency_ms": elapsed_ms
+            "latency_ms": elapsed_ms,
+            "url_analysis": url_report
         }
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -317,6 +478,11 @@ class SafeGuardOrchestrator:
         else:
             full_text = user_text
 
+        # URL Analysis (if module enabled)
+        url_report = None
+        if get_settings().url_module_enabled:
+            raw_rep = self.url_agent.analyze(_clean_text_for_url_analysis(full_text))
+            url_report = _wrap_report_dict(raw_rep)
 
         # Step 3: RAG Agent Knowledge Match
         # Protect against single-token DoS repetitive strings (e.g. 'a'*50000 without spaces/dots)
@@ -343,7 +509,8 @@ class SafeGuardOrchestrator:
             text=full_text,
             matched_flags=rag_result["matched_flags"],
             ocr_anomalies=ocr_result["anomalies"],
-            escalation_info=escalation_info
+            escalation_info=escalation_info,
+            url_report=url_report
         )
 
         if injection_detected:
@@ -375,6 +542,14 @@ class SafeGuardOrchestrator:
         if breakdown_count >= 3:
             risk_score = max(risk_score, 70)
 
+        critical_evidence = False
+        if get_settings().url_module_enabled:
+            risk_score, critical_evidence = self._apply_evidence_floors(
+                risk_score=risk_score,
+                url_report=url_report,
+                explain_info=explain_info
+            )
+
         # Step 7: Confidence Agent
         confidence_info = self.confidence_agent.evaluate(
             matched_flags_count=len(rag_result["matched_flags"]),
@@ -390,6 +565,8 @@ class SafeGuardOrchestrator:
             emergency_info=emergency_info,
             user_text=user_text,
             real_llm_result=real_llm_result,
+            critical_evidence=critical_evidence,
+            url_report=url_report,
             has_image=has_image,
             full_text=full_text
         )
@@ -444,7 +621,8 @@ class SafeGuardOrchestrator:
             "decision": decision_info,
             "risk_score": risk_score,
             "real_ai_call": self.llm_client.is_active,
-            "latency_ms": elapsed_ms
+            "latency_ms": elapsed_ms,
+            "url_analysis": url_report
         }
 
 

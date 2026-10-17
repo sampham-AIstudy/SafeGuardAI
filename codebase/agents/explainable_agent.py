@@ -1,7 +1,40 @@
 import re
 from urllib.parse import urlparse
+from typing import Any
 
+from codebase.config import get_settings
 from codebase.text_utils import PhraseMatcher, make_variants
+
+
+class AnalysisDict(dict):
+    """
+    A dict subclass supporting attribute access (e.g. report.findings, finding.effective_host)
+    and transparent JSON serialization with standard json.dumps.
+    """
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        self[name] = value
+
+    def to_dict(self) -> dict[str, Any]:
+        return dict(self)
+
+
+def _wrap_report_dict(val: Any) -> Any:
+    """Recursively wrap dictionaries/lists into AnalysisDict for attribute access."""
+    if val is None:
+        return None
+    if hasattr(val, "to_dict") and not isinstance(val, dict):
+        val = val.to_dict()
+    if isinstance(val, dict):
+        return AnalysisDict({k: _wrap_report_dict(v) for k, v in val.items()})
+    if isinstance(val, list):
+        return [_wrap_report_dict(item) for item in val]
+    return val
 
 OFFICIAL_WHITELIST_DOMAINS = {
     # Official Vietnam Banks
@@ -376,7 +409,65 @@ class ExplainableAgent:
                 return True
         return False
 
-    def explain(self, text, matched_flags, ocr_anomalies, escalation_info=None):
+    @property
+    def url_analyzer(self):
+        if not hasattr(self, "_lazy_url_analyzer") or self._lazy_url_analyzer is None:
+            from codebase.url_analysis.analyzer import UrlAnalyzer
+            from codebase.url_analysis.blacklist import PhishBlacklist
+            self._lazy_url_analyzer = UrlAnalyzer(blacklist=PhishBlacklist())
+        return self._lazy_url_analyzer
+
+    def _legacy_url_factor(self, text, text_lower, clean_norm, factors, has_only_official_urls):
+        urls = self._extract_urls(text)
+        url_hostnames = [self._parse_hostname(u) for u in urls if u]
+
+        suspicious_tld = [".xyz", ".cc", ".apk", ".tk", ".ml", ".ga", ".cf", ".info", ".top", ".pw"]
+        brand_keywords = [
+            "vietcombank", "techcombank", "agribank", "vpbank", "bidv", "vneid",
+            "microsoft", "microsoftonline", "shopee", "chinhphu"
+        ]
+
+        impersonated_detected = False
+        for url, host in zip(urls, url_hostnames):
+            if not host:
+                continue
+
+            if self.is_official_domain(host):
+                continue
+
+            is_brand_impersonation = False
+            for brand in brand_keywords:
+                if brand in host:
+                    is_brand_impersonation = True
+                    break
+
+            is_suspicious_tld = any(host.endswith(tld) or tld in host for tld in suspicious_tld)
+
+            if is_brand_impersonation or is_suspicious_tld or "-" in host:
+                impersonated_detected = True
+
+        added_weight = 0
+        if impersonated_detected:
+            weight = 45
+            factors.append({"factor": "Đường link giả mạo / Domain impersonation ngân hàng hoặc cơ quan nhà nước", "weight": weight})
+            added_weight += weight
+        elif any(w in text_lower for w in ["link lạ", "nhấp vào đây", "click here"]) and not has_only_official_urls:
+            weight = 30
+            factors.append({"factor": "Chứa đường link dẫn đến địa chỉ nghi vấn", "weight": weight})
+            added_weight += weight
+        return added_weight
+
+    def explain(self, text, matched_flags, ocr_anomalies, escalation_info=None, url_report=None):
+        settings = get_settings()
+        module_enabled = bool(settings.url_module_enabled)
+
+        if url_report is None and module_enabled:
+            try:
+                clean_for_url = re.sub(r'(?<![0-9a-zA-Z/])(?:[01]?[0-9]|2[0-3]):[0-5][0-9](?![0-9a-zA-Z/]|(?:\.[a-zA-Z]))', ' ', text)
+                url_report = self.url_analyzer.analyze_text(clean_for_url)
+            except Exception:
+                url_report = None
+
         variants = make_variants(text)
         text_lower = variants.lower
         factors = []
@@ -386,17 +477,31 @@ class ExplainableAgent:
         clean_norm = re.sub(r'\s+', ' ', variants.clean)
         folded_norm = re.sub(r'\s+', ' ', variants.folded)
 
-        urls = self._extract_urls(text)
-        url_hostnames = [self._parse_hostname(u) for u in urls if u]
-
-        has_urls = len(urls) > 0
-        official_urls_count = sum(1 for h in url_hostnames if self.is_official_domain(h))
-        has_only_official_urls = has_urls and (official_urls_count == len(urls))
-        has_suspicious_urls = any(not self.is_official_domain(h) for h in url_hostnames)
-
-        # Check for bare suspicious domain using local linear regex (G2)
         bare_domains = self._linear_domain_regex.findall(clean_norm)
         has_suspicious_bare_domain = any(not self.is_official_domain(d) for d in bare_domains)
+
+        all_signals = []
+        if module_enabled and url_report is not None:
+            findings = getattr(url_report, "findings", None)
+            if findings is None and isinstance(url_report, dict):
+                findings = url_report.get("findings", [])
+
+            raw_off = getattr(url_report, "has_only_official_urls", None)
+            if raw_off is None and isinstance(url_report, dict):
+                raw_off = url_report.get("has_only_official_urls", False)
+            has_only_official_urls = bool(raw_off)
+
+            has_suspicious_urls = any(
+                not (getattr(f, "is_official", False) if not isinstance(f, dict) else f.get("is_official", False))
+                for f in (findings or [])
+            )
+        else:
+            urls = self._extract_urls(text)
+            url_hostnames = [self._parse_hostname(u) for u in urls if u]
+            has_urls = len(urls) > 0
+            official_urls_count = sum(1 for h in url_hostnames if self.is_official_domain(h))
+            has_only_official_urls = has_urls and (official_urls_count == len(urls))
+            has_suspicious_urls = any(not self.is_official_domain(h) for h in url_hostnames)
 
         # Check for explicit scam action indicators (exact 539ecb1 logic)
         has_scam_actions = any(kw in text_lower for kw in self._scam_action_keywords)
@@ -547,41 +652,60 @@ class ExplainableAgent:
             total_risk_score += weight
 
         # ─────────────────────────────────────────
-        # BLOCK D: Domain Impersonation & Fake Links (539ecb1)
+        # BLOCK D: URL / Fake Link Factor
         # ─────────────────────────────────────────
-        suspicious_tld = [".xyz", ".cc", ".apk", ".tk", ".ml", ".ga", ".cf", ".info", ".top", ".pw"]
-        brand_keywords = [
-            "vietcombank", "techcombank", "agribank", "vpbank", "bidv", "vneid",
-            "microsoft", "microsoftonline", "shopee", "chinhphu"
-        ]
+        if module_enabled and url_report is not None:
+            max_url_risk = getattr(url_report, "max_url_risk", None)
+            if max_url_risk is None and isinstance(url_report, dict):
+                max_url_risk = url_report.get("max_url_risk", 0)
+            max_url_risk = max_url_risk or 0
 
-        impersonated_detected = False
-        for url, host in zip(urls, url_hostnames):
-            if not host:
-                continue
+            if max_url_risk >= 70:
+                url_weight = 50
+            elif max_url_risk >= 40:
+                url_weight = 35
+            elif max_url_risk >= 20:
+                url_weight = 15
+            else:
+                url_weight = 0
 
-            if self.is_official_domain(host):
-                continue
+            def _collect_signals(f_item):
+                sigs = getattr(f_item, "signals", None)
+                if sigs is None and isinstance(f_item, dict):
+                    sigs = f_item.get("signals", [])
+                for s in sigs or []:
+                    all_signals.append(s)
+                ch_list = getattr(f_item, "children", None)
+                if ch_list is None and isinstance(f_item, dict):
+                    ch_list = f_item.get("children", [])
+                for ch in ch_list or []:
+                    _collect_signals(ch)
 
-            is_brand_impersonation = False
-            for brand in brand_keywords:
-                if brand in host:
-                    is_brand_impersonation = True
-                    break
+            for f in (findings or []):
+                _collect_signals(f)
 
-            is_suspicious_tld = any(host.endswith(tld) or tld in host for tld in suspicious_tld)
+            severity_prio = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
+            def _sig_rank(s):
+                sev = getattr(s, "severity", None) if not isinstance(s, dict) else s.get("severity")
+                w = getattr(s, "weight", None) if not isinstance(s, dict) else s.get("weight")
+                return (severity_prio.get(sev, 0), w or 0)
 
-            if is_brand_impersonation or is_suspicious_tld or "-" in host:
-                impersonated_detected = True
+            non_info = [s for s in all_signals if (getattr(s, "severity", None) if not isinstance(s, dict) else s.get("severity")) != "info"]
+            sig_pool = non_info if non_info else all_signals
+            top_signal = max(sig_pool, key=_sig_rank, default=None) if sig_pool else None
+            top_msg = ""
+            if top_signal:
+                top_msg = getattr(top_signal, "message_vi", None) if not isinstance(top_signal, dict) else top_signal.get("message_vi", "")
 
-        if impersonated_detected:
-            weight = 45
-            factors.append({"factor": "Đường link giả mạo / Domain impersonation ngân hàng hoặc cơ quan nhà nước", "weight": weight})
-            total_risk_score += weight
-        elif any(w in text_lower for w in ["link lạ", "nhấp vào đây", "click here"]) and not has_only_official_urls:
-            weight = 30
-            factors.append({"factor": "Chứa đường link dẫn đến địa chỉ nghi vấn", "weight": weight})
-            total_risk_score += weight
+            if url_weight > 0:
+                factor_text = f"Đường link giả mạo / che giấu: {top_msg}" if top_msg else "Đường link giả mạo / che giấu nguy hiểm"
+                factors.append({"factor": factor_text, "weight": url_weight})
+                total_risk_score += url_weight
+            elif any(w in text_lower for w in ["link lạ", "nhấp vào đây", "click here"]) and not has_only_official_urls and not (findings or []):
+                factors.append({"factor": "Chứa đường link dẫn đến địa chỉ nghi vấn", "weight": 30})
+                total_risk_score += 30
+        else:
+            total_risk_score += self._legacy_url_factor(text, text_lower, clean_norm, factors, has_only_official_urls)
 
         # ─────────────────────────────────────────
         # BLOCK E: APK Malware / Fake App Installation (539ecb1)
@@ -903,16 +1027,28 @@ class ExplainableAgent:
             total_risk_score += weight
 
         # Special Override: If input contains ONLY official whitelisted domains and no scam actions, set risk to 0%
-        if has_only_official_urls and not has_scam_actions:
-            final_risk_score = 0
-            factors = []
+        if module_enabled and url_report is not None:
+            has_medium_plus = any(
+                (getattr(s, "severity", None) if not isinstance(s, dict) else s.get("severity")) in ("medium", "high", "critical")
+                for s in all_signals
+            )
+            if has_only_official_urls and not has_medium_plus and not has_scam_actions:
+                final_risk_score = 0
+                factors = []
+            else:
+                final_risk_score = min(total_risk_score, 99)
         else:
-            final_risk_score = min(total_risk_score, 99)
+            if has_only_official_urls and not has_scam_actions:
+                final_risk_score = 0
+                factors = []
+            else:
+                final_risk_score = min(total_risk_score, 99)
 
         return {
             "risk_score": final_risk_score,
             "risk_breakdown": factors,
-            "reasons": [f"{item['factor']}: +{item['weight']}%" for item in factors]
+            "reasons": [f"{item['factor']}: +{item['weight']}%" for item in factors],
+            "url_analysis": _wrap_report_dict(url_report) if (module_enabled and url_report is not None) else None
         }
 
 

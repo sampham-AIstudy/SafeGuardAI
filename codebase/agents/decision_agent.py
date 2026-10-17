@@ -86,10 +86,29 @@ class DecisionAgent:
         if full_text and isinstance(full_text, str) and self._money_action_regex.search(full_text.lower()):
             has_money_action = True
 
+        has_dangerous_or_suspicious_url = False
+        if url_report is not None:
+            findings = getattr(url_report, "findings", None)
+            if findings is None and isinstance(url_report, dict):
+                findings = url_report.get("findings", [])
+            for f in findings or []:
+                v = getattr(f, "verdict", None) if not isinstance(f, dict) else f.get("verdict")
+                r = getattr(f, "url_risk_score", 0) if not isinstance(f, dict) else f.get("url_risk_score", 0)
+                if v in ("dangerous", "suspicious") or (r and r >= 40):
+                    has_dangerous_or_suspicious_url = True
+                    break
+
         # General Chat condition:
-        # No URL, no factors, risk_score < 25, not emergency, no image,
+        # No URL, no factors, risk_score < 25, not emergency, no image, no dangerous/suspicious URL,
         # AND (matches exact greeting OR 1 <= words <= 8 without money/action keywords)
-        can_be_general = (not has_url) and (not has_factors) and (risk_score < 25) and (not is_emergency) and (not has_image)
+        can_be_general = (
+            (not has_url)
+            and (not has_factors)
+            and (risk_score < 25)
+            and (not is_emergency)
+            and (not has_image)
+            and (not has_dangerous_or_suspicious_url)
+        )
         is_general_chat = can_be_general and (is_exact_greeting or (1 <= word_count <= 8 and not has_money_action))
 
         if is_general_chat:
