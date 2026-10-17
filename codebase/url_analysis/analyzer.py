@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import threading
 import time
 import urllib.parse
 from typing import Any
@@ -21,6 +22,34 @@ from codebase.url_analysis.normalize import load_url_lists, normalize_for_urls
 from codebase.url_analysis.parse import parse_url
 
 MAX_TEXT_CHARS = 20000
+
+_shared_analyzer_lock = threading.Lock()
+_shared_analyzer_instance: UrlAnalyzer | None = None
+
+
+def get_shared_url_analyzer(force_refresh: bool = False) -> UrlAnalyzer:
+    """
+    Thread-safe getter for singleton UrlAnalyzer instance with full PhishBlacklist
+    (including platform exclusions, official domains, and conflicted host handling).
+    """
+    global _shared_analyzer_instance
+    if _shared_analyzer_instance is None or force_refresh:
+        with _shared_analyzer_lock:
+            if _shared_analyzer_instance is None or force_refresh:
+                try:
+                    from codebase.knowledge_base.dataset_loader import DatasetLoader
+                    loader = DatasetLoader()
+                    phish_data = loader.load_phish_vn_datasets()
+                    blacklist = PhishBlacklist.from_dataset(phish_data)
+                    _shared_analyzer_instance = UrlAnalyzer(blacklist=blacklist)
+                    _shared_analyzer_instance._source_data_id = id(phish_data)
+                    _shared_analyzer_instance._source_domains_hash = hash(frozenset(phish_data.get("phishing_domains", set())))
+                except Exception:
+                    blacklist = PhishBlacklist.from_dataset()
+                    _shared_analyzer_instance = UrlAnalyzer(blacklist=blacklist)
+                    _shared_analyzer_instance._source_data_id = None
+                    _shared_analyzer_instance._source_domains_hash = None
+    return _shared_analyzer_instance
 
 
 class UrlAnalyzer:
@@ -71,6 +100,10 @@ class UrlAnalyzer:
         is_off, _ = self.catalog.is_official(h)
         if is_off:
             return True
+        if hasattr(self.catalog, "is_related"):
+            is_rel, _ = self.catalog.is_related(h)
+            if is_rel:
+                return True
         for p in self.platform_domains:
             p_clean = p.lower().strip(".")
             # Exclude free hosting domains from protected platform exemption
@@ -365,6 +398,11 @@ class UrlAnalyzer:
 
         # 3. Check official brand catalog
         is_off, off_brand = self.catalog.is_official(effective_host)
+        if not is_off and hasattr(self.catalog, "is_related"):
+            is_rel, rel_brand = self.catalog.is_related(effective_host)
+            if is_rel:
+                is_off = True
+                off_brand = rel_brand
 
         # 4. Check brand impersonation match
         b_match = self.catalog.brand_match(effective_host, registrable, parsed.path, parsed.query)
@@ -704,6 +742,25 @@ class UrlAnalyzer:
                     f"Đường dẫn URL chứa từ khóa mồi nhử lừa đảo '{matched_path_str}' trên nền tảng người dùng/hosting miễn phí.",
                     f"path={parsed.path}, tokens={matched_path_str}",
                 )
+
+        # Signal: INVALID HOST LENGTH (DNS standard limit: max 253 chars, max 63 chars per label)
+        eff_h = effective_host or ""
+        disp_h = display_host or ""
+        is_invalid_host_len = (
+            len(eff_h) > 253
+            or any(len(lbl) > 63 for lbl in eff_h.split("."))
+            or (bool(disp_h) and (len(disp_h) > 253 or any(len(lbl) > 63 for lbl in disp_h.split("."))))
+        )
+        if is_invalid_host_len:
+            if "INVALID_HOST_LENGTH" not in parsed.flags:
+                parsed.flags.append("INVALID_HOST_LENGTH")
+            add_sig(
+                "INVALID_HOST_LENGTH",
+                "low",
+                15,
+                "Tên miền có độ dài vượt quá giới hạn chuẩn DNS (tối đa 253 ký tự hoặc 63 ký tự mỗi nhãn).",
+                f"host_len={len(eff_h)}",
+            )
 
         # Signal: INVALID TLD
         is_invalid_tld = (

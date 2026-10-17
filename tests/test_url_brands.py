@@ -168,3 +168,159 @@ class TestSkeletonAndLevenshtein:
         assert damerau_levenshtein("vietcornbank", "vietcombank") == 2
         assert damerau_levenshtein("sh0pee", "shopee") == 1
         assert damerau_levenshtein("acb", "acb") == 0
+
+
+class TestVietnameseIDNHomoglyphs:
+    """R1.2: IDN with Vietnamese diacritics must be detected as homoglyphs using real idna.encode."""
+
+    @pytest.mark.parametrize(
+        "unicode_host,expected_brand",
+        [
+            ("viêtcombank.com.vn", "vietcombank"),
+            ("shopeé.vn", "shopee"),
+            ("mômo.vn", "momo"),
+            ("agribànk.vn", "agribank"),
+            ("techcômbank.com", "techcombank"),
+            ("víettel.vn", "viettel"),
+            ("tíkì.vn", "tiki"),
+            ("bídv.vn", "bidv"),
+            ("zálô.vn", "zalo"),
+            ("lazadà.vn", "lazada"),
+        ],
+    )
+    def test_idn_diacritic_punycode_homoglyph_detection(self, catalog, unicode_host, expected_brand):
+        import idna
+        puny_host = idna.encode(unicode_host).decode("ascii")
+        assert "xn--" in puny_host
+
+        match = catalog.brand_match(puny_host)
+        assert match is not None, f"Expected homoglyph match for {puny_host} ({unicode_host})"
+        assert match["technique"] == "homoglyph"
+        assert match["brand_id"] == expected_brand
+
+
+class TestTyposquatMultiToken:
+    """R1.3: Typosquat with and without extra tokens (rn->m, 0->o, 1->l, duplication, deletion, transposition)."""
+
+    VARIANTS = [
+        # 1. rn <-> m (no token)
+        ("vietcornbank.com.vn", "typosquat", "vietcombank"),
+        # 2. rn <-> m (with token)
+        ("vietcornbank-login.com", "typosquat", "vietcombank"),
+        # 3. o <-> 0 (no token)
+        ("sh0pee.vn", "typosquat", "shopee"),
+        # 4. o <-> 0 (with token)
+        ("sh0pee-vn.com", "typosquat", "shopee"),
+        # 5. o <-> 0 (wallet with token)
+        ("zal0pay-online.vn", "typosquat", "zalopay"),
+        # 6. i <-> 1 (no token)
+        ("v1etcombank.vn", "typosquat", "vietcombank"),
+        # 7. i <-> 1 (with token)
+        ("v1etcombank-ebank.xyz", "typosquat", "vietcombank"),
+        # 8. Duplicated letter (no token)
+        ("viettcombank.com", "typosquat", "vietcombank"),
+        # 9. Duplicated letter (with token)
+        ("shoopee-voucher.com", "typosquat", "shopee"),
+        # 10. Missing letter (no token)
+        ("vietcomban.vn", "typosquat", "vietcombank"),
+        # 11. Missing letter (with token)
+        ("agriban-online.com", "typosquat", "agribank"),
+        # 12. Adjacent transposition (no token)
+        ("veitcombank.com", "typosquat", "vietcombank"),
+        # 13. Adjacent transposition (with token)
+        ("veitcombank-verify.info", "typosquat", "vietcombank"),
+        # 14. Adjacent transposition in ecommerce (with token)
+        ("sohpee-login.net", "typosquat", "shopee"),
+    ]
+
+    @pytest.mark.parametrize("host,expected_technique,expected_brand", VARIANTS)
+    def test_typosquat_variants_with_and_without_tokens(self, catalog, host, expected_technique, expected_brand):
+        match = catalog.brand_match(host)
+        assert match is not None, f"Expected match for {host}"
+        assert match["technique"] == expected_technique
+        assert match["brand_id"] == expected_brand
+
+
+class TestRealDomainsNoFalsePositives:
+    """R1.4: >= 30 real popular domains in VN and globally must NOT be flagged as brand impersonations."""
+
+    REAL_DOMAINS = [
+        "pvcombank.com.vn",
+        "shopeefood.vn",
+        "shopeepay.vn",
+        "acb.vn",
+        "mb.com.vn",
+        "mbs.com.vn",
+        "vietinbank.com.vn",
+        "sacombank.com.vn",
+        "techcombank.com.vn",
+        "vietcombank.com.vn",
+        "bidv.com.vn",
+        "agribank.com.vn",
+        "tpbank.com.vn",
+        "vpbank.com.vn",
+        "seabank.com.vn",
+        "namabank.com.vn",
+        "lpbank.com.vn",
+        "viettel.vn",
+        "vinaphone.com.vn",
+        "mobifone.vn",
+        "vnpt.com.vn",
+        "vnexpress.net",
+        "tuoitre.vn",
+        "thanhnien.vn",
+        "dantri.com.vn",
+        "shopee.vn",
+        "lazada.vn",
+        "tiki.vn",
+        "google.com",
+        "facebook.com",
+        "github.com",
+        "wikipedia.org",
+        "dichvucong.gov.vn",
+        "baohiemxahoi.gov.vn",
+        "thuedientu.gdt.gov.vn",
+        "congan.gov.vn",
+        "vietnamairlines.com",
+        "vietjetair.com",
+    ]
+
+    @pytest.mark.parametrize("domain", REAL_DOMAINS)
+    def test_real_domain_not_flagged(self, catalog, domain):
+        match = catalog.brand_match(domain)
+        assert match is None, f"Real domain {domain} was falsely flagged: {match}"
+
+
+class TestNewBrandsRecognition:
+    """R1.5: Verification that new brands added to vn_brands.json are properly recognized and protected."""
+
+    def test_new_brands_attacks_detected(self, catalog):
+        # VNPT attack
+        m_vnpt = catalog.brand_match("vnpt-tracuucuoc.xyz")
+        assert m_vnpt is not None
+        assert m_vnpt["brand_id"] == "vnpt"
+
+        # Grab attack
+        m_grab = catalog.brand_match("grab-khuyenmai.top")
+        assert m_grab is not None
+        assert m_grab["brand_id"] == "grab"
+
+        # EVN attack
+        m_evn = catalog.brand_match("evn-hoadon-dien.net")
+        assert m_evn is not None
+        assert m_evn["brand_id"] == "evn"
+
+        # Vietnam Airlines attack
+        m_vna = catalog.brand_match("vietnamairlines-vemaybay.vip")
+        assert m_vna is not None
+        assert m_vna["brand_id"] == "vietnamairlines"
+
+        # Vietjet attack
+        m_vj = catalog.brand_match("vietjetair-uudai.top")
+        assert m_vj is not None
+        assert m_vj["brand_id"] == "vietjetair"
+
+        # PVcomBank attack
+        m_pvcb = catalog.brand_match("pvcombank-online.xyz")
+        assert m_pvcb is not None
+        assert m_pvcb["brand_id"] == "pvcombank"

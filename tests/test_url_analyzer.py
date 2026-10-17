@@ -594,4 +594,97 @@ class TestLureKeywordPath:
         )
 
 
+class TestB1LongHostAndTokenPerformance:
+    """B1: Verification of DNS length limits, token/pair caps, linear scaling and typosquat detection."""
+
+    CASES = [
+        ("host_18000_chars", "https://" + "abcde-" * 3000 + "x.com"),
+        ("label_5000_chars", "https://" + "a" * 5000 + ".com"),
+        ("tokens_3000", "https://" + "token-" * 3000 + "x.com"),
+        ("labels_2000_repeat", "https://" + "sub." * 2000 + "domain.com"),
+        ("a_dash_10000", "a-" * 10000),
+    ]
+
+    @pytest.mark.parametrize("case_id,payload", CASES, ids=[c[0] for c in CASES])
+    def test_b1_performance_and_linear_scaling(self, analyzer, case_id, payload):
+        durations = []
+        res = None
+        for _ in range(2):
+            t0 = time.perf_counter()
+            res = analyzer.analyze_text(payload)
+            durations.append(time.perf_counter() - t0)
+        best = min(durations)
+        assert best < 0.25, f"[{case_id}] analyze_text took {best:.4f}s (must be < 0.25s)"
+
+        half_payload = payload[: len(payload) // 2]
+        half_durations = []
+        for _ in range(2):
+            t0_half = time.perf_counter()
+            analyzer.analyze_text(half_payload)
+            half_durations.append(time.perf_counter() - t0_half)
+        best_half = min(half_durations)
+        if best_half > 0.005:
+            ratio = best / best_half
+            assert ratio <= 3.0, f"[{case_id}] scaling ratio {ratio:.2f}x exceeds linear limit (<= 3.0x)"
+
+    def test_b1_invalid_host_length_signal(self, analyzer):
+        """Host > 253 chars or label > 63 chars triggers INVALID_HOST_LENGTH signal (weight 15, low)."""
+        # Host > 253 chars
+        long_host_url = "https://" + "a" * 260 + ".com"
+        res1 = analyzer.analyze_text(long_host_url)
+        assert len(res1.findings) > 0
+        sig_codes1 = {s.code for s in res1.findings[0].signals}
+        assert "INVALID_HOST_LENGTH" in sig_codes1
+        sig = next(s for s in res1.findings[0].signals if s.code == "INVALID_HOST_LENGTH")
+        assert sig.severity == "low"
+        assert sig.weight == 15
+
+        # Label > 63 chars
+        long_label_url = "https://" + "a" * 70 + ".example.com"
+        res2 = analyzer.analyze_text(long_label_url)
+        assert len(res2.findings) > 0
+        sig_codes2 = {s.code for s in res2.findings[0].signals}
+        assert "INVALID_HOST_LENGTH" in sig_codes2
+
+    def test_b1_typosquat_detected_within_first_16_tokens(self, analyzer):
+        """Typosquat brand is properly detected when token is within the first 16 tokens."""
+        # Single token typosquat
+        res_single = analyzer.analyze_text("https://vietcornbank-login.com")
+        assert any(
+            any(s.code == "TYPOSQUAT_BRAND" for s in f.signals)
+            for f in res_single.findings
+        )
+
+        # Typosquat at index 5 (within first 16 tokens)
+        prefix_tokens = ["shop", "verify", "secure", "portal", "user"]
+        multi_url = "https://" + "-".join(prefix_tokens + ["vietcornbank", "auth"]) + ".com"
+        res_multi = analyzer.analyze_text(multi_url)
+        assert any(
+            any(s.code == "TYPOSQUAT_BRAND" for s in f.signals)
+            for f in res_multi.findings
+        )
+
+    def test_b1_mutation_killer_token_cap(self, analyzer):
+        """Mutation 1 Killer: Dropping 16-token cap would flag token beyond 16th position."""
+        # vietcornbank is at position 20 (beyond 16 tokens). With cap, it is ignored in brand matching.
+        prefix_20 = ["sub"] * 20
+        url_beyond_16 = "https://" + "-".join(prefix_20 + ["vietcornbank"]) + ".com"
+        res = analyzer.analyze_text(url_beyond_16)
+        assert not any(
+            any(s.code == "TYPOSQUAT_BRAND" for s in f.signals)
+            for f in res.findings
+        ), "Mutation 1 survived: token beyond 16th position was inspected!"
+
+    def test_b1_mutation_killer_label_length_cap(self, analyzer):
+        """Mutation 2 Killer: Dropping 63-char label cap would inspect chars beyond index 63."""
+        # Brand keyword vietcornbank placed strictly after 63rd character in a single label.
+        # With 63-char cap, label is sliced to 63 chars so vietcornbank is excluded from brand matching.
+        long_label_host = "https://" + "x" * 63 + "-vietcornbank.com"
+        res = analyzer.analyze_text(long_label_host)
+        assert not any(
+            any(s.code == "TYPOSQUAT_BRAND" for s in f.signals)
+            for f in res.findings
+        ), "Mutation 2 survived: chars beyond 63 in label were inspected for brand matching!"
+
+
 

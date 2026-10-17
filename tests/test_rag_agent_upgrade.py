@@ -71,6 +71,46 @@ def test_blacklist_query_requires_dot():
     assert test_domain in res_with_dot["matched_phish_domains"]
 
 
+def test_custom_phish_data_platform_and_official_not_matched():
+    """B2: Platform and official domains inside custom phish_data must NEVER match."""
+    agent = RAGAgent()
+    fake_domain = "fake-bank-test12345.com"
+    platform_domain = "facebook.com"
+    official_domain = "vietcombank.com.vn"
+
+    agent.phish_data = {
+        "phishing_domains": {fake_domain, platform_domain, official_domain},
+        "total_phishing_records": 3,
+    }
+
+    res = agent.search(f"Truy cap {fake_domain} hoac {platform_domain} hoac {official_domain}")
+    assert fake_domain in res["matched_phish_domains"]
+    assert platform_domain not in res["matched_phish_domains"]
+    assert official_domain not in res["matched_phish_domains"]
+
+
+def test_two_rag_agents_with_different_phish_data_isolated():
+    """B2: Two RAGAgents with different custom phish_data must not use each other's blacklist."""
+    agent1 = RAGAgent()
+    dom1 = "custom-scam-agent1.com"
+    agent1.phish_data = {"phishing_domains": {dom1}, "total_phishing_records": 1}
+
+    agent2 = RAGAgent()
+    dom2 = "custom-scam-agent2.com"
+    agent2.phish_data = {"phishing_domains": {dom2}, "total_phishing_records": 1}
+
+    res1 = agent1.search(f"kiem tra {dom1}")
+    assert dom1 in res1["matched_phish_domains"]
+    assert dom2 not in res1["matched_phish_domains"]
+
+    res2_check_dom1 = agent2.search(f"kiem tra {dom1}")
+    assert dom1 not in res2_check_dom1["matched_phish_domains"]
+
+    res2 = agent2.search(f"kiem tra {dom2}")
+    assert dom2 in res2["matched_phish_domains"]
+    assert dom1 not in res2["matched_phish_domains"]
+
+
 def test_trigger_phrases_count_and_no_golden_leak():
     """Total trigger phrases must be > 0 and no phrase >= 40 chars."""
     kb_path = Path(__file__).resolve().parent.parent / "codebase" / "knowledge_base" / "vn_scam_tactics.json"

@@ -219,3 +219,41 @@ def test_orchestrator_passes_url_report_to_rag():
     assert "url_analysis" in res
     assert res["url_analysis"] is not None
     assert res["risk_score"] >= 75
+
+
+def test_shared_url_analyzer_16_threads():
+    """R1.6: 16 concurrent threads calling get_shared_url_analyzer() return the exact same instance."""
+    import concurrent.futures
+    from codebase.url_analysis import get_shared_url_analyzer
+
+    import codebase.url_analysis.analyzer as ana_mod
+    ana_mod._shared_analyzer_instance = None
+
+    def _get_instance():
+        return get_shared_url_analyzer()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
+        futures = [pool.submit(_get_instance) for _ in range(16)]
+        instances = [f.result() for f in futures]
+
+    assert len(instances) == 16
+    first_id = id(instances[0])
+    for inst in instances:
+        assert id(inst) == first_id, "get_shared_url_analyzer did not return singleton instance across threads"
+
+
+def test_rag_search_no_blacklist_hit_for_platform_urls():
+    """R1.6: PhishBlacklist via RAG does NOT hit for platform domains (facebook.com/groups, docs.google.com, zalo.me)."""
+    agent = RAGAgent()
+    platform_texts = [
+        "Xem thong tin tai https://facebook.com/groups/123456",
+        "Tai lieu huong dan: https://docs.google.com/document/d/abcdef",
+        "Nhom chat ho tro: https://zalo.me/g/groupabc",
+    ]
+    for text in platform_texts:
+        res = agent.search(text, url_report=None)
+        assert len(res["matched_phish_domains"]) == 0, f"False positive blacklist hit for: {text}"
+        for flag in res["matched_flags"]:
+            assert "facebook.com" not in flag
+            assert "docs.google.com" not in flag
+            assert "zalo.me" not in flag

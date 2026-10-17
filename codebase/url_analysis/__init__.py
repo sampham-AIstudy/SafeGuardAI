@@ -16,6 +16,10 @@ from codebase.url_analysis.extract import (
     extract_candidates,
     trim_url,
 )
+from codebase.url_analysis.analyzer import (
+    UrlAnalyzer,
+    get_shared_url_analyzer,
+)
 
 __all__ = [
     "Candidate",
@@ -30,4 +34,6 @@ __all__ = [
     "trim_url",
     "load_url_lists",
     "get_valid_tlds",
+    "UrlAnalyzer",
+    "get_shared_url_analyzer",
 ]

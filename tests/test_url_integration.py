@@ -408,3 +408,94 @@ def test_mutation_6_llm_cannot_lower_risk_below_floor(orchestrator):
     # Even with a benign-sounding message around it:
     res = orchestrator.process_request(f"Tin nhắn bạn bè gửi {text}", persist=False)
     assert res["risk_score"] >= 85, f"Floor must guarantee >= 85, got {res['risk_score']}"
+
+
+class TestUrlRiskScoreTiersR1:
+    """R1.1: Verification of ExplainableAgent URL risk score tiers (>=70: 50, 40-69: 35, 20-39: 20, 1-19: 15, 0: 0)."""
+
+    @pytest.mark.parametrize(
+        "max_risk,expected_weight",
+        [
+            (85, 50),
+            (70, 50),
+            (65, 35),
+            (40, 35),
+            (35, 20),
+            (20, 20),
+            (19, 15),
+            (15, 15),
+            (1, 15),
+            (0, 0),
+        ],
+    )
+    def test_explainable_agent_all_five_tiers(self, max_risk, expected_weight):
+        from codebase.agents.explainable_agent import ExplainableAgent
+        from codebase.url_analysis.models import UrlAnalysisReport, UrlFinding, UrlSignal
+
+        agent = ExplainableAgent()
+        sig = UrlSignal(
+            code="SUSPICIOUS_TLD" if max_risk > 0 else "INFO",
+            severity="low" if max_risk < 40 else "high",
+            weight=max_risk,
+            message_vi="Tên miền có dấu hiệu nghi vấn",
+            evidence="test",
+        )
+        f = UrlFinding(
+            raw="http://example.xyz",
+            normalized="http://example.xyz",
+            final_url="http://example.xyz",
+            display_host="example.xyz",
+            effective_host="example.xyz",
+            effective_host_unicode="example.xyz",
+            registrable_domain="example.xyz",
+            is_official=False,
+            brand_match=None,
+            source="text",
+            signals=[sig] if max_risk > 0 else [],
+            url_risk_score=max_risk,
+        )
+        rep = UrlAnalysisReport(findings=[f], max_url_risk=max_risk, has_only_official_urls=False)
+
+        res = agent.explain("Kiem tra hoa don", url_report=rep)
+        url_factors = [item for item in res["risk_breakdown"] if "Đường link" in item["factor"]]
+
+        if expected_weight == 0:
+            assert len(url_factors) == 0, f"Expected 0 URL factors for max_risk={max_risk}, got {url_factors}"
+        else:
+            assert len(url_factors) > 0, f"Expected URL factor for max_risk={max_risk}"
+            assert url_factors[0]["weight"] == expected_weight, (
+                f"For max_risk={max_risk}, expected weight {expected_weight}, got {url_factors[0]['weight']}"
+            )
+
+    def test_weak_scam_link_tier_1_to_19_gets_15_weight(self):
+        """Scam message with low-tier url_risk (15 pts e.g. unusual domain) receives 15 URL weight instead of 0."""
+        from codebase.agents.explainable_agent import ExplainableAgent
+        from codebase.url_analysis.models import UrlAnalysisReport, UrlFinding, UrlSignal
+
+        agent = ExplainableAgent()
+        sig = UrlSignal(
+            code="FREE_HOSTING",
+            severity="low",
+            weight=15,
+            message_vi="Hosting miễn phí",
+            evidence="test",
+        )
+        f = UrlFinding(
+            raw="http://hoadon-viettel.freehost.com",
+            normalized="http://hoadon-viettel.freehost.com",
+            final_url="http://hoadon-viettel.freehost.com",
+            display_host="hoadon-viettel.freehost.com",
+            effective_host="hoadon-viettel.freehost.com",
+            effective_host_unicode="hoadon-viettel.freehost.com",
+            registrable_domain="freehost.com",
+            is_official=False,
+            brand_match=None,
+            source="text",
+            signals=[sig],
+            url_risk_score=15,
+        )
+        rep = UrlAnalysisReport(findings=[f], max_url_risk=15, has_only_official_urls=False)
+        res = agent.explain("Thong bao tra cuu hoa don tai http://hoadon-viettel.freehost.com", url_report=rep)
+        url_factors = [item for item in res["risk_breakdown"] if "Đường link" in item["factor"]]
+        assert len(url_factors) == 1
+        assert url_factors[0]["weight"] == 15

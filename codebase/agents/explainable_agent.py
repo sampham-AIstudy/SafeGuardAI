@@ -407,15 +407,30 @@ class ExplainableAgent:
         for official in OFFICIAL_WHITELIST_DOMAINS:
             if hostname == official or hostname.endswith("." + official):
                 return True
+        try:
+            from codebase.url_analysis.brands import BrandCatalog
+            cat = BrandCatalog.load()
+            is_off, _ = cat.is_official(hostname)
+            if is_off:
+                return True
+            is_rel, _ = cat.is_related(hostname)
+            if is_rel:
+                return True
+        except Exception:
+            pass
         return False
 
     @property
     def url_analyzer(self):
-        if not hasattr(self, "_lazy_url_analyzer") or self._lazy_url_analyzer is None:
-            from codebase.url_analysis.analyzer import UrlAnalyzer
-            from codebase.url_analysis.blacklist import PhishBlacklist
-            self._lazy_url_analyzer = UrlAnalyzer(blacklist=PhishBlacklist())
-        return self._lazy_url_analyzer
+        try:
+            from codebase.url_analysis import get_shared_url_analyzer
+            return get_shared_url_analyzer()
+        except Exception:
+            if not hasattr(self, "_lazy_url_analyzer") or self._lazy_url_analyzer is None:
+                from codebase.url_analysis.analyzer import UrlAnalyzer
+                from codebase.url_analysis.blacklist import PhishBlacklist
+                self._lazy_url_analyzer = UrlAnalyzer(blacklist=PhishBlacklist())
+            return self._lazy_url_analyzer
 
     def _legacy_url_factor(self, text, text_lower, clean_norm, factors, has_only_official_urls):
         urls = self._extract_urls(text)
@@ -457,9 +472,11 @@ class ExplainableAgent:
             added_weight += weight
         return added_weight
 
-    def explain(self, text, matched_flags, ocr_anomalies, escalation_info=None, url_report=None):
+    def explain(self, text, matched_flags=None, ocr_anomalies=None, escalation_info=None, url_report=None):
         settings = get_settings()
         module_enabled = bool(settings.url_module_enabled)
+        matched_flags = matched_flags or []
+        ocr_anomalies = ocr_anomalies or []
 
         if url_report is None and module_enabled:
             try:
@@ -665,6 +682,8 @@ class ExplainableAgent:
             elif max_url_risk >= 40:
                 url_weight = 35
             elif max_url_risk >= 20:
+                url_weight = 20
+            elif max_url_risk >= 1:
                 url_weight = 15
             else:
                 url_weight = 0

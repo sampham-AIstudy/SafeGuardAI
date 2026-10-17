@@ -100,27 +100,56 @@ class RAGAgent:
         self.db_manager = MySQLManager()
         self._url_analyzer = None
         self._cached_phish_id = None
+        self._custom_analyzers: dict[int, Any] = {}
 
     def _get_url_analyzer(self):
-        current_phish_domains = self.phish_data.get("phishing_domains") if isinstance(self.phish_data, dict) else None
-        current_phish_id = id(current_phish_domains)
-        if getattr(self, "_cached_phish_id", None) != current_phish_id or getattr(self, "_url_analyzer", None) is None:
+        try:
+            from codebase.url_analysis import get_shared_url_analyzer
+            shared = get_shared_url_analyzer()
+        except Exception:
+            return None
+
+        # Check if self.phish_data matches the dataset used by shared analyzer
+        phish_id = id(self.phish_data)
+        is_same = False
+
+        if hasattr(shared, "_source_data_id") and shared._source_data_id is not None:
+            if phish_id == shared._source_data_id:
+                is_same = True
+
+        if not is_same and hasattr(shared, "_source_domains_hash") and shared._source_domains_hash is not None:
             try:
-                from codebase.url_analysis.analyzer import UrlAnalyzer
-                from codebase.url_analysis.blacklist import PhishBlacklist
-                blacklist = PhishBlacklist.from_dataset()
-                if current_phish_domains:
-                    custom_hosts = {str(h).lower().strip(".") for h in current_phish_domains if h}
-                    if not custom_hosts.issubset(blacklist.hosts):
-                        blacklist = PhishBlacklist(
-                            hosts=blacklist.hosts | custom_hosts,
-                            registrables=blacklist.registrables,
-                        )
-                self._url_analyzer = UrlAnalyzer(blacklist=blacklist)
-                self._cached_phish_id = current_phish_id
+                curr_domains = self.phish_data.get("phishing_domains", set()) if isinstance(self.phish_data, dict) else set()
+                if hash(frozenset(curr_domains)) == shared._source_domains_hash:
+                    is_same = True
             except Exception:
-                self._url_analyzer = None
-        return self._url_analyzer
+                pass
+
+        if is_same:
+            return shared
+
+        # Different: build isolated PhishBlacklist using the same full-layer factory
+        # (excluding platforms/officials/conflicted), cached by id(phish_data)
+        if phish_id in self._custom_analyzers:
+            return self._custom_analyzers[phish_id]
+
+        try:
+            from codebase.url_analysis.blacklist import PhishBlacklist
+            from codebase.url_analysis.analyzer import UrlAnalyzer
+
+            raw_items = []
+            if isinstance(self.phish_data, dict):
+                raw_items.extend(self.phish_data.get("phishing_domains", []))
+                raw_items.extend(self.phish_data.get("phishing_urls", []))
+            elif isinstance(self.phish_data, (list, tuple, set)):
+                raw_items.extend(self.phish_data)
+
+            custom_bl = PhishBlacklist.from_dataset(raw_items, use_cache=False)
+            custom_analyzer = UrlAnalyzer(blacklist=custom_bl)
+            self._custom_analyzers[phish_id] = custom_analyzer
+            return custom_analyzer
+        except Exception:
+            return shared
 
     def _load_kb(self):
         if os.path.exists(self.kb_path):
@@ -194,6 +223,7 @@ class RAGAgent:
 
         if get_settings().url_module_enabled:
             # Module enabled: Do NOT run 36.8k substring scan
+            analyzer = self._get_url_analyzer()
             if url_report is not None:
                 new_matched = _extract_blacklist_domains_from_report(url_report)
                 for d in new_matched:
@@ -202,10 +232,23 @@ class RAGAgent:
                         flag_str = f"Tên miền lừa đảo NCSC/ChongLuaDao: {d}"
                         if flag_str not in matched_flags:
                             matched_flags.append(flag_str)
+                # If custom analyzer is used (different dataset), complement with matches from custom analyzer
+                if "." in query_text and analyzer is not None:
+                    try:
+                        from codebase.url_analysis import get_shared_url_analyzer
+                        if analyzer is not get_shared_url_analyzer():
+                            rep_custom = analyzer.analyze_text(query_text)
+                            for d in _extract_blacklist_domains_from_report(rep_custom):
+                                if d not in matched_phish_domains:
+                                    matched_phish_domains.append(d)
+                                    flag_str = f"Tên miền lừa đảo NCSC/ChongLuaDao: {d}"
+                                    if flag_str not in matched_flags:
+                                        matched_flags.append(flag_str)
+                    except Exception:
+                        pass
             else:
-                # url_report is None: lazy analysis with shared UrlAnalyzer if query contains potential domain/URL
+                # url_report is None: lazy analysis with UrlAnalyzer if query contains potential domain/URL
                 if "." in query_text:
-                    analyzer = self._get_url_analyzer()
                     if analyzer:
                         try:
                             rep = analyzer.analyze_text(query_text)

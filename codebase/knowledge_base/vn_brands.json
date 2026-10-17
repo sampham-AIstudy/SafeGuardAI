@@ -4,398 +4,895 @@
       "brand_id": "vietcombank",
       "display_name": "Vietcombank",
       "category": "bank",
-      "official_domains": ["vietcombank.com.vn"],
-      "keywords": ["vietcombank", "vcb"],
-      "short_tokens": ["vcb"],
+      "official_domains": [
+        "vietcombank.com.vn"
+      ],
+      "keywords": [
+        "vietcombank",
+        "vcb"
+      ],
+      "short_tokens": [
+        "vcb"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "bidv",
       "display_name": "BIDV",
       "category": "bank",
-      "official_domains": ["bidv.com.vn"],
-      "keywords": ["bidv"],
-      "short_tokens": ["bidv"],
+      "official_domains": [
+        "bidv.com.vn"
+      ],
+      "keywords": [
+        "bidv"
+      ],
+      "short_tokens": [
+        "bidv"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "vietinbank",
       "display_name": "VietinBank",
       "category": "bank",
-      "official_domains": ["vietinbank.vn"],
-      "keywords": ["vietinbank", "ctg"],
-      "short_tokens": ["ctg"],
+      "official_domains": [
+        "vietinbank.vn"
+      ],
+      "keywords": [
+        "vietinbank",
+        "ctg"
+      ],
+      "short_tokens": [
+        "ctg"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": [
+        "vietinbank.com.vn"
+      ]
     },
     {
       "brand_id": "agribank",
       "display_name": "Agribank",
       "category": "bank",
-      "official_domains": ["agribank.com.vn"],
-      "keywords": ["agribank"],
+      "official_domains": [
+        "agribank.com.vn"
+      ],
+      "keywords": [
+        "agribank"
+      ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "techcombank",
       "display_name": "Techcombank",
       "category": "bank",
-      "official_domains": ["techcombank.com", "techcombank.com.vn"],
-      "keywords": ["techcombank", "tcb"],
-      "short_tokens": ["tcb"],
+      "official_domains": [
+        "techcombank.com",
+        "techcombank.com.vn"
+      ],
+      "keywords": [
+        "techcombank",
+        "tcb"
+      ],
+      "short_tokens": [
+        "tcb"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "mbbank",
       "display_name": "MBBank",
       "category": "bank",
-      "official_domains": ["mbbank.com.vn"],
-      "keywords": ["mbbank", "mb"],
-      "short_tokens": ["mb"],
+      "official_domains": [
+        "mbbank.com.vn"
+      ],
+      "keywords": [
+        "mbbank",
+        "mb"
+      ],
+      "short_tokens": [
+        "mb"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": [
+        "mb.com.vn",
+        "mbs.com.vn"
+      ]
     },
     {
       "brand_id": "acb",
       "display_name": "ACB",
       "category": "bank",
-      "official_domains": ["acb.com.vn"],
-      "keywords": ["acb"],
-      "short_tokens": ["acb"],
+      "official_domains": [
+        "acb.com.vn"
+      ],
+      "keywords": [
+        "acb"
+      ],
+      "short_tokens": [
+        "acb"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": [
+        "acb.vn"
+      ]
     },
     {
       "brand_id": "vpbank",
       "display_name": "VPBank",
       "category": "bank",
-      "official_domains": ["vpbank.com.vn"],
-      "keywords": ["vpbank", "vpb"],
-      "short_tokens": ["vpb"],
+      "official_domains": [
+        "vpbank.com.vn"
+      ],
+      "keywords": [
+        "vpbank",
+        "vpb"
+      ],
+      "short_tokens": [
+        "vpb"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "tpbank",
       "display_name": "TPBank",
       "category": "bank",
-      "official_domains": ["tpbank.com.vn", "tpb.vn"],
-      "keywords": ["tpbank", "tpb"],
-      "short_tokens": ["tpb"],
+      "official_domains": [
+        "tpbank.com.vn",
+        "tpb.vn"
+      ],
+      "keywords": [
+        "tpbank",
+        "tpb"
+      ],
+      "short_tokens": [
+        "tpb"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "sacombank",
       "display_name": "Sacombank",
       "category": "bank",
-      "official_domains": ["sacombank.com.vn", "sacombank.com"],
-      "keywords": ["sacombank", "stb"],
-      "short_tokens": ["stb"],
+      "official_domains": [
+        "sacombank.com.vn",
+        "sacombank.com"
+      ],
+      "keywords": [
+        "sacombank",
+        "stb"
+      ],
+      "short_tokens": [
+        "stb"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "vib",
       "display_name": "VIB",
       "category": "bank",
-      "official_domains": ["vib.com.vn"],
-      "keywords": ["vib"],
-      "short_tokens": ["vib"],
+      "official_domains": [
+        "vib.com.vn"
+      ],
+      "keywords": [
+        "vib"
+      ],
+      "short_tokens": [
+        "vib"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "shb",
       "display_name": "SHB",
       "category": "bank",
-      "official_domains": ["shb.com.vn"],
-      "keywords": ["shb"],
-      "short_tokens": ["shb"],
+      "official_domains": [
+        "shb.com.vn"
+      ],
+      "keywords": [
+        "shb"
+      ],
+      "short_tokens": [
+        "shb"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "hdbank",
       "display_name": "HDBank",
       "category": "bank",
-      "official_domains": ["hdbank.com.vn"],
-      "keywords": ["hdbank", "hdb"],
-      "short_tokens": ["hdb"],
+      "official_domains": [
+        "hdbank.com.vn"
+      ],
+      "keywords": [
+        "hdbank",
+        "hdb"
+      ],
+      "short_tokens": [
+        "hdb"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "msb",
       "display_name": "MSB",
       "category": "bank",
-      "official_domains": ["msb.com.vn"],
-      "keywords": ["msb"],
-      "short_tokens": ["msb"],
+      "official_domains": [
+        "msb.com.vn"
+      ],
+      "keywords": [
+        "msb"
+      ],
+      "short_tokens": [
+        "msb"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "ocb",
       "display_name": "OCB",
       "category": "bank",
-      "official_domains": ["ocb.com.vn"],
-      "keywords": ["ocb"],
-      "short_tokens": ["ocb"],
+      "official_domains": [
+        "ocb.com.vn"
+      ],
+      "keywords": [
+        "ocb"
+      ],
+      "short_tokens": [
+        "ocb"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "scb",
       "display_name": "SCB",
       "category": "bank",
-      "official_domains": ["scb.com.vn"],
-      "keywords": ["scb"],
-      "short_tokens": ["scb"],
+      "official_domains": [
+        "scb.com.vn"
+      ],
+      "keywords": [
+        "scb"
+      ],
+      "short_tokens": [
+        "scb"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "momo",
       "display_name": "MoMo",
       "category": "ewallet",
-      "official_domains": ["momo.vn"],
-      "keywords": ["momo"],
-      "short_tokens": ["momo"],
+      "official_domains": [
+        "momo.vn"
+      ],
+      "keywords": [
+        "momo"
+      ],
+      "short_tokens": [
+        "momo"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "zalopay",
       "display_name": "ZaloPay",
       "category": "ewallet",
-      "official_domains": ["zalopay.vn"],
-      "keywords": ["zalopay"],
+      "official_domains": [
+        "zalopay.vn"
+      ],
+      "keywords": [
+        "zalopay"
+      ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "vnpay",
       "display_name": "VNPay",
       "category": "ewallet",
-      "official_domains": ["vnpay.vn"],
-      "keywords": ["vnpay"],
-      "short_tokens": ["vnpay"],
+      "official_domains": [
+        "vnpay.vn"
+      ],
+      "keywords": [
+        "vnpay"
+      ],
+      "short_tokens": [
+        "vnpay"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "vneid",
       "display_name": "VNeID",
       "category": "gov",
-      "official_domains": ["vneid.gov.vn"],
-      "keywords": ["vneid"],
-      "short_tokens": ["vneid"],
+      "official_domains": [
+        "vneid.gov.vn"
+      ],
+      "keywords": [
+        "vneid"
+      ],
+      "short_tokens": [
+        "vneid"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "dichvucong",
       "display_name": "Cổng Dịch vụ công Quốc gia",
       "category": "gov",
-      "official_domains": ["dichvucong.gov.vn"],
-      "keywords": ["dichvucong"],
+      "official_domains": [
+        "dichvucong.gov.vn"
+      ],
+      "keywords": [
+        "dichvucong"
+      ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "gdt",
       "display_name": "Tổng cục Thuế",
       "category": "gov",
-      "official_domains": ["gdt.gov.vn"],
-      "keywords": ["gdt"],
-      "short_tokens": ["gdt"],
+      "official_domains": [
+        "gdt.gov.vn",
+        "thuedientu.gdt.gov.vn"
+      ],
+      "keywords": [
+        "gdt",
+        "thuedientu"
+      ],
+      "short_tokens": [
+        "gdt"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "bocongan",
       "display_name": "Bộ Công an",
       "category": "gov",
-      "official_domains": ["bocongan.gov.vn"],
-      "keywords": ["bocongan"],
+      "official_domains": [
+        "bocongan.gov.vn",
+        "congan.gov.vn"
+      ],
+      "keywords": [
+        "bocongan",
+        "congan"
+      ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "baohiemxahoi",
       "display_name": "Bảo hiểm Xã hội Việt Nam",
       "category": "gov",
-      "official_domains": ["baohiemxahoi.gov.vn"],
-      "keywords": ["baohiemxahoi", "bhxh"],
-      "short_tokens": ["bhxh"],
+      "official_domains": [
+        "baohiemxahoi.gov.vn"
+      ],
+      "keywords": [
+        "baohiemxahoi",
+        "bhxh",
+        "vssid"
+      ],
+      "short_tokens": [
+        "bhxh"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "chinhphu",
       "display_name": "Cổng Thông tin điện tử Chính phủ",
       "category": "gov",
-      "official_domains": ["chinhphu.vn"],
-      "keywords": ["chinhphu"],
+      "official_domains": [
+        "chinhphu.vn"
+      ],
+      "keywords": [
+        "chinhphu"
+      ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "csgt",
       "display_name": "Cục Cảnh sát Giao thông",
       "category": "gov",
-      "official_domains": ["csgt.vn"],
-      "keywords": ["csgt"],
-      "short_tokens": ["csgt"],
+      "official_domains": [
+        "csgt.vn"
+      ],
+      "keywords": [
+        "csgt"
+      ],
+      "short_tokens": [
+        "csgt"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "evn",
       "display_name": "Tập đoàn Điện lực Việt Nam (EVN)",
       "category": "utility",
-      "official_domains": ["evn.com.vn"],
-      "keywords": ["evn"],
-      "short_tokens": ["evn"],
+      "official_domains": [
+        "evn.com.vn",
+        "evnhanoi.vn",
+        "evnhcmc.vn",
+        "cskh.evnspc.vn",
+        "cskh.evnnpc.com.vn"
+      ],
+      "keywords": [
+        "evn",
+        "dienluc"
+      ],
+      "short_tokens": [
+        "evn"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": [
+        "evnspc.vn",
+        "evnnpc.com.vn"
+      ]
     },
     {
       "brand_id": "shopee",
       "display_name": "Shopee",
       "category": "ecommerce",
-      "official_domains": ["shopee.vn"],
-      "keywords": ["shopee"],
+      "official_domains": [
+        "shopee.vn"
+      ],
+      "keywords": [
+        "shopee"
+      ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": [
+        "shopeefood.vn",
+        "shopeepay.vn"
+      ]
     },
     {
       "brand_id": "lazada",
       "display_name": "Lazada",
       "category": "ecommerce",
-      "official_domains": ["lazada.vn"],
-      "keywords": ["lazada"],
+      "official_domains": [
+        "lazada.vn"
+      ],
+      "keywords": [
+        "lazada"
+      ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "tiki",
       "display_name": "Tiki",
       "category": "ecommerce",
-      "official_domains": ["tiki.vn"],
-      "keywords": ["tiki"],
-      "short_tokens": ["tiki"],
+      "official_domains": [
+        "tiki.vn"
+      ],
+      "keywords": [
+        "tiki"
+      ],
+      "short_tokens": [
+        "tiki"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "tiktok",
       "display_name": "TikTok",
       "category": "social",
-      "official_domains": ["tiktok.com"],
-      "keywords": ["tiktok"],
+      "official_domains": [
+        "tiktok.com"
+      ],
+      "keywords": [
+        "tiktok"
+      ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "zalo",
       "display_name": "Zalo",
       "category": "social",
-      "official_domains": ["zalo.me"],
-      "keywords": ["zalo"],
-      "short_tokens": ["zalo"],
+      "official_domains": [
+        "zalo.me"
+      ],
+      "keywords": [
+        "zalo"
+      ],
+      "short_tokens": [
+        "zalo"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "facebook",
       "display_name": "Facebook",
       "category": "social",
-      "official_domains": ["facebook.com"],
-      "keywords": ["facebook"],
+      "official_domains": [
+        "facebook.com"
+      ],
+      "keywords": [
+        "facebook"
+      ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "vnpost",
       "display_name": "VNPost (Bưu điện Việt Nam)",
       "category": "delivery",
-      "official_domains": ["vnpost.vn"],
-      "keywords": ["vnpost"],
+      "official_domains": [
+        "vnpost.vn"
+      ],
+      "keywords": [
+        "vnpost"
+      ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "viettelpost",
       "display_name": "Viettel Post",
       "category": "delivery",
-      "official_domains": ["viettelpost.com.vn"],
-      "keywords": ["viettelpost"],
+      "official_domains": [
+        "viettelpost.com.vn"
+      ],
+      "keywords": [
+        "viettelpost"
+      ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "ghn",
       "display_name": "Giao Hàng Nhanh (GHN)",
       "category": "delivery",
-      "official_domains": ["ghn.vn"],
-      "keywords": ["ghn"],
-      "short_tokens": ["ghn"],
+      "official_domains": [
+        "ghn.vn"
+      ],
+      "keywords": [
+        "ghn"
+      ],
+      "short_tokens": [
+        "ghn"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "ghtk",
       "display_name": "Giao Hàng Tiết Kiệm (GHTK)",
       "category": "delivery",
-      "official_domains": ["ghtk.vn"],
-      "keywords": ["ghtk"],
-      "short_tokens": ["ghtk"],
+      "official_domains": [
+        "ghtk.vn"
+      ],
+      "keywords": [
+        "ghtk"
+      ],
+      "short_tokens": [
+        "ghtk"
+      ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "viettel",
       "display_name": "Viettel Telecom",
       "category": "telco",
-      "official_domains": ["viettel.vn", "vietteltelecom.vn"],
-      "keywords": ["viettel"],
+      "official_domains": [
+        "viettel.vn",
+        "vietteltelecom.vn"
+      ],
+      "keywords": [
+        "viettel"
+      ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "vinaphone",
       "display_name": "VinaPhone",
       "category": "telco",
-      "official_domains": ["vinaphone.vn", "vinaphone.com.vn"],
-      "keywords": ["vinaphone"],
+      "official_domains": [
+        "vinaphone.vn",
+        "vinaphone.com.vn"
+      ],
+      "keywords": [
+        "vinaphone"
+      ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
     },
     {
       "brand_id": "mobifone",
       "display_name": "MobiFone",
       "category": "telco",
-      "official_domains": ["mobifone.vn", "mobifone.com.vn"],
-      "keywords": ["mobifone"],
+      "official_domains": [
+        "mobifone.vn",
+        "mobifone.com.vn"
+      ],
+      "keywords": [
+        "mobifone"
+      ],
+      "short_tokens": [],
+      "verified": false,
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "related_domains": []
+    },
+    {
+      "brand_id": "vnpt",
+      "display_name": "VNPT",
+      "category": "telco",
+      "official_domains": [
+        "vnpt.com.vn",
+        "vnpt.vn"
+      ],
+      "related_domains": [],
+      "keywords": [
+        "vnpt"
+      ],
+      "short_tokens": [
+        "vnpt"
+      ],
+      "verified": false,
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+    },
+    {
+      "brand_id": "grab",
+      "display_name": "Grab",
+      "category": "ride_hailing",
+      "official_domains": [
+        "grab.com"
+      ],
+      "related_domains": [
+        "grab.vn"
+      ],
+      "keywords": [
+        "grab"
+      ],
+      "short_tokens": [
+        "grab"
+      ],
+      "verified": false,
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+    },
+    {
+      "brand_id": "vietnamairlines",
+      "display_name": "Vietnam Airlines",
+      "category": "airline",
+      "official_domains": [
+        "vietnamairlines.com"
+      ],
+      "related_domains": [
+        "vietnamairlines.vn"
+      ],
+      "keywords": [
+        "vietnamairlines",
+        "vna"
+      ],
+      "short_tokens": [
+        "vna"
+      ],
+      "verified": false,
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+    },
+    {
+      "brand_id": "vietjetair",
+      "display_name": "Vietjet Air",
+      "category": "airline",
+      "official_domains": [
+        "vietjetair.com"
+      ],
+      "related_domains": [
+        "vietjet.com"
+      ],
+      "keywords": [
+        "vietjetair",
+        "vietjet",
+        "vj"
+      ],
+      "short_tokens": [
+        "vj"
+      ],
+      "verified": false,
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+    },
+    {
+      "brand_id": "pvcombank",
+      "display_name": "PVcomBank",
+      "category": "bank",
+      "official_domains": [
+        "pvcombank.com.vn"
+      ],
+      "related_domains": [
+        "pvcombank.vn"
+      ],
+      "keywords": [
+        "pvcombank",
+        "pvcb"
+      ],
+      "short_tokens": [
+        "pvcb"
+      ],
+      "verified": false,
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+    },
+    {
+      "brand_id": "seabank",
+      "display_name": "SeABank",
+      "category": "bank",
+      "official_domains": [
+        "seabank.com.vn"
+      ],
+      "related_domains": [],
+      "keywords": [
+        "seabank"
+      ],
+      "short_tokens": [],
+      "verified": false,
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+    },
+    {
+      "brand_id": "lpbank",
+      "display_name": "LPBank",
+      "category": "bank",
+      "official_domains": [
+        "lpbank.com.vn"
+      ],
+      "related_domains": [],
+      "keywords": [
+        "lpbank",
+        "lienvietpostbank"
+      ],
+      "short_tokens": [],
+      "verified": false,
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+    },
+    {
+      "brand_id": "namabank",
+      "display_name": "Nam A Bank",
+      "category": "bank",
+      "official_domains": [
+        "namabank.com.vn"
+      ],
+      "related_domains": [],
+      "keywords": [
+        "namabank"
+      ],
+      "short_tokens": [],
+      "verified": false,
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+    },
+    {
+      "brand_id": "shopeepay",
+      "display_name": "ShopeePay",
+      "category": "wallet",
+      "official_domains": [
+        "shopeepay.vn"
+      ],
+      "related_domains": [
+        "shopeepay.com"
+      ],
+      "keywords": [
+        "shopeepay"
+      ],
+      "short_tokens": [],
+      "verified": false,
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+    },
+    {
+      "brand_id": "jtexpress",
+      "display_name": "J&T Express",
+      "category": "logistics",
+      "official_domains": [
+        "jtexpress.vn"
+      ],
+      "related_domains": [],
+      "keywords": [
+        "jtexpress",
+        "j&t"
+      ],
+      "short_tokens": [],
+      "verified": false,
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+    },
+    {
+      "brand_id": "bestexpress",
+      "display_name": "BEST Express",
+      "category": "logistics",
+      "official_domains": [
+        "best-inc.vn"
+      ],
+      "related_domains": [],
+      "keywords": [
+        "bestexpress"
+      ],
+      "short_tokens": [],
+      "verified": false,
+      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+    },
+    {
+      "brand_id": "ninjavan",
+      "display_name": "Ninja Van",
+      "category": "logistics",
+      "official_domains": [
+        "ninjavan.co"
+      ],
+      "related_domains": [],
+      "keywords": [
+        "ninjavan"
+      ],
       "short_tokens": [],
       "verified": false,
       "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"

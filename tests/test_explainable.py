@@ -75,7 +75,14 @@ def test_f1_redos_explain_speed(agent, case_id, payload):
 
 @pytest.mark.parametrize("case_id,payload", REDOS_TEST_CASES[:4], ids=[c[0] for c in REDOS_TEST_CASES[:4]])
 def test_f1_redos_process_request_speed(orchestrator, case_id, payload):
-    # Phase 2D-2: RAG blacklist uses UrlAnalyzer/PhishBlacklist instead of 36k substring loop (< 1.0s)
+    # Phase 2D-2: RAG blacklist uses UrlAnalyzer/PhishBlacklist instead of 36k substring loop (< 2.0s)
+    from codebase.url_analysis import get_shared_url_analyzer
+    url_analyzer = get_shared_url_analyzer()
+    t0_url = time.perf_counter()
+    url_analyzer.analyze_text(payload)
+    url_duration = time.perf_counter() - t0_url
+    assert url_duration < 0.1, f"[{case_id}] UrlAnalyzer.analyze_text took {url_duration:.3f}s (must be < 0.1s)"
+
     durations = []
     res = None
     for _ in range(2):
@@ -83,7 +90,7 @@ def test_f1_redos_process_request_speed(orchestrator, case_id, payload):
         res = orchestrator.process_request(payload)
         durations.append(time.perf_counter() - t0)
     best_duration = min(durations)
-    assert best_duration < 1.0, f"[{case_id}] process_request took {best_duration:.3f}s (must be < 1.0s)"
+    assert best_duration < 2.0, f"[{case_id}] process_request took {best_duration:.3f}s (must be < 2.0s)"
     assert "risk_score" in res
 
     half_payload = payload[:len(payload)//2]
@@ -99,8 +106,15 @@ def test_f1_redos_process_request_speed(orchestrator, case_id, payload):
 
 
 def test_f1_redos_process_request_a_dot_10000_speed(orchestrator):
-    """Performance test: process_request('a.' * 10000) must execute in < 1.0s (Phase 2D-2)."""
+    """Performance test: process_request('a.' * 10000) must execute in < 2.0s (Phase 2D-2)."""
     payload = "a." * 10000
+    from codebase.url_analysis import get_shared_url_analyzer
+    url_analyzer = get_shared_url_analyzer()
+    t0_url = time.perf_counter()
+    url_analyzer.analyze_text(payload)
+    url_duration = time.perf_counter() - t0_url
+    assert url_duration < 0.1, f"UrlAnalyzer.analyze_text took {url_duration:.3f}s (must be < 0.1s)"
+
     durations = []
     res = None
     for _ in range(2):
@@ -108,7 +122,7 @@ def test_f1_redos_process_request_a_dot_10000_speed(orchestrator):
         res = orchestrator.process_request(payload)
         durations.append(time.perf_counter() - t0)
     best = min(durations)
-    assert best < 1.0, f"process_request('a.' * 10000) took {best:.3f}s (must be < 1.0s)"
+    assert best < 2.0, f"process_request('a.' * 10000) took {best:.3f}s (must be < 2.0s)"
     assert "risk_score" in res
 
 

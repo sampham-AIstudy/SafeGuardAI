@@ -94,6 +94,27 @@ LOOKALIKE_SEQS: list[tuple[str, str]] = [
 ]
 
 
+def decode_idna_label(label: str) -> str:
+    """Decode punycode label (e.g. 'xn--...') to Unicode."""
+    if not label:
+        return ""
+    l_clean = label.lower().strip()
+    if l_clean.startswith("xn--"):
+        try:
+            return idna.decode(l_clean).lower()
+        except Exception:
+            return l_clean
+    return l_clean
+
+
+def decode_idna_host(host: str) -> str:
+    """Decode each label in host from punycode to Unicode."""
+    if not host:
+        return ""
+    parts = host.split(".")
+    return ".".join(decode_idna_label(p) for p in parts)
+
+
 def strip_vietnamese_diacritics(text: str) -> str:
     """Normalize Vietnamese diacritics including đ -> d."""
     if not text:
@@ -107,14 +128,14 @@ def strip_vietnamese_diacritics(text: str) -> str:
 
 
 def has_confusable_unicode(label: str) -> bool:
-    """Check if label contains Cyrillic or Greek confusables."""
+    """Check if label contains Cyrillic, Greek, fullwidth, or non-ASCII characters."""
     if not label:
         return False
     for c in label[:63]:
-        if c in CONFUSABLE_UNICODE_CHARS:
+        if c in CONFUSABLE_UNICODE_CHARS or ord(c) > 127:
             return True
         name = unicodedata.name(c, "")
-        if name.startswith(("CYRILLIC", "GREEK")):
+        if name.startswith(("CYRILLIC", "GREEK", "FULLWIDTH")):
             return True
     return False
 
@@ -126,35 +147,32 @@ def skeleton(
 ) -> str:
     """
     Produce canonical skeleton of a domain label.
-    1. NFKC normalization
-    2. Cyrillic/Greek confusables -> Latin
-    3. Digits -> letters (0->o, 1->l, 3->e, 4->a, 5->s) if requested
-    4. Multi-char lookalikes (rn->m, vv->w, cl->d) if requested
-    5. Strip Vietnamese diacritics (đ->d)
-    6. Lowercase
-    7. Remove hyphens '-'
+    1. Replace Vietnamese 'đ'/'Đ' -> 'd'
+    2. NFKD decomposition (decomposes accents, converts fullwidth Latin to ASCII)
+    3. Remove combining marks (category 'Mn' - strips all accents including ê, é, ô, ơ, ư, etc.)
+    4. Cyrillic/Greek confusables -> Latin
+    5. Lowercase
+    6. Digits -> letters (0->o, 1->l, 3->e, 4->a, 5->s) if requested
+    7. Multi-char lookalikes (rn->m, vv->w, cl->d) if requested
+    8. Remove hyphens '-'
     Linear complexity, bounded length 63.
     """
     if not label:
         return ""
     bounded = label[:63]
-    # NFKC
-    s = unicodedata.normalize("NFKC", bounded)
-    # Vietnamese diacritics
-    s = strip_vietnamese_diacritics(s)
+    # Replace Vietnamese special letter d-stroke
+    s = bounded.replace("đ", "d").replace("Đ", "d")
+    # NFKD decomposes precomposed diacritics and converts fullwidth Latin to ASCII
+    s = unicodedata.normalize("NFKD", s)
+    # Strip combining marks (accents)
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
     # Lowercase
     s = s.lower()
-    # Confusables mapping
-    res = []
-    for c in s:
-        res.append(CONFUSABLES_MAP.get(c, c))
-    s = "".join(res)
+    # Confusables mapping (Cyrillic and Greek)
+    s = "".join(CONFUSABLES_MAP.get(c, c) for c in s)
     # Digits
     if replace_digits:
-        res_d = []
-        for c in s:
-            res_d.append(DIGIT_MAP.get(c, c))
-        s = "".join(res_d)
+        s = "".join(DIGIT_MAP.get(c, c) for c in s)
     # Multi-char lookalikes
     if replace_lookalikes:
         for seq, repl in LOOKALIKE_SEQS:
@@ -248,7 +266,9 @@ class BrandCatalog:
     def _init_lookups(self) -> None:
         """Build fast lookup tables."""
         self.official_domain_map: dict[str, dict[str, Any]] = {}
+        self.related_domain_map: dict[str, dict[str, Any]] = {}
         self.all_official_domains: set[str] = set()
+        self.all_related_domains: set[str] = set()
         self.brand_keywords: list[tuple[dict[str, Any], str, bool]] = []
 
         for b in self.brands:
@@ -258,11 +278,37 @@ class BrandCatalog:
                 self.official_domain_map[d_low] = b
                 self.all_official_domains.add(d_low)
 
+            for d in b.get("related_domains", []):
+                d_low = d.lower().strip(".")
+                self.related_domain_map[d_low] = b
+                self.all_related_domains.add(d_low)
+
             for kw in b.get("keywords", []):
                 kw_clean = kw.lower().strip()
                 if kw_clean:
                     is_short = (kw_clean in b_short) or (len(kw_clean) < 5)
                     self.brand_keywords.append((b, kw_clean, is_short))
+
+    def is_related(self, effective_host: str) -> tuple[bool, dict[str, Any] | None]:
+        """
+        Check if effective_host is an authorized related domain of a known brand.
+        Returns: (is_related_bool, brand_dict_or_None)
+        """
+        if not effective_host:
+            return False, None
+
+        host = effective_host.lower().strip(" \t\r\n.")
+        if not host:
+            return False, None
+
+        if host in self.platform_domains or any(host.endswith("." + plat) for plat in self.platform_domains):
+            return False, None
+
+        for rel_dom, brand in self.related_domain_map.items():
+            if host == rel_dom or host.endswith("." + rel_dom):
+                return True, brand
+
+        return False, None
 
     def is_official(self, effective_host: str) -> tuple[bool, dict[str, Any] | None]:
         """
@@ -314,11 +360,11 @@ class BrandCatalog:
         """
         Analyze whether finding_host or its path/query impersonates a brand.
         Techniques:
-          - homoglyph: skeleton(label) == brand keyword with confusable unicode chars.
-          - typosquat: Damerau-Levenshtein <= 1 (len 5-8) or <= 2 (len >= 9) on registrable label,
-                       excluding official domains of other brands.
-          - tld_swap: registrable label matches brand exactly, but TLD differs from official.
-          - combosquat: host split by [-.] contains brand keyword (short tokens only match exact token).
+          - homoglyph: skeleton(token) == brand keyword with diacritics / confusables (any script).
+          - tld_swap: registrable label matches brand exactly, but TLD differs from official/related.
+          - typosquat: Damerau-Levenshtein <= 1 (len 5-10) or <= 2 (len >= 11) on individual
+                       registrable tokens or merged adjacent tokens.
+          - combosquat: token exact match or embedded brand keyword with other tokens.
           - subdomain_brand: brand keyword appears in subdomain prefix while registrable domain is different.
           - path_brand: brand keyword in path/query of an unofficial domain.
         Returns: {brand_id, display_name, technique, distance, official_domain} or None.
@@ -326,37 +372,55 @@ class BrandCatalog:
         if not finding_host:
             return None
 
-        host = finding_host.lower().strip(" \t\r\n.")
+        # (a) Bounded DNS length: max 253 chars for host, max 63 chars per label
+        bounded_host = finding_host[:253]
+        bounded_host = ".".join(lbl[:63] for lbl in bounded_host.split("."))
+        host = bounded_host.lower().strip(" \t\r\n.")
         if not host:
             return None
 
-        # If host is official, it is not an impersonation attack
+        # Decode IDNA host label by label into Unicode (capped 253 chars and 63 chars/label)
+        unicode_host = decode_idna_host(host)[:253]
+        unicode_host = ".".join(lbl[:63] for lbl in unicode_host.split("."))
+
+        # 0. Check if host or unicode_host is official or authorized related domain
         is_off, _ = self.is_official(host)
         if is_off:
             return None
-
-        # Decode IDNA if punycode
-        if "xn--" in host:
-            try:
-                unicode_host = idna.decode(host).lower()
-            except Exception:
-                unicode_host = host
-        else:
-            unicode_host = host
+        is_rel, _ = self.is_related(host)
+        if is_rel:
+            return None
+        if unicode_host != host:
+            is_off_u, _ = self.is_official(unicode_host)
+            if is_off_u:
+                return None
+            is_rel_u, _ = self.is_related(unicode_host)
+            if is_rel_u:
+                return None
 
         # Calculate registrable domain if not provided
         if not registrable_domain:
             registrable_domain = compute_registrable_domain(host)
-        reg_dom = (registrable_domain or "").lower().strip(".")
+        reg_bounded = (registrable_domain or "")[:253]
+        reg_bounded = ".".join(lbl[:63] for lbl in reg_bounded.split("."))
+        reg_dom = reg_bounded.lower().strip(".")
+        unicode_reg_dom = decode_idna_host(reg_dom)[:253] if reg_dom else ""
+        if unicode_reg_dom:
+            unicode_reg_dom = ".".join(lbl[:63] for lbl in unicode_reg_dom.split("."))
 
-        # If registrable domain is official for another brand, do not flag as typosquat/spoof
-        if reg_dom and reg_dom in self.all_official_domains:
-            return None
+        all_legit = self.all_official_domains | self.all_related_domains
+
+        # Exclude legitimate official / related domains of ANY brand
+        for d in (host, unicode_host, reg_dom, unicode_reg_dom):
+            if d and (d in all_legit or any(d.endswith("." + legit) for legit in all_legit)):
+                return None
 
         # 1. Subdomain brand check
-        if reg_dom and host != reg_dom and host.endswith("." + reg_dom):
-            sub_prefix = host[: -(len(reg_dom) + 1)]
-            sub_tokens = [t for t in re.split(r"[-._]+", sub_prefix) if t]
+        check_reg = unicode_reg_dom or reg_dom
+        check_host = unicode_host or host
+        if check_reg and check_host != check_reg and check_host.endswith("." + check_reg):
+            sub_prefix = check_host[: -(len(check_reg) + 1)]
+            sub_tokens = [t[:63] for t in re.split(r"[-._]+", sub_prefix) if t][:16]
             for brand, kw, is_short in self.brand_keywords:
                 matched = False
                 if is_short:
@@ -375,26 +439,52 @@ class BrandCatalog:
                     }
 
         # Extract main label of registrable domain
-        if reg_dom:
-            reg_labels = reg_dom.split(".")
-            reg_main_label = reg_labels[0]
+        if check_reg:
+            reg_main_label = check_reg.split(".")[0][:63]
         else:
-            reg_main_label = host.split(".")[0]
+            reg_main_label = check_host.split(".")[0][:63]
 
-        if "xn--" in host and "xn--" in reg_dom:
-            try:
-                u_reg = idna.decode(reg_dom).lower()
-                u_reg_main_label = u_reg.split(".")[0]
-            except Exception:
-                u_reg_main_label = reg_main_label
-        else:
-            u_reg_main_label = unicode_host.split(".")[0] if unicode_host else reg_main_label
+        # (b) Tokenize main label: max 16 tokens per label and max 16 adjacent token pairs
+        raw_tokens_all = [t[:63] for t in re.split(r"[-.]+", reg_main_label) if t]
+        raw_tokens = raw_tokens_all[:16]
 
-        # 2. Homoglyph check (Unicode confusables from Cyrillic / Greek)
-        if has_confusable_unicode(u_reg_main_label):
-            u_sk = skeleton(u_reg_main_label, replace_digits=False, replace_lookalikes=False)
+        candidate_tokens: list[tuple[str, bool]] = []
+        for t in raw_tokens:
+            candidate_tokens.append((t, t == reg_main_label))
+
+        # Merged adjacent tokens: max 16 pairs
+        num_pairs = min(16, len(raw_tokens_all) - 1)
+        for i in range(max(0, num_pairs)):
+            pair = (raw_tokens_all[i] + raw_tokens_all[i + 1])[:63]
+            candidate_tokens.append((pair, pair == reg_main_label.replace("-", "").replace(".", "")[:63]))
+
+        if len(raw_tokens_all) >= 3:
+            num_triples = min(16, len(raw_tokens_all) - 2)
+            for i in range(max(0, num_triples)):
+                triple = (raw_tokens_all[i] + raw_tokens_all[i + 1] + raw_tokens_all[i + 2])[:63]
+                candidate_tokens.append((triple, triple == reg_main_label.replace("-", "").replace(".", "")[:63]))
+
+        no_hyphens = reg_main_label.replace("-", "").replace(".", "")[:63]
+        candidate_tokens.append((no_hyphens, True))
+        candidate_tokens.append((reg_main_label[:63], True))
+
+        # Deduplicate candidate tokens preserving order
+        dedup_candidates: list[tuple[str, bool]] = []
+        seen_cand_strings: set[str] = set()
+        for tok_str, is_f in candidate_tokens:
+            tok_b = tok_str[:63]
+            if tok_b and tok_b not in seen_cand_strings:
+                seen_cand_strings.add(tok_b)
+                dedup_candidates.append((tok_b, is_f))
+        candidate_tokens = dedup_candidates
+
+        # 2. Homoglyph check across all candidate tokens and scripts (Cyrillic, Greek, fullwidth, Vietnamese IDN)
+        for tok, is_full in candidate_tokens:
+            tok_bounded = tok[:63]
+            sk_no_repl = skeleton(tok_bounded, replace_digits=False, replace_lookalikes=False)
             for brand, kw, _ in self.brand_keywords:
-                if u_sk == kw:
+                # If skeleton without digits/lookalikes equals brand keyword, but the raw token is not pure ASCII kw:
+                if sk_no_repl == kw and tok_bounded != kw:
                     return {
                         "brand_id": brand["brand_id"],
                         "display_name": brand["display_name"],
@@ -403,59 +493,100 @@ class BrandCatalog:
                         "official_domain": brand["official_domains"][0] if brand["official_domains"] else "",
                     }
 
-        # 3. TLD Swap check (Exact brand match in main label, but different TLD)
-        for brand, kw, _ in self.brand_keywords:
-            if reg_main_label == kw:
-                if reg_dom and reg_dom not in [d.lower() for d in brand.get("official_domains", [])]:
-                    return {
-                        "brand_id": brand["brand_id"],
-                        "display_name": brand["display_name"],
-                        "technique": "tld_swap",
-                        "distance": 0,
-                        "official_domain": brand["official_domains"][0] if brand["official_domains"] else "",
-                    }
+        # 3. Exact brand match: TLD Swap or Combosquat exact token
+        for tok, is_full in candidate_tokens:
+            for brand, kw, is_short in self.brand_keywords:
+                if tok == kw:
+                    if is_full:
+                        off_list = [d.lower() for d in brand.get("official_domains", [])]
+                        rel_list = [d.lower() for d in brand.get("related_domains", [])]
+                        if reg_dom not in off_list and reg_dom not in rel_list and unicode_reg_dom not in off_list and unicode_reg_dom not in rel_list:
+                            return {
+                                "brand_id": brand["brand_id"],
+                                "display_name": brand["display_name"],
+                                "technique": "tld_swap",
+                                "distance": 0,
+                                "official_domain": brand["official_domains"][0] if brand["official_domains"] else "",
+                            }
+                    else:
+                        return {
+                            "brand_id": brand["brand_id"],
+                            "display_name": brand["display_name"],
+                            "technique": "combosquat",
+                            "distance": 0,
+                            "official_domain": brand["official_domains"][0] if brand["official_domains"] else "",
+                        }
 
-        # 4. Typosquat check (Damerau-Levenshtein <= 1 or <= 2 on registrable label)
-        lbl = reg_main_label[:63]
-        lbl_sk = skeleton(lbl, replace_digits=True, replace_lookalikes=True)
-        for brand, kw, is_short in self.brand_keywords:
-            if abs(len(lbl) - len(kw)) > 2 or len(kw) < 4:
-                continue
+        # (c) Cache skeleton and Damerau-Levenshtein in a single analysis run
+        sk_cache: dict[str, str] = {}
+        dist_cache: dict[tuple[str, str], int] = {}
 
-            # Check Levenshtein distance on raw label and lookalike-normalized label
-            d_raw = damerau_levenshtein(lbl, kw)
-            d_sk = damerau_levenshtein(lbl_sk, kw)
-            dist = d_raw if (d_sk == 0 and lbl != kw) else min(d_raw, d_sk)
+        def _get_sk(t: str) -> str:
+            if t not in sk_cache:
+                sk_cache[t] = skeleton(t, replace_digits=True, replace_lookalikes=True)
+            return sk_cache[t]
 
-            n_len = max(len(lbl), len(kw))
-            is_typo = False
-            if 5 <= n_len <= 8 and dist == 1:
-                is_typo = True
-            elif n_len >= 9 and 1 <= dist <= 2:
-                is_typo = True
+        def _get_dist(s1: str, s2: str) -> int:
+            k = (s1, s2)
+            if k not in dist_cache:
+                dist_cache[k] = damerau_levenshtein(s1, s2)
+            return dist_cache[k]
 
-            if is_typo:
-                # Exclude official domains of ANY brand
-                if reg_dom not in self.all_official_domains:
-                    return {
-                        "brand_id": brand["brand_id"],
-                        "display_name": brand["display_name"],
-                        "technique": "typosquat",
-                        "distance": dist,
-                        "official_domain": brand["official_domains"][0] if brand["official_domains"] else "",
-                    }
+        # 4. Typosquat check (Damerau-Levenshtein on tokens or merged adjacent tokens)
+        for tok, is_full in candidate_tokens:
+            tok_bounded = tok[:63]
+            tok_sk = _get_sk(tok_bounded)
+
+            for brand, kw, is_short in self.brand_keywords:
+                if is_short or len(kw) < 4:
+                    continue
+                if tok_bounded == kw:
+                    continue
+
+                n_len = max(len(tok_bounded), len(kw))
+                if n_len < 5:
+                    continue
+
+                max_allowed_dist = 2 if n_len >= 11 else 1
+                diff_raw = abs(len(tok_bounded) - len(kw))
+                diff_sk = abs(len(tok_sk) - len(kw))
+
+                # Cheap pre-filtering: compute Damerau-Levenshtein only when |len - len(kw)| <= threshold
+                if diff_raw > max_allowed_dist and diff_sk > max_allowed_dist:
+                    continue
+
+                d_raw = _get_dist(tok_bounded, kw) if diff_raw <= max_allowed_dist else (max_allowed_dist + 1)
+                d_sk = _get_dist(tok_sk, kw) if diff_sk <= max_allowed_dist else (max_allowed_dist + 1)
+                dist = d_raw if (d_sk == 0 and tok_bounded != kw) else min(d_raw, d_sk)
+
+                is_typo = False
+                if 5 <= n_len <= 10 and dist == 1:
+                    is_typo = True
+                elif n_len >= 11 and 1 <= dist <= 2:
+                    is_typo = True
+
+                if is_typo:
+                    if reg_dom not in all_legit and unicode_reg_dom not in all_legit:
+                        return {
+                            "brand_id": brand["brand_id"],
+                            "display_name": brand["display_name"],
+                            "technique": "typosquat",
+                            "distance": dist,
+                            "official_domain": brand["official_domains"][0] if brand["official_domains"] else "",
+                        }
 
         # 5. Combosquat check (Brand keyword embedded with hyphens/dots in host/registrable)
-        host_tokens = [t for t in re.split(r"[-._]+", host) if t]
+        host_tokens = [t for t in re.split(r"[-._]+", check_host) if t]
         reg_tokens = [t for t in re.split(r"[-._]+", reg_main_label) if t]
         all_tokens = set(host_tokens + reg_tokens)
 
         for brand, kw, is_short in self.brand_keywords:
             matched = False
             if is_short:
-                # Short tokens MUST match as an exact token
+                # Short tokens MUST match as an exact token in multi-token host
                 if kw in all_tokens:
-                    matched = True
+                    if check_host != kw and reg_main_label != kw:
+                        matched = True
             else:
                 # Longer brands (>= 5 chars) match as token or substring in tokens/reg_main_label
                 if any(kw in tok for tok in host_tokens) or (kw in reg_main_label):
