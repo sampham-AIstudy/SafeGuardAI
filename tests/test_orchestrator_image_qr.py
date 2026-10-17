@@ -303,3 +303,16 @@ def test_mutation_6_missing_cv2_does_not_raise(monkeypatch):
     monkeypatch.setitem(sys.modules, "cv2", None)
     img = Image.new("RGB", (100, 100), color="white")
     assert extract_qr_payloads(img) == []
+
+
+def test_mutation_vietqr_crc_failure_floors_risk_score_45(orchestrator):
+    """B7 mutation: Tampered VietQR (CRC failed) must add >= 30 points and floor risk at >= 45."""
+    pytest.importorskip("cv2")
+    qr = _build_test_vietqr()
+    corrupted_qr = qr[:-4] + "FFFF"
+    qr_img = _make_qr_image(corrupted_qr)
+    res = orchestrator.process_request(user_text="Thanh toán đơn hàng", image_input=qr_img, persist=False)
+    risk = res.get("risk_score", 0)
+    assert risk >= 45, f"Expected risk >= 45 for tampered VietQR CRC, got {risk}"
+    reasons = res.get("explainable", {}).get("reasons", [])
+    assert any("CRC" in r for r in reasons)

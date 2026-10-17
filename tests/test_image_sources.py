@@ -321,3 +321,103 @@ def test_extract_qr_payloads_time_budget():
     elapsed = time.perf_counter() - t0
     assert res == []
     assert elapsed < 1.0
+
+
+def test_extract_qr_payloads_160px_in_3000x2000_decoded():
+    """B5: 160px QR code in 3000x2000 image is successfully decoded via tiled crops."""
+    pytest.importorskip("cv2")
+    qrcode = pytest.importorskip("qrcode")
+
+    qr = qrcode.QRCode(box_size=4, border=2)
+    qr.add_data("https://safeguard-tiled-test.vn")
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+    # Resize QR to exactly 160x160
+    qr_160 = qr_img.resize((160, 160))
+
+    canvas = Image.new("RGB", (3000, 2000), color="white")
+    # Paste QR in top-left tile quadrant
+    canvas.paste(qr_160, (200, 200))
+
+    payloads = extract_qr_payloads(canvas, time_budget_s=2.0)
+    assert len(payloads) > 0
+    assert "https://safeguard-tiled-test.vn" in payloads
+
+
+def test_classify_qr_payload_risky_schemes():
+    """B5: Test risky schemes including itms-services, smb, jar, and USSD forwarding tel:."""
+    # 1. itms-services:
+    c1 = classify_qr_payload("itms-services://?action=download-manifest&url=https://evil.top")
+    assert c1.get("risky") is True
+
+    # 2. smb:
+    c2 = classify_qr_payload("smb://evil.top/malware.exe")
+    assert c2.get("risky") is True
+
+    # 3. jar:
+    c3 = classify_qr_payload("jar:https://evil.top/app.jar!/exploit.class")
+    assert c3.get("risky") is True
+
+    # 4. tel: USSD forwarding *21*...#
+    c4 = classify_qr_payload("tel:*21*0912345678#")
+    assert c4.get("kind") == "tel"
+    assert c4.get("risky") is True
+
+    # 5. tel: USSD forwarding with percent encoded #
+    c5 = classify_qr_payload("tel:*21*0912345678%23")
+    assert c5.get("kind") == "tel"
+    assert c5.get("risky") is True
+
+    # 6. tel: USSD hash command #...#
+    c6 = classify_qr_payload("tel:#21#")
+    assert c6.get("kind") == "tel"
+    assert c6.get("risky") is True
+
+    # 7. Normal phone number -> not risky
+    c7 = classify_qr_payload("tel:0912345678")
+    assert c7.get("kind") == "tel"
+    assert c7.get("risky") is False
+
+
+def test_mutation_pixel_limit_5000x5000_rejected():
+    """B7 mutation: 5000x5000 PNG (25MP) exceeds 12MP cap and must be rejected."""
+    huge_img = Image.new("RGB", (5000, 5000), color="white")
+    assert open_image_safely(huge_img) is None
+    assert extract_qr_payloads(huge_img) == []
+
+
+def test_mutation_qr_time_budget_early_stop_on_noise():
+    """B7 mutation: 4000x3000 noise image with small budget stops early."""
+    pytest.importorskip("cv2")
+    # Generate image
+    img = Image.new("RGB", (4000, 3000), color=(128, 128, 128))
+    t0 = time.perf_counter()
+    res = extract_qr_payloads(img, time_budget_s=0.25)
+    elapsed = time.perf_counter() - t0
+    assert elapsed < 0.8
+    assert res == []
+
+
+def test_mutation_max_codes_limit_exact_8():
+    """B7 mutation: image with 12 QR codes respects max_codes=8."""
+    pytest.importorskip("cv2")
+    qrcode = pytest.importorskip("qrcode")
+
+    # Generate 12 distinct QRs
+    qr_list = []
+    for i in range(12):
+        q = qrcode.QRCode(box_size=3, border=1)
+        q.add_data(f"https://safeguard-qr-{i}.vn")
+        q.make(fit=True)
+        qr_list.append(q.make_image().convert("RGB"))
+
+    canvas = Image.new("RGB", (1200, 900), color="white")
+    idx = 0
+    for r in range(3):
+        for c in range(4):
+            canvas.paste(qr_list[idx], (c * 280 + 20, r * 280 + 20))
+            idx += 1
+
+    payloads = extract_qr_payloads(canvas, max_codes=8, time_budget_s=3.0)
+    assert len(payloads) == 8, f"Expected exactly 8 payloads, got {len(payloads)}"
+

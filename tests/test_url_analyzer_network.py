@@ -643,3 +643,98 @@ def test_blocked_internal_domain_does_not_leak_private_destination():
     unreach_sig = next(s for s in finding.signals if s.code == "NETWORK_UNREACHABLE")
     assert unreach_sig.evidence == "unreachable"
 
+
+def test_cloaking_not_triggered_by_unresolved_shortener_antibot():
+    """B3(a): CLOAKING_SUSPECTED must not trigger solely because shortener itself had antibot."""
+    shortener_url = "http://bit.ly/unresolved-shortener"
+    mock_chain = RedirectChain(
+        hops=[Hop(url=shortener_url, status=403)],
+        final_url=shortener_url,
+        antibot={
+            "vendor": "cloudflare",
+            "kind": "challenge",
+            "evidence": ["header:cf-mitigated:challenge"],
+        },
+        elapsed_ms=15.0,
+    )
+    resolver = FakeResolver(routes={shortener_url: mock_chain})
+    analyzer = UrlAnalyzer(resolver=resolver)
+
+    finding = analyzer.analyze_url(shortener_url, allow_network=True)
+    assert any(s.code == "ANTIBOT_CHALLENGE" for s in finding.signals)
+    assert not any(s.code == "CLOAKING_SUSPECTED" for s in finding.signals)
+
+
+def test_antibot_weight_zero_when_destination_official():
+    """B3(b): ANTIBOT_CHALLENGE (+10) must not add risk points when destination is official."""
+    shortener_url = "http://bit.ly/vcb-link"
+    dest_url = "https://vietcombank.com.vn/portal"
+    mock_chain = RedirectChain(
+        hops=[
+            Hop(url=shortener_url, status=302, location=dest_url),
+            Hop(url=dest_url, status=403),
+        ],
+        final_url=dest_url,
+        antibot={
+            "vendor": "cloudflare",
+            "kind": "challenge",
+            "evidence": ["header:cf-mitigated:challenge"],
+        },
+        elapsed_ms=15.0,
+    )
+    resolver = FakeResolver(routes={shortener_url: mock_chain})
+    analyzer = UrlAnalyzer(resolver=resolver)
+
+    finding = analyzer.analyze_url(shortener_url, allow_network=True)
+    antibot_sigs = [s for s in finding.signals if s.code == "ANTIBOT_CHALLENGE"]
+    if antibot_sigs:
+        assert antibot_sigs[0].weight == 0
+
+
+def test_not_a_shortener_does_not_emit_network_unreachable():
+    """B3(e): blocked_reason == 'not_a_shortener' must not emit NETWORK_UNREACHABLE."""
+    target = "https://www.google.com/url?q=https://example.com"
+    mock_chain = RedirectChain(
+        hops=[],
+        final_url=target,
+        blocked_reason="not_a_shortener",
+        elapsed_ms=1.0,
+    )
+    resolver = FakeResolver(routes={target: mock_chain})
+    analyzer = UrlAnalyzer(resolver=resolver)
+
+    finding = analyzer.analyze_url(target, allow_network=True)
+    assert not any(s.code == "NETWORK_UNREACHABLE" for s in finding.signals)
+    assert finding.verdict != "unverified"
+
+
+def test_unverified_summary_messages_differentiated():
+    """B3(g): Differentiate unverified explanation between antibot and timeout/network error."""
+    # 1. Antibot challenge
+    chain_antibot = RedirectChain(
+        hops=[Hop(url="http://site-a.com", status=403)],
+        final_url="http://site-a.com",
+        antibot={"vendor": "cloudflare", "kind": "challenge", "evidence": []},
+        elapsed_ms=10.0,
+    )
+    # 2. Network timeout
+    chain_timeout = RedirectChain(
+        hops=[],
+        final_url="http://site-b.com",
+        error="request_timeout",
+        elapsed_ms=10.0,
+    )
+
+    resolver_ab = FakeResolver(routes={"http://site-a.com": chain_antibot})
+    analyzer_ab = UrlAnalyzer(resolver=resolver_ab)
+    rep_ab = analyzer_ab.analyze_text("Link: http://site-a.com", allow_network=True)
+    assert any("chặn công cụ kiểm tra tự động" in msg for msg in rep_ab.summary_vi)
+    assert not any("do lỗi kết nối hoặc hết thời gian" in msg for msg in rep_ab.summary_vi)
+
+    resolver_to = FakeResolver(routes={"http://site-b.com": chain_timeout})
+    analyzer_to = UrlAnalyzer(resolver=resolver_to)
+    rep_to = analyzer_to.analyze_text("Link: http://site-b.com", allow_network=True)
+    assert any("do lỗi kết nối hoặc hết thời gian" in msg for msg in rep_to.summary_vi)
+    assert not any("chặn công cụ kiểm tra tự động" in msg for msg in rep_to.summary_vi)
+
+

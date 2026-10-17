@@ -731,6 +731,29 @@ def test_neg_sample_16_government_portal_announcement():
     assert res is None
 
 
+def test_neg_sample_turnstile_on_normal_login_form():
+    """B6: Turnstile widget on a normal login form (>2KB, <form>, inputs) is not a blocking challenge."""
+    body = """
+    <html><head><title>Đăng nhập tài khoản</title>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js"></script>
+    </head>
+    <body>
+      <form action="/login" method="POST">
+        <label>Email</label>
+        <input name="email" type="text" />
+        <label>Password</label>
+        <input name="password" type="password" />
+        <div class="cf-turnstile" data-sitekey="0x4AAAAAA"></div>
+        <button type="submit">Đăng nhập</button>
+      </form>
+      <p>""" + ("Nội dung điều khoản bảo mật và thông tin dịch vụ của chúng tôi. " * 50) + """</p>
+    </body></html>
+    """
+    assert len(body) > 2048
+    res = classify_response(200, {}, body)
+    assert res is None
+
+
 
 # ============================================================================
 # REDOS AND PERFORMANCE BENCHMARK

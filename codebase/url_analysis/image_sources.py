@@ -234,10 +234,18 @@ def extract_qr_payloads(
     payloads: list[str] = []
 
     try:
+        # S10: Cap pixels to MAX_IMAGE_PIXELS (12MP)
+        if hasattr(pil_img, "width") and hasattr(pil_img, "height"):
+            if (pil_img.width * pil_img.height) > MAX_IMAGE_PIXELS:
+                return []
+
+        orig_img = pil_img
+        needs_downscale = False
         # S10: Scale down image so that long edge <= 2000 px BEFORE passing to cv2
         if hasattr(pil_img, "width") and hasattr(pil_img, "height"):
             max_d = max(pil_img.width, pil_img.height)
             if max_d > 2000:
+                needs_downscale = True
                 scale = 2000.0 / max_d
                 new_w = max(1, int(pil_img.width * scale))
                 new_h = max(1, int(pil_img.height * scale))
@@ -332,6 +340,66 @@ def extract_qr_payloads(
         except Exception:
             pass
 
+        # Fallback to tiled crops at original resolution if no payloads found and image was larger than 2000px
+        if len(payloads) == 0 and needs_downscale and orig_img is not None and _can_continue():
+            orig_w, orig_h = orig_img.width, orig_img.height
+            overlap = 0.15
+
+            def _get_tiles(grid_n: int) -> list[tuple[int, int, int, int]]:
+                denom = grid_n - (grid_n - 1) * overlap
+                tile_w = max(10, int(orig_w / denom))
+                tile_h = max(10, int(orig_h / denom))
+                step_x = int(tile_w * (1.0 - overlap))
+                step_y = int(tile_h * (1.0 - overlap))
+
+                tiles = []
+                for gy in range(grid_n):
+                    y0 = gy * step_y
+                    y1 = min(orig_h, y0 + tile_h)
+                    if gy == grid_n - 1:
+                        y1 = orig_h
+                        y0 = max(0, orig_h - tile_h)
+                    for gx in range(grid_n):
+                        x0 = gx * step_x
+                        x1 = min(orig_w, x0 + tile_w)
+                        if gx == grid_n - 1:
+                            x1 = orig_w
+                            x0 = max(0, orig_w - tile_w)
+                        tiles.append((x0, y0, x1, y1))
+                return tiles
+
+            for grid_size in (2, 3):
+                if len(payloads) >= max_codes or not _can_continue():
+                    break
+                tiles = _get_tiles(grid_size)
+                for (x0, y0, x1, y1) in tiles:
+                    if len(payloads) >= max_codes or not _can_continue():
+                        break
+                    try:
+                        crop_tile = orig_img.crop((x0, y0, x1, y1))
+                        tile_arr = np.array(crop_tile)
+                        if tile_arr.size == 0:
+                            continue
+                        if len(tile_arr.shape) == 2:
+                            t_gray = tile_arr
+                            t_bgr = cv2.cvtColor(t_gray, cv2.COLOR_GRAY2BGR)
+                        elif tile_arr.shape[2] == 3:
+                            t_bgr = cv2.cvtColor(tile_arr, cv2.COLOR_RGB2BGR)
+                            t_gray = cv2.cvtColor(tile_arr, cv2.COLOR_RGB2GRAY)
+                        elif tile_arr.shape[2] == 4:
+                            t_bgr = cv2.cvtColor(tile_arr, cv2.COLOR_RGBA2BGR)
+                            t_gray = cv2.cvtColor(tile_arr, cv2.COLOR_RGBA2GRAY)
+                        else:
+                            continue
+
+                        _scan(t_bgr)
+                        if len(payloads) == 0 and _can_continue():
+                            _scan(t_gray)
+                    except Exception:
+                        pass
+                if len(payloads) > 0:
+                    break
+
     except Exception:
         pass
 
@@ -343,13 +411,13 @@ def classify_qr_payload(payload: str) -> dict[str, Any]:
     Classify a decoded QR payload into one of 12 types (S8):
     - 'vietqr': EMVCo starting with '000201'
     - 'wifi': starting with 'WIFI:'
-    - 'tel': starting with 'tel:' (not risky)
+    - 'tel': starting with 'tel:' (risky if USSD call forwarding)
     - 'sms': starting with 'sms:' or 'smsto:' (not risky)
     - 'mailto': starting with 'mailto:'
     - 'geo': starting with 'geo:'
     - 'vcard': starting with 'BEGIN:VCARD'
     - 'other' with risky=True: 'javascript:', 'data:', 'intent:', 'file:', 'vbscript:',
-      'market:', 'content:', 'ms-*:', 'search-ms:'
+      'market:', 'content:', 'ms-*:', 'search-ms:', 'itms-services:', 'smb:', 'jar:'
     - 'url': 'http(s)://', 'www.', or naked domain with valid TLD / IPv4
     - 'other': unclassified URI scheme
     - 'text': plain text (extracts embedded URL if present)
@@ -371,15 +439,25 @@ def classify_qr_payload(payload: str) -> dict[str, Any]:
     if raw.upper().startswith("WIFI:"):
         return {"kind": "wifi", "url": None, "risky": False}
 
-    # 3. Risky URI schemes (S8): javascript:, data:, intent:, file:, vbscript:, market:, content:, ms-*:, search-ms:
+    # 3. Risky URI schemes: javascript:, data:, intent:, file:, vbscript:, market:, content:, ms-*:, search-ms:, itms-services:, smb:, jar:
     is_ms_scheme = bool(re.match(r"^ms-[a-zA-Z0-9_-]+:", low))
     if low.startswith((
-        "javascript:", "data:", "intent:", "file:", "vbscript:", "market:", "content:", "search-ms:"
+        "javascript:", "data:", "intent:", "file:", "vbscript:", "market:", "content:", "search-ms:",
+        "itms-services:", "smb:", "jar:"
     )) or is_ms_scheme:
         return {"kind": "other", "url": None, "risky": True}
 
-    # 4. tel: (not risky)
+    # 4. tel: (risky for USSD forwarding codes: tel:*21*...# and tel:#...#)
     if low.startswith("tel:"):
+        tel_num = raw[4:].strip()
+        try:
+            from urllib.parse import unquote
+            decoded_tel = unquote(tel_num).strip()
+        except Exception:
+            decoded_tel = tel_num
+
+        if (decoded_tel.startswith("*21*") and decoded_tel.endswith("#")) or (decoded_tel.startswith("#") and decoded_tel.endswith("#")):
+            return {"kind": "tel", "url": None, "risky": True}
         return {"kind": "tel", "url": None, "risky": False}
 
     # 5. sms: / smsto: (not risky)

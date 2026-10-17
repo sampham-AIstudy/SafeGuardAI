@@ -54,16 +54,30 @@ def classify_response(
             evidence=["header:cf-mitigated:challenge"],
         )
 
-    # Cloudflare Turnstile
+    # Cloudflare Turnstile (Guarded against false positives on normal forms)
     if "cf-turnstile" in body_lower or "challenges.cloudflare.com/turnstile" in body_lower:
-        return AntiBotResult(
-            vendor="cloudflare",
-            kind="captcha",
-            evidence=["body:cf-turnstile"],
+        is_normal_form_turnstile = (
+            len(body_text) > 2048
+            and status not in (403, 429, 503)
+            and any(f_tag in body_lower for f_tag in ("<form", "type=\"password\"", "name=\"email\"", "name=\"username\""))
+            and not any(
+                gate in body_lower
+                for gate in (
+                    "verify you are human", "xác minh bạn là người", "attention required",
+                    "security check", "unusual traffic", "please solve", "bot detection",
+                    "one more step", "access denied", "checking your browser"
+                )
+            )
         )
+        if not is_normal_form_turnstile:
+            return AntiBotResult(
+                vendor="cloudflare",
+                kind="captcha",
+                evidence=["body:cf-turnstile"],
+            )
 
     # Cloudflare challenge platform / scripts
-    if "challenges.cloudflare.com" in body_lower:
+    if "challenges.cloudflare.com" in body_lower and "challenges.cloudflare.com/turnstile" not in body_lower:
         return AntiBotResult(
             vendor="cloudflare",
             kind="challenge",

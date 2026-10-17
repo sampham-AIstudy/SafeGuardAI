@@ -306,7 +306,7 @@ def test_e8_agent_runner_session_id_spy(monkeypatch):
     orch = SafeGuardOrchestrator()
     captured_session_ids = []
 
-    def spy_run(user_text, pil_image=None, session_id="default"):
+    def spy_run(user_text, pil_image=None, session_id="default", **_ctx):  # run() also receives allow_net/recorder/deadline
         captured_session_ids.append(session_id)
         return None  # fall back to sequential
 

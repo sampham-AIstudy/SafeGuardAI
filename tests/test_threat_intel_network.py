@@ -345,3 +345,21 @@ def test_offline_mode_makes_zero_network_calls(mock_keys, monkeypatch):
     assert not res["is_malicious"]
     assert res["network_actions"] == []
     assert res["verdict_summary"] == "Offline / mạng bị tắt"
+
+
+def test_mutation_threat_intel_records_error_status_not_always_ok(mock_keys, monkeypatch):
+    """B7 mutation: ThreatIntel records status='error' when requests fail, not always 'ok'."""
+    from codebase.url_analysis.resolver import NetworkRecorder
+
+    def mock_urlopen_fail(req, timeout=None):
+        raise urllib.error.URLError("Simulated connection failure")
+
+    monkeypatch.setattr(urllib.request, "urlopen", mock_urlopen_fail)
+    agent = ThreatIntelAgent()
+    recorder = NetworkRecorder()
+
+    agent.scan_url("https://error-status-test.org", recorder=recorder)
+    assert len(recorder.actions) > 0
+    statuses = [a["status"] for a in recorder.actions]
+    assert "ok" not in statuses
+    assert "error" in statuses

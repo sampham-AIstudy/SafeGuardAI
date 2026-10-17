@@ -272,7 +272,7 @@ class ThreatIntelAgent:
 
         return res_dict
 
-    def lookup_domain(self, domain: str) -> dict:
+    def lookup_domain(self, domain: str, deadline_s: float | None = None, recorder: Any = None) -> dict:
         """
         Lookup domain info: age, registrar, URLScan analysis.
         Newly registered domains (< 30 days) are high risk.
@@ -293,13 +293,24 @@ class ThreatIntelAgent:
         settings = get_settings()
         # URLScan.io domain lookup (only when online and network enabled)
         if not (settings.offline or not settings.network_enabled) and self.urlscan_key:
+            rec_idx = None
+            if recorder is not None:
+                rec_idx = recorder.record_request("urlscan_domain", target_host)
             try:
-                urlscan_res = self._urlscan_search_domain(domain)
+                call_timeout = min(self.TIMEOUT, deadline_s) if deadline_s is not None else self.TIMEOUT
+                urlscan_res = self._urlscan_search_domain(domain, timeout=call_timeout)
                 result["urlscan_verdict"] = urlscan_res
                 if urlscan_res.get("malicious"):
                     result["is_suspicious"] = True
+                if rec_idx is not None:
+                    if urlscan_res.get("error"):
+                        recorder.update_status(rec_idx, "error")
+                    else:
+                        recorder.update_status(rec_idx, "ok")
             except Exception as e:
                 result["urlscan_error"] = str(e)
+                if rec_idx is not None:
+                    recorder.update_status(rec_idx, "error")
 
         # Check official whitelist via BrandCatalog
         is_official = False
@@ -508,7 +519,7 @@ class ThreatIntelAgent:
     # ─────────────────────────────────────────────────────────────────────────
     # PHISHTANK (No API key required)
     # ─────────────────────────────────────────────────────────────────────────
-    def _check_phishtank(self, url: str, *, timeout: float = 3.0) -> dict:
+    def _check_phishtank(self, url: str, *, timeout: float = 3.0, recorder: Any = None) -> dict:
         """Query PhishTank API — disabled by default unless Settings.phishtank_enabled is True."""
         settings = get_settings()
         if settings.offline or not settings.network_enabled or not settings.phishtank_enabled:
@@ -519,6 +530,10 @@ class ThreatIntelAgent:
             scheme = (p.scheme or "https").lower()
             host = self._extract_domain(url)
             clean_url = f"{scheme}://{host}/"
+
+            rec_idx = None
+            if recorder is not None:
+                rec_idx = recorder.record_request("phishtank_lookup", host)
 
             api_url = "https://checkurl.phishtank.com/checkurl/"
             data = urllib.parse.urlencode({
@@ -543,6 +558,9 @@ class ThreatIntelAgent:
             in_database = results.get("in_database", False)
             valid = results.get("valid", False)
 
+            if rec_idx is not None:
+                recorder.update_status(rec_idx, "ok")
+
             return {
                 "is_malicious": in_database and valid,
                 "in_database": in_database,
@@ -550,6 +568,8 @@ class ThreatIntelAgent:
                 "phish_detail_url": results.get("phish_detail_url", "")
             }
         except Exception as e:
+            if rec_idx is not None:
+                recorder.update_status(rec_idx, "error")
             return {"is_malicious": False, "error": type(e).__name__}
 
     # ─────────────────────────────────────────────────────────────────────────

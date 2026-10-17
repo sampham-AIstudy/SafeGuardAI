@@ -429,12 +429,12 @@ def _normalize_location(raw_loc: str, current_url: str) -> tuple[str, bool]:
             else:
                 # Different scheme:
                 if scheme in ("http", "https"):
-                    # WHATWG special scheme: only absolute if it has '//' after '\' -> '/'
-                    if rest.startswith("//"):
-                        rest = re.sub(r"^/+", "//", rest)
-                        candidate_url = f"{scheme}:{rest}"
+                    # WHATWG special scheme: special authority ignores slashes,
+                    # e.g. https:evil.top or http:/evil.com -> strip all leading '/'
+                    clean_rest = rest.lstrip("/")
+                    if clean_rest:
+                        candidate_url = f"{scheme}://{clean_rest}"
                     else:
-                        # Missing '//' for different special scheme => invalid redirect
                         candidate_url = ""
                 else:
                     # Non-HTTP special scheme (e.g. javascript:, data:, mailto:)
@@ -859,6 +859,10 @@ class NetworkRecorder:
     def get_actions(self) -> list[dict[str, str]]:
         with self._lock:
             return copy.deepcopy(self._actions)
+
+    @property
+    def actions(self) -> list[dict[str, str]]:
+        return self.get_actions()
 
 
 @dataclass
@@ -1324,6 +1328,9 @@ class SafeRedirectResolver:
                             remaining_budget = deadline - time.monotonic()
                             if remaining_budget > 0:
                                 timeout = min(self.per_hop_timeout, remaining_budget)
+                                rec_idx_retry = None
+                                if recorder is not None:
+                                    rec_idx_retry = recorder.record_request("resolver_lookup", bare_host)
                                 try:
                                     status, resp_headers, body = _invoke_transport(
                                         transport_fn,
@@ -1338,11 +1345,23 @@ class SafeRedirectResolver:
                                         self.max_body_bytes,
                                         deadline,
                                     )
+                                    if rec_idx_retry is not None:
+                                        recorder.update_status(rec_idx_retry, "ok")
                                     resp_headers_lower = {
                                         str(k).lower(): str(v) for k, v in resp_headers.items()
                                     }
-                                except Exception:
-                                    pass
+                                except Exception as ex_retry:
+                                    if rec_idx_retry is not None:
+                                        if (
+                                            isinstance(ex_retry, (TimeoutError, socket.timeout))
+                                            or "budget_exceeded" in str(ex_retry)
+                                            or "timeout" in str(ex_retry).lower()
+                                        ):
+                                            recorder.update_status(rec_idx_retry, "timeout")
+                                        elif "blocked" in str(ex_retry).lower() or "disallowed" in str(ex_retry).lower():
+                                            recorder.update_status(rec_idx_retry, "blocked")
+                                        else:
+                                            recorder.update_status(rec_idx_retry, "error")
 
             if resp_headers_lower.get("__ambiguous_location__") == "true":
                 error = "ambiguous_location"
@@ -1366,6 +1385,9 @@ class SafeRedirectResolver:
                     error = "budget_exceeded"
                     break
                 timeout = min(self.per_hop_timeout, remaining_budget)
+                rec_idx_get = None
+                if recorder is not None:
+                    rec_idx_get = recorder.record_request("resolver_lookup", bare_host)
                 try:
                     status, resp_headers, body = _invoke_transport(
                         transport_fn,
@@ -1380,7 +1402,21 @@ class SafeRedirectResolver:
                         self.max_body_bytes,
                         deadline,
                     )
+                    if rec_idx_get is not None:
+                        recorder.update_status(rec_idx_get, "ok")
                 except Exception as e:
+                    if rec_idx_get is not None:
+                        if (
+                            isinstance(e, (TimeoutError, socket.timeout))
+                            or "budget_exceeded" in str(e)
+                            or "timeout" in str(e).lower()
+                        ):
+                            recorder.update_status(rec_idx_get, "timeout")
+                        elif "blocked" in str(e).lower() or "disallowed" in str(e).lower():
+                            recorder.update_status(rec_idx_get, "blocked")
+                        else:
+                            recorder.update_status(rec_idx_get, "error")
+
                     if (
                         isinstance(e, (TimeoutError, socket.timeout))
                         or "budget_exceeded" in str(e)
@@ -1423,6 +1459,9 @@ class SafeRedirectResolver:
                     remaining_budget = deadline - time.monotonic()
                     if remaining_budget > 0:
                         timeout = min(self.per_hop_timeout, remaining_budget)
+                        rec_idx_meta = None
+                        if recorder is not None:
+                            rec_idx_meta = recorder.record_request("resolver_lookup", bare_host)
                         try:
                             get_status, get_headers, get_body = _invoke_transport(
                                 transport_fn,
@@ -1437,6 +1476,8 @@ class SafeRedirectResolver:
                                 self.max_body_bytes,
                                 deadline,
                             )
+                            if rec_idx_meta is not None:
+                                recorder.update_status(rec_idx_meta, "ok")
                             status = get_status
                             resp_headers = get_headers
                             resp_headers_lower = {
@@ -1444,8 +1485,18 @@ class SafeRedirectResolver:
                             }
                             body = get_body
                             raw_location = resp_headers_lower.get("location")
-                        except Exception:
-                            pass
+                        except Exception as ex_meta:
+                            if rec_idx_meta is not None:
+                                if (
+                                    isinstance(ex_meta, (TimeoutError, socket.timeout))
+                                    or "budget_exceeded" in str(ex_meta)
+                                    or "timeout" in str(ex_meta).lower()
+                                ):
+                                    recorder.update_status(rec_idx_meta, "timeout")
+                                elif "blocked" in str(ex_meta).lower() or "disallowed" in str(ex_meta).lower():
+                                    recorder.update_status(rec_idx_meta, "blocked")
+                                else:
+                                    recorder.update_status(rec_idx_meta, "error")
 
             # Truncate body if larger than max_body_bytes
             if body and len(body) > self.max_body_bytes:

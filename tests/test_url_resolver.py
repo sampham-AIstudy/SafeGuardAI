@@ -1378,27 +1378,58 @@ def test_normalize_location_12_variants():
         ("http:/x", "http://attacker.top/a/b", "http://attacker.top/x"),
         # 4. Same scheme (http), no slash -> relative path on current directory
         ("http:x", "http://attacker.top/a/", "http://attacker.top/a/x"),
-        # 5. Different scheme (https on http base), no // -> rejected
-        ("https:evil.com", "http://attacker.top/", ""),
-        # 6. Different scheme (http on https base), no // -> rejected
-        ("http:evil.com", "https://attacker.top/", ""),
-        # 7. Triple slash ///+ collapsed to //
-        ("https:///attacker.top/path", "https://example.com/", "https://attacker.top/path"),
-        # 8. Quadruple slash //// collapsed to //
+        # WHATWG 10 variants for special scheme different from base:
+        # 5. Different scheme (https on http base), no slash -> absolute URL
+        ("https:evil.top", "http://attacker.top/", "https://evil.top"),
+        # 6. Different scheme (https on http base), single slash -> absolute URL
+        ("https:/evil.top", "http://attacker.top/", "https://evil.top"),
+        # 7. Different scheme (https on http base), triple slash -> absolute URL
+        ("https:///evil.top", "http://attacker.top/", "https://evil.top"),
+        # 8. Different scheme (https on http base), with path & query -> absolute URL
+        ("https:evil.top/path?q=1", "http://attacker.top/", "https://evil.top/path?q=1"),
+        # 9. Different scheme (http on https base), no slash -> absolute URL
+        ("http:evil.com", "https://attacker.top/", "http://evil.com"),
+        # 10. Different scheme (http on https base), single slash -> absolute URL
+        ("http:/evil.com", "https://attacker.top/", "http://evil.com"),
+        # 11. Different scheme (http on https base), triple slash -> absolute URL
+        ("http:///evil.com", "https://attacker.top/", "http://evil.com"),
+        # 12. Different scheme (http on https base), with path -> absolute URL
+        ("http:evil.com/sub", "https://attacker.top/", "http://evil.com/sub"),
+        # 13. Backslash in scheme separator normalized
+        (r"https:\evil.top", "http://attacker.top/", "https://evil.top"),
+        # 14. Quadruple slash //// collapsed to //
         ("https:////attacker.top/path", "https://example.com/", "https://attacker.top/path"),
-        # 9. Backslash in scheme separator normalized (double backslash -> //)
-        (r"https:\\attacker.top/path", "https://example.com/", "https://attacker.top/path"),
-        # 10. Root-relative path
+        # 15. Root-relative path
         ("/path/to/resource", "https://example.com/orig", "https://example.com/path/to/resource"),
-        # 11. Relative path without leading slash
-        ("sub/page", "https://example.com/dir/", "https://example.com/dir/sub/page"),
-        # 12. Protocol-relative URL
+        # 16. Protocol-relative URL
         ("//another.top/welcome", "https://example.com/", "https://another.top/welcome"),
     ]
 
     for loc, base, expected in cases:
         got, _ = _normalize_location(loc, base)
         assert got == expected, f"Failed for loc={loc!r}, base={base!r}: expected {expected!r}, got {got!r}"
+
+
+def test_mutation_resolver_records_error_status_not_always_ok(enable_network_settings):
+    """Mutation test: ensure resolver does not always record status='ok' when errors happen."""
+    from codebase.url_analysis.resolver import SafeRedirectResolver, NetworkRecorder
+
+    def failing_transport(*args, **kwargs):
+        raise ConnectionResetError("Connection refused by test mock")
+
+    recorder = NetworkRecorder()
+    resolver = SafeRedirectResolver(
+        mode="all",
+        getaddrinfo=lambda h, p, *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", p))],
+        transport=failing_transport,
+    )
+
+    chain = resolver.resolve("http://bit.ly/failing-link", recorder=recorder)
+    assert len(recorder.actions) > 0
+    # The recorded action must reflect error, NOT 'ok'
+    statuses = [a.get("status") for a in recorder.actions]
+    assert "ok" not in statuses
+    assert any(s in ("error", "timeout") for s in statuses)
 
 
 def test_resolver_head_200_get_302_follows_redirect(enable_network_settings):

@@ -382,7 +382,7 @@ class UrlAnalyzer:
                         evidence="direct_private_ip",
                     )
                 )
-        elif getattr(chain, "blocked_reason", None):
+        elif getattr(chain, "blocked_reason", None) and chain.blocked_reason != "not_a_shortener":
             # Tên nội bộ vs DNS lỗi: không lộ oracle private_destination ra ngoài
             if not any(s.code in ("NETWORK_BLOCKED_PRIVATE", "NETWORK_UNREACHABLE") for s in finding.signals):
                 finding.signals.append(
@@ -464,66 +464,75 @@ class UrlAnalyzer:
                     )
                     finding.children.append(hop_child)
 
-        # (c) chain.antibot có => ANTIBOT_CHALLENGE (weight 10, low, message_vi nêu vendor)
+        # (c) Đích official => không cloaking và ANTIBOT không cộng điểm cha
+        is_dest_official = (
+            finding.is_official
+            or any(getattr(ch, "is_official", False) for ch in finding.children)
+            or (bool(finding.final_url) and self._is_dest_official(finding.final_url))
+        )
+
+        # chain.antibot có => ANTIBOT_CHALLENGE (weight 10, low, message_vi nêu vendor)
         has_antibot = bool(getattr(chain, "antibot", None))
         if has_antibot:
             vendor_name = chain.antibot.get("vendor", "hệ thống chống bot")
             if not any(s.code == "ANTIBOT_CHALLENGE" for s in finding.signals):
+                antibot_weight = 0 if is_dest_official else 10
                 finding.signals.append(
                     UrlSignal(
                         code="ANTIBOT_CHALLENGE",
                         severity="low",
-                        weight=10,
+                        weight=antibot_weight,
                         message_vi=f"Trang web kích hoạt cơ chế chống bot / kiểm tra người dùng ({vendor_name}).",
                         evidence=f"vendor={vendor_name}, kind={chain.antibot.get('kind', '')}",
                     )
                 )
 
         # (d) CLOAKING_SUSPECTED (S5a):
-        # Đích official => không cloaking
-        is_dest_official = (
-            finding.is_official
-            or any(getattr(ch, "is_official", False) for ch in finding.children)
-            or (bool(finding.final_url) and self._is_dest_official(finding.final_url))
-        )
         if has_antibot and not is_dest_official:
-            # Chỉ tính yếu tố phụ từ tín hiệu của ĐÍCH / domain, KHÔNG tính chính shortener
-            has_brand = bool(finding.brand_match) or any("BRAND" in s.code for s in finding.signals) or any(
-                bool(getattr(ch, "brand_match", None)) or any("BRAND" in s.code for s in getattr(ch, "signals", []))
-                for ch in finding.children
+            is_shortener = (
+                self._is_shortener(finding.effective_host)
+                or any(s.code in ("SHORTENER", "SHORTENER_RESOLVED") for s in finding.signals)
             )
-            has_susp_tld = self._is_suspicious_tld(
-                finding.effective_host, finding.registrable_domain
-            ) or any(s.code == "SUSPICIOUS_TLD" for s in finding.signals) or any(
-                any(s.code == "SUSPICIOUS_TLD" for s in getattr(ch, "signals", []))
-                for ch in finding.children
+            # Yếu tố phụ chỉ từ tín hiệu của ĐÍCH / domain đích, KHÔNG tính chính shortener
+            target_candidates = list(finding.children) if is_shortener else ([finding] + list(finding.children))
+
+            has_brand = any(
+                bool(getattr(c, "brand_match", None))
+                or any("BRAND" in s.code for s in getattr(c, "signals", []))
+                for c in target_candidates
             )
-            has_free_host = self._is_free_hosting(
-                finding.effective_host, finding.registrable_domain
-            ) or any(s.code == "FREE_HOSTING" for s in finding.signals) or any(
-                any(s.code == "FREE_HOSTING" for s in getattr(ch, "signals", []))
-                for ch in finding.children
+            has_typosquat = any(
+                any(s.code == "TYPOSQUAT" for s in getattr(c, "signals", []))
+                for c in target_candidates
+            )
+            has_susp_tld = any(
+                self._is_suspicious_tld(c.effective_host, c.registrable_domain)
+                or any(s.code == "SUSPICIOUS_TLD" for s in getattr(c, "signals", []))
+                for c in target_candidates
+            )
+            has_free_host = any(
+                self._is_free_hosting(c.effective_host, c.registrable_domain)
+                or any(s.code == "FREE_HOSTING" for s in getattr(c, "signals", []))
+                for c in target_candidates
             )
             has_lure = any(
-                s.code in ("LURE_KEYWORD_DOMAIN", "LURE_KEYWORD_PATH")
-                for s in finding.signals
-            ) or any(
-                any(s.code in ("LURE_KEYWORD_DOMAIN", "LURE_KEYWORD_PATH") for s in getattr(ch, "signals", []))
-                for ch in finding.children
+                any(s.code in ("LURE_KEYWORD_DOMAIN", "LURE_KEYWORD_PATH") for s in getattr(c, "signals", []))
+                for c in target_candidates
             )
-            is_shortener_unresolved = any(
-                s.code == "SHORTENER" for s in finding.signals
-            ) and (not getattr(chain, "final_url", None) or chain.final_url == target_url)
-
+            has_passive_new = any(
+                any(s.code in ("DOMAIN_NEW", "CERT_NEW") for s in getattr(c, "signals", []))
+                for c in target_candidates
+            )
             # Đích / children có rủi ro đáng ngờ
             has_dest_risk = any(getattr(ch, "url_risk_score", 0) >= 30 for ch in finding.children)
 
             if (
                 has_brand
+                or has_typosquat
                 or has_susp_tld
                 or has_free_host
                 or has_lure
-                or is_shortener_unresolved
+                or has_passive_new
                 or has_dest_risk
             ):
                 if not any(s.code == "CLOAKING_SUSPECTED" for s in finding.signals):
@@ -539,7 +548,7 @@ class UrlAnalyzer:
 
         # Recalculate score & verdict:
         # domain OFFICIAL + antibot vẫn 'official' (không cộng);
-        if finding.is_official:
+        if finding.is_official or (is_dest_official and not finding.signals):
             finding.url_risk_score = 0
             finding.verdict = "official"
         else:
@@ -548,14 +557,12 @@ class UrlAnalyzer:
             final_risk = max(self_risk, max_child_risk)
             finding.url_risk_score = final_risk
 
-            # (e) không đọc được nội dung (antibot hoặc error timeout/blocked/budget)
+            # (e) không đọc được nội dung (antibot hoặc error timeout/blocked/budget/invalid_location)
             # => finding.verdict='unverified' khi các tín hiệu khác chưa đủ nâng lên suspicious/dangerous,
-            # và message_vi 'Trang này chặn công cụ kiểm tra tự động nên hệ thống chưa xác minh được nội dung. Điều này KHÔNG có nghĩa là an toàn.'
-            # — verdict 'unverified' không bao giờ hạ điểm hay biến thành official/benign;
             cannot_read = (
                 has_antibot
-                or (getattr(chain, "error", None) in ("budget_exceeded", "request_timeout", "dns_timeout", "too_many_hops"))
-                or bool(getattr(chain, "blocked_reason", None))
+                or (getattr(chain, "error", None) in ("budget_exceeded", "request_timeout", "dns_timeout", "too_many_hops", "invalid_location"))
+                or (bool(getattr(chain, "blocked_reason", None)) and chain.blocked_reason != "not_a_shortener")
             )
 
             if final_risk >= 70:
@@ -749,7 +756,7 @@ class UrlAnalyzer:
 
             cannot_read = (
                 any(s.code == "ANTIBOT_CHALLENGE" for s in finding.signals)
-                or (last_err in ("budget_exceeded", "request_timeout", "dns_timeout", "too_many_hops"))
+                or (last_err in ("budget_exceeded", "request_timeout", "dns_timeout", "too_many_hops", "invalid_location"))
                 or any("timeout" in e or "budget" in e for e in getattr(finding, "errors", []))
                 or getattr(finding, "verdict", None) == "unverified"
             )
@@ -898,7 +905,7 @@ class UrlAnalyzer:
                     if elapsed >= deadline_s:
                         is_truncated = True
                         if recorder:
-                            recorder.record("resolver_lookup", f.effective_host, status="timeout")
+                            recorder.record("resolver_lookup", f.effective_host, status="skipped")
                         break
                     rem_time = max(0.01, deadline_s - elapsed)
                     try:
@@ -906,7 +913,7 @@ class UrlAnalyzer:
                     except Exception as ex:
                         f.errors.append(f"resolver_unhandled:{type(ex).__name__}")
 
-            # 3.6 Passive intelligence for eligible findings (max 3 non-official with risk >= 15 or antibot/shortener or resolved destination)
+            # 3.6 Passive intelligence for eligible findings (max 3 non-official with risk >= 15 or antibot or resolved destination)
             if self._is_network_permitted(allow_network):
                 passive_eligible: list[UrlFinding] = []
                 all_candidates: list[UrlFinding] = []
@@ -916,30 +923,41 @@ class UrlAnalyzer:
                         all_candidates.append(ch)
 
                 child_ids = {id(ch) for f in findings for ch in getattr(f, "children", []) or []}
-                for item in all_candidates:
-                    if item.is_official:
-                        continue
-                    has_antibot = any(s.code == "ANTIBOT_CHALLENGE" for s in item.signals) or bool(getattr(item, "redirect_chain", None))
-                    has_shortener = (
-                        self._is_shortener(item.effective_host)
-                        or any(s.code in ("SHORTENER", "SHORTENER_RESOLVED") for s in item.signals)
-                    )
-                    is_child_target = id(item) in child_ids
-                    if item.url_risk_score >= 15 or has_antibot or has_shortener or is_child_target:
-                        passive_eligible.append(item)
+                # Ưu tiên domain ĐÍCH của chain (is_child_target), sau đó theo điểm rủi ro cao nhất
+                all_candidates.sort(
+                    key=lambda item: (1 if id(item) in child_ids else 0, item.url_risk_score),
+                    reverse=True,
+                )
 
-                # Sort by risk score
-                passive_eligible.sort(key=lambda item: item.url_risk_score, reverse=True)
+                seen_hosts: set[str] = set()
+                for item in all_candidates:
+                    if item.is_official or getattr(item, "verdict", None) == "official":
+                        continue
+                    host = (item.effective_host or "").lower()
+                    if not host:
+                        continue
+                    # Bỏ chính domain shortener ra khỏi danh sách passive
+                    if self._is_shortener(host):
+                        continue
+                    if host in seen_hosts:
+                        continue
+
+                    has_antibot = any(s.code == "ANTIBOT_CHALLENGE" for s in item.signals) or bool(getattr(item, "redirect_chain", None))
+                    is_child_target = id(item) in child_ids
+                    if item.url_risk_score >= 15 or has_antibot or is_child_target:
+                        passive_eligible.append(item)
+                        seen_hosts.add(host)
+
                 to_passive = passive_eligible[:3]
 
                 for f in to_passive:
                     elapsed = time.perf_counter() - start_time
-                    if elapsed >= deadline_s:
+                    rem_time = deadline_s - elapsed
+                    if rem_time < 0.3:
                         is_truncated = True
                         if recorder:
-                            recorder.record("passive_lookup", f.effective_host or f.registrable_domain, status="timeout")
-                        break
-                    rem_time = max(0.01, deadline_s - elapsed)
+                            recorder.record("passive_lookup", f.effective_host or f.registrable_domain, status="skipped")
+                        continue
                     try:
                         self._analyze_passive(f, deadline_s=rem_time, recorder=recorder)
                     except Exception as ex:
@@ -948,10 +966,13 @@ class UrlAnalyzer:
                 # If child findings were updated, re-calculate parents' risk scores
                 for f in findings:
                     if f.children:
-                        self_risk = min(99, sum(s.weight for s in f.signals))
-                        max_child_risk = max((ch.url_risk_score for ch in f.children), default=0)
-                        f.url_risk_score = max(self_risk, max_child_risk)
-                        if not f.is_official:
+                        if f.is_official or getattr(f, "verdict", None) == "official":
+                            f.url_risk_score = 0
+                            f.verdict = "official"
+                        else:
+                            self_risk = min(99, sum(s.weight for s in f.signals))
+                            max_child_risk = max((ch.url_risk_score for ch in f.children), default=0)
+                            f.url_risk_score = max(self_risk, max_child_risk)
                             if f.url_risk_score >= 70:
                                 f.verdict = "dangerous"
                             elif f.url_risk_score >= 40:
@@ -1014,10 +1035,25 @@ class UrlAnalyzer:
                 if flood_msg not in summary_vi:
                     summary_vi.append(flood_msg)
 
-            if any(f.verdict == "unverified" for f in findings):
-                unverified_msg = "Trang này chặn công cụ kiểm tra tự động nên hệ thống chưa xác minh được nội dung. Điều này KHÔNG có nghĩa là an toàn."
-                if unverified_msg not in summary_vi:
-                    summary_vi.append(unverified_msg)
+            def _has_antibot_sig(finding_item: UrlFinding) -> bool:
+                if any(s.code == "ANTIBOT_CHALLENGE" for s in finding_item.signals):
+                    return True
+                return any(any(s.code == "ANTIBOT_CHALLENGE" for s in getattr(ch, "signals", [])) for ch in getattr(finding_item, "children", []))
+
+            unverified_list = [f for f in findings if f.verdict == "unverified"]
+            if unverified_list:
+                has_antibot_unverified = any(_has_antibot_sig(f) for f in unverified_list)
+                has_network_unverified = any(not _has_antibot_sig(f) for f in unverified_list)
+
+                if has_antibot_unverified:
+                    antibot_msg = "Trang này chặn công cụ kiểm tra tự động nên hệ thống chưa xác minh được nội dung. Điều này KHÔNG có nghĩa là an toàn."
+                    if antibot_msg not in summary_vi:
+                        summary_vi.append(antibot_msg)
+
+                if has_network_unverified:
+                    net_unverified_msg = "Không kiểm tra được nội dung do lỗi kết nối hoặc hết thời gian. Điều này KHÔNG có nghĩa là an toàn."
+                    if net_unverified_msg not in summary_vi:
+                        summary_vi.append(net_unverified_msg)
 
             for f in findings:
                 for s in f.signals:

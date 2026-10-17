@@ -271,12 +271,18 @@ class SafeGuardOrchestrator:
         if not injection_detected:
             effective_user_text = user_text
             if pil_image:
-                effective_user_text = f"{user_text}\n[Người dùng đính kèm ảnh bằng chứng màn hình nghi vấn - BẮT BUỘC gọi ocr_extract() và scan_url_threat_intel() để kiểm tra link/chữ trên ảnh]".strip()
+                if allow_net:
+                    effective_user_text = f"{user_text}\n[Người dùng đính kèm ảnh bằng chứng màn hình nghi vấn - BẮT BUỘC gọi ocr_extract() và scan_url_threat_intel() để kiểm tra link/chữ trên ảnh]".strip()
+                else:
+                    effective_user_text = f"{user_text}\n[Người dùng đính kèm ảnh bằng chứng màn hình nghi vấn - BẮT BUỘC gọi ocr_extract() để kiểm tra chữ trên ảnh]".strip()
 
             agent_result = self.agent_runner.run(
                 user_text=effective_user_text,
                 pil_image=pil_image,
-                session_id=session_id
+                session_id=session_id,
+                allow_net=allow_net,
+                recorder=recorder,
+                deadline=deadline,
             )
         else:
             print("[Orchestrator] ⚠️ Prompt injection detected — bypassing LLM agent runner.")
@@ -434,6 +440,10 @@ class SafeGuardOrchestrator:
         if settings.offline or not settings.network_enabled:
             return None
 
+        # B4: Skip ThreatIntel if budget < 0.3s
+        if budget_s < 0.3:
+            return None
+
         # If LLM already ran ThreatIntel via tool_calling in agentic branch, reuse cached result
         if tool_cache_ti:
             if isinstance(tool_cache_ti, list) and tool_cache_ti:
@@ -553,88 +563,6 @@ class SafeGuardOrchestrator:
             "scans": ti_results
         }
 
-    def _collect_network_actions(self, url_report: Any, ti_result: dict | None) -> list[dict[str, str]]:
-        settings = get_settings()
-        if settings.offline or not settings.network_enabled:
-            return []
-
-        actions: list[dict[str, str]] = []
-        seen: set[tuple[str, str]] = set()
-
-        def _add_action(atype: str, target: str):
-            if not target or not isinstance(target, str):
-                return
-            t = target.strip()
-            if "://" in t:
-                try:
-                    t = urllib.parse.urlsplit(t).netloc or t
-                except Exception:
-                    pass
-            if "@" in t:
-                t = t.split("@")[-1]
-            if ":" in t and not t.startswith("["):
-                t = t.split(":")[0]
-            if "/" in t:
-                t = t.split("/")[0]
-            if "?" in t:
-                t = t.split("?")[0]
-            t = t.strip().lower()
-            if not t:
-                return
-            key = (atype, t)
-            if key not in seen:
-                seen.add(key)
-                actions.append({"type": atype, "target": t})
-
-        # 1. From url_report findings
-        if url_report:
-            findings = getattr(url_report, "findings", None)
-            if findings is None and isinstance(url_report, dict):
-                findings = url_report.get("findings", [])
-
-            def _scan_f(f_item):
-                r_chain = getattr(f_item, "redirect_chain", None)
-                if r_chain is None and isinstance(f_item, dict):
-                    r_chain = f_item.get("redirect_chain", [])
-                for hop in r_chain or []:
-                    hop_url = hop.get("url", "") if isinstance(hop, dict) else getattr(hop, "url", "")
-                    if hop_url:
-                        _add_action("resolver_lookup", hop_url)
-
-                p_intel = getattr(f_item, "passive_intel", None)
-                if p_intel is None and isinstance(f_item, dict):
-                    p_intel = f_item.get("passive_intel", None)
-                if p_intel and isinstance(p_intel, dict):
-                    reg = getattr(f_item, "registrable_domain", "") if not isinstance(f_item, dict) else f_item.get("registrable_domain", "")
-                    host = getattr(f_item, "effective_host", "") if not isinstance(f_item, dict) else f_item.get("effective_host", "")
-                    if p_intel.get("domain_age") is not None and reg:
-                        _add_action("rdap_lookup", reg)
-                    if p_intel.get("ct") is not None and reg:
-                        _add_action("crtsh_lookup", reg)
-                    if p_intel.get("tls") is not None and (host or reg):
-                        _add_action("tls_probe", host or reg)
-                    if p_intel.get("dns_status") not in (None, "unknown") and (host or reg):
-                        _add_action("dns_lookup", host or reg)
-
-                children = getattr(f_item, "children", None)
-                if children is None and isinstance(f_item, dict):
-                    children = f_item.get("children", [])
-                for ch in children or []:
-                    _scan_f(ch)
-
-            for f in findings or []:
-                _scan_f(f)
-
-        # 2. From ti_result
-        if ti_result and isinstance(ti_result, dict):
-            for act in ti_result.get("network_actions", []):
-                if isinstance(act, dict):
-                    atype = act.get("type", "threat_intel")
-                    atarget = act.get("target", "")
-                    _add_action(atype, atarget)
-
-        return actions
-
     # ─────────────────────────────────────────────────────────────────────────
     # PATH A: Finalize result from Gemini Agentic Runner
     # ─────────────────────────────────────────────────────────────────────────
@@ -742,13 +670,14 @@ class SafeGuardOrchestrator:
         ti_result = None
         if allow_net:
             try:
-                rem_ti = max(0.01, deadline - time.monotonic()) if deadline is not None else 6.0
-                ti_result = self._run_threat_intel_for_report(
-                    url_report=url_report,
-                    tool_cache_ti=ti_from_cache,
-                    budget_s=rem_ti,
-                    recorder=recorder,
-                )
+                rem_ti = max(0.0, deadline - time.monotonic()) if deadline is not None else 6.0
+                if rem_ti >= 0.3:
+                    ti_result = self._run_threat_intel_for_report(
+                        url_report=url_report,
+                        tool_cache_ti=ti_from_cache,
+                        budget_s=rem_ti,
+                        recorder=recorder,
+                    )
             except Exception as ex:
                 print(f"[Orchestrator] ThreatIntel error in agentic: {ex}")
 
@@ -950,12 +879,13 @@ class SafeGuardOrchestrator:
         ti_result = None
         if allow_net:
             try:
-                rem_ti = max(0.01, deadline - time.monotonic()) if deadline is not None else 6.0
-                ti_result = self._run_threat_intel_for_report(
-                    url_report=url_report,
-                    budget_s=rem_ti,
-                    recorder=recorder,
-                )
+                rem_ti = max(0.0, deadline - time.monotonic()) if deadline is not None else 6.0
+                if rem_ti >= 0.3:
+                    ti_result = self._run_threat_intel_for_report(
+                        url_report=url_report,
+                        budget_s=rem_ti,
+                        recorder=recorder,
+                    )
             except Exception as ex:
                 print(f"[Orchestrator] ThreatIntel error in fallback: {ex}")
 
