@@ -687,4 +687,93 @@ class TestB1LongHostAndTokenPerformance:
         ), "Mutation 2 survived: chars beyond 63 in label were inspected for brand matching!"
 
 
+class TestR2AnalyzerEnhancements:
+    """R2.1, R2.4, R2.6: URL flood ranking, APK in query, and archive download signals."""
+
+    def test_r2_1_url_flood_top_20_and_signal(self, analyzer):
+        # 25 benign links followed by 1 malicious phishing link at the end
+        benign_links = [f"https://domain{i}.com/home" for i in range(25)]
+        malicious_link = "https://vcb-verify.xyz/login"
+        text = " ".join(benign_links + [malicious_link])
+
+        t0 = time.perf_counter()
+        report = analyzer.analyze_text(text)
+        duration = time.perf_counter() - t0
+
+        assert duration < 0.3, f"Analysis took {duration:.3f}s >= 0.3s"
+        assert report.max_url_risk >= 40, f"Expected risk >= 40 (suspicious), got {report.max_url_risk}"
+
+        # Malicious link must have been prioritized into analyzed findings
+        hosts = [f.effective_host for f in report.findings]
+        assert "vcb-verify.xyz" in hosts
+
+        # URL_FLOOD signal must be present
+        all_signals = [s for f in report.findings for s in f.signals]
+        assert any(s.code == "URL_FLOOD" for s in all_signals)
+        flood_sig = next(s for s in all_signals if s.code == "URL_FLOOD")
+        assert flood_sig.severity == "medium"
+        assert flood_sig.weight == 20
+        assert "tin chứa quá nhiều đường link" in flood_sig.message_vi.lower()
+
+    def test_r2_6_mutation_killer_url_flood_omission(self, analyzer):
+        """Kills mutation omitting URL_FLOOD signal or failing to set report summary."""
+        links = [f"https://legit{i}.com/page" for i in range(25)]
+        report = analyzer.analyze_text(" ".join(links))
+        assert any(
+            any(s.code == "URL_FLOOD" for s in f.signals)
+            for f in report.findings
+        ), "Mutation: URL_FLOOD signal omitted when > 20 URLs present!"
+        assert any("tin chứa quá nhiều đường link" in msg.lower() for msg in report.summary_vi)
+
+    def test_r2_4_apk_in_query_and_semicolon(self, analyzer):
+        urls = [
+            ("https://download-zone.xyz/get?file=app.apk", "APK_DOWNLOAD"),
+            ("https://download-zone.xyz/download?download=update.xapk&v=2", "APK_DOWNLOAD"),
+            ("https://download-zone.xyz/files;tool.apks", "APK_DOWNLOAD"),
+        ]
+        for url, expected_code in urls:
+            report = analyzer.analyze_text(f"Tải ứng dụng tại {url}")
+            assert len(report.findings) > 0
+            codes = {s.code for s in report.findings[0].signals}
+            assert expected_code in codes, f"Failed to detect {expected_code} for {url}"
+
+    def test_r2_4_archive_download_signal(self, analyzer):
+        # Non-official archives (medium risk 25)
+        archive_cases = [
+            "https://cloud-share.top/files/data.zip",
+            "https://cloud-share.top/files/backup.rar",
+            "https://cloud-share.top/files/content.7z",
+            "https://cloud-share.top/files/os.iso",
+        ]
+        for u in archive_cases:
+            report = analyzer.analyze_text(f"Download {u}")
+            assert len(report.findings) > 0
+            sig = next((s for s in report.findings[0].signals if s.code == "ARCHIVE_DOWNLOAD"), None)
+            assert sig is not None, f"Expected ARCHIVE_DOWNLOAD for {u}"
+            assert sig.severity == "medium"
+            assert sig.weight == 25
+
+        # Non-official executables (high risk 40)
+        exec_cases = [
+            "https://cloud-share.top/files/installer.exe",
+            "https://cloud-share.top/files/patch.msi",
+            "https://cloud-share.top/files/screen.scr",
+            "https://cloud-share.top/files/run.bat",
+            "https://cloud-share.top/files/payload.js",
+            "https://cloud-share.top/files/client.jar",
+        ]
+        for u in exec_cases:
+            report = analyzer.analyze_text(f"Download {u}")
+            assert len(report.findings) > 0
+            sig = next((s for s in report.findings[0].signals if s.code == "ARCHIVE_DOWNLOAD"), None)
+            assert sig is not None, f"Expected ARCHIVE_DOWNLOAD for {u}"
+            assert sig.severity == "high"
+            assert sig.weight == 40
+
+        # Official domain archives: must NOT trigger ARCHIVE_DOWNLOAD
+        official_report = analyzer.analyze_text("Download https://vietcombank.com.vn/docs/annual_report.zip")
+        assert len(official_report.findings) > 0
+        assert not any(s.code == "ARCHIVE_DOWNLOAD" for s in official_report.findings[0].signals)
+
+
 

@@ -1,5 +1,6 @@
 import base64
 import time
+import urllib.parse
 import pytest
 
 from codebase.url_analysis.decode import peel
@@ -223,3 +224,82 @@ class TestUrlDecode:
 
             ratio = dur2 / max(dur1, 1e-6)
             assert ratio <= 3.0, f"Doubling ratio {ratio:.2f}x exceeds 3.0x limit"
+
+
+class TestR23DecodeEnhancements:
+    """R2.3: Ad redirectors, email security, nested base64, M9 (max_depth 4) and M13 (max 10 inner)."""
+
+    def test_r2_3_ad_and_email_redirect_params(self):
+        params_to_test = [
+            "adurl", "aurl", "imgurl", "url2", "redir", "redirect_url",
+            "destination_url", "target_url", "link", "ur", "continue",
+        ]
+        for p in params_to_test:
+            target = f"https://evil-target-{p.replace('_', '-')}.xyz/login"
+            url = f"https://tracker.net/go?{p}={urllib.parse.quote(target, safe='')}"
+            res = peel(url)
+            inner_raws = [c.raw for c in res.inner]
+            assert target in inner_raws, f"Failed to peel redirect param '{p}' for target '{target}'"
+
+    def test_r2_3_trusted_redirectors_safelinks_doubleclick_youtube(self):
+        target = "https://phish-login.top/vcb"
+        urls = [
+            f"https://ad.doubleclick.net/ddm/clk?adurl={urllib.parse.quote(target, safe='')}",
+            f"https://safelinks.protection.outlook.com/?url={urllib.parse.quote(target, safe='')}",
+            f"https://youtube.com/redirect?q={urllib.parse.quote(target, safe='')}",
+            f"https://click.service-tracker.net/c?url={urllib.parse.quote(target, safe='')}",
+        ]
+        for u in urls:
+            res = peel(u)
+            assert any(target in c.raw for c in res.inner), f"Failed to peel target from {u}"
+
+    def test_r2_3_nested_base64_2_layers(self):
+        import base64
+        target = "https://final-destination.xyz/portal"
+        layer1 = base64.b64encode(target.encode("utf-8")).decode("ascii")
+        layer2 = base64.b64encode(layer1.encode("utf-8")).decode("ascii")
+        url = f"https://track.xyz/c?data={layer2}"
+        res = peel(url)
+        inner_raws = [c.raw for c in res.inner]
+        assert target in inner_raws, f"Failed to peel 2-layer nested base64 to find '{target}', got {inner_raws}"
+
+    def test_r2_3_base64_unpadded_and_percent_encoded_equals(self):
+        import base64
+        target = "https://b64-portal.xyz/login"
+        b64_norm = base64.b64encode(target.encode("utf-8")).decode("ascii")
+        b64_unpadded = b64_norm.rstrip("=")
+        b64_percent_equal = b64_norm.replace("=", "%3D")
+
+        res1 = peel(f"https://example.com/r?u={b64_unpadded}")
+        assert any(target in c.raw for c in res1.inner)
+
+        res2 = peel(f"https://example.com/r?u={b64_percent_equal}")
+        assert any(target in c.raw for c in res2.inner)
+
+    def test_r2_3_negative_query_strings_no_inner(self):
+        negatives = [
+            "https://youtube.com/search?q=video+huong+dan+lam+banh",
+            "https://api.gateway.net/query?id=550e8400-e29b-41d4-a716-446655440000",
+            "https://cdn.repo.org/download?hash=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "https://search.engine.com/search?q=c3RhY2tvdmVyZmxvdw==",  # b64 of 'stackoverflow' (not a URL/domain)
+        ]
+        for u in negatives:
+            res = peel(u)
+            assert len(res.inner) == 0, f"Expected 0 inner URLs for {u}, got {[c.raw for c in res.inner]}"
+
+    def test_r2_3_mutation_m9_max_depth_strict(self):
+        # 6 layers of nested redirects: depth 0 -> depth 1 -> ... -> depth 5
+        # With max_depth=4, recursion MUST STOP at 4 inner URLs, layer 5 (site6) must NOT be peeled.
+        chain = "https://site6.com"
+        for i in range(5, 0, -1):
+            chain = f"https://site{i}.com/r?u={urllib.parse.quote(chain, safe='')}"
+        res = peel(chain, depth=0, max_depth=4)
+        assert len(res.inner) == 4
+        assert not any(c.raw == "https://site6.com" for c in res.inner), "M9 survived: peeled beyond max_depth=4!"
+
+    def test_r2_3_mutation_m13_max_inner_urls_cap(self):
+        # URL with 50 redirect parameters
+        params = [f"r=https%3A%2F%2Fevil{i}.com" for i in range(50)]
+        url = "https://tracker.net/bulk?" + "&".join(params)
+        res = peel(url)
+        assert len(res.inner) == 10, f"M13 survived: expected cap at 10, got {len(res.inner)}"

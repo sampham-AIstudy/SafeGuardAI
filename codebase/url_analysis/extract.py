@@ -7,10 +7,14 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
+import idna
+
 from codebase.url_analysis.models import Candidate
+from codebase.url_analysis.parse import parse_url
 
 MAX_TEXT_CHARS = 20000
 MAX_URLS = 20
+MAX_CANDIDATES = 200
 MAX_URL_LEN = 2048
 
 FILE_EXTENSIONS: set[str] = {
@@ -169,7 +173,7 @@ def _is_bare_domain(
     valid_tlds: set[str],
     multi_suffixes: set[str],
 ) -> bool:
-    """Validate whether candidate qualifies as a bare domain (e.g. vcb-xacminh.com/login)."""
+    """Validate whether candidate qualifies as a bare domain (e.g. vcb-xacminh.com/login, ngânhàng.vn)."""
     # Reject email-like strings without scheme
     if "@" in candidate:
         return False
@@ -182,11 +186,22 @@ def _is_bare_domain(
             return False
         host_part = parts[0]
 
-    # Domain characters must be alphanumeric, hyphen, dot
-    if not host_part or not re.fullmatch(r"[a-zA-Z0-9.-]+", host_part):
+    if not host_part or "." not in host_part:
         return False
 
-    labels = host_part.split(".")
+    # Convert Unicode / IDN domain to punycode ASCII representation
+    ascii_host = host_part
+    if any(ord(c) > 127 for c in host_part):
+        try:
+            ascii_host = idna.encode(host_part, uts46=True).decode("ascii")
+        except Exception:
+            return False
+
+    # Domain characters must be alphanumeric, hyphen, dot
+    if not ascii_host or not re.fullmatch(r"[a-zA-Z0-9.-]+", ascii_host):
+        return False
+
+    labels = ascii_host.split(".")
     if len(labels) < 2:
         return False
 
@@ -213,6 +228,33 @@ def _is_bare_domain(
         return False
 
     return True
+
+
+def _is_userinfo_url(
+    candidate: str,
+    valid_tlds: set[str],
+    multi_suffixes: set[str],
+) -> bool:
+    """
+    Check if candidate is a userinfo decoy URL without scheme, e.g.:
+    'vietcombank.com.vn@evil-site.top/xacminh' or 'vcb.com@scam.xyz:8080/portal'.
+    Rejects normal emails like 'ten@congty.vn' or 'name@company.com'.
+    """
+    if "@" not in candidate:
+        return False
+    parts = candidate.rsplit("@", 1)
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        return False
+    left, right = parts
+    left_host = left.split(":", 1)[0]
+    right_host_port = re.split(r"[/?#]", right, maxsplit=1)[0]
+    has_path_or_port = (len(re.split(r"[/?#]", right, maxsplit=1)) > 1) or (":" in right_host_port)
+    if not has_path_or_port:
+        return False
+    right_host = right_host_port.split(":", 1)[0]
+    left_ok = _is_bare_domain(left_host, valid_tlds, multi_suffixes)
+    right_ok = _is_bare_domain(right_host, valid_tlds, multi_suffixes) or _is_bare_ipv4(right_host)
+    return left_ok and right_ok
 
 
 class AnchorParser(HTMLParser):
@@ -376,9 +418,17 @@ def extract_candidates(
         # Check URL validity
         is_url = False
 
-        # Form A: Scheme URLs (http, https, ftp)
+        # Form A: Scheme URLs (http, https, ftp, data:, javascript:) including loose schemes
         if RE_SCHEME.match(candidate_str):
             is_url = True
+        elif candidate_str.lower().startswith(("http:/", "https:/", "ftp:/", "http:\\", "https:\\", "ftp:\\", "http:", "https:", "ftp:")):
+            p = parse_url(candidate_str)
+            if p.effective_host:
+                is_url = True
+        elif candidate_str.startswith("//"):
+            host_cand = re.split(r"[/?#:]", candidate_str[2:], maxsplit=1)[0]
+            if _is_bare_domain(host_cand, valid_tlds, multi_suffixes) or _is_bare_ipv4(host_cand):
+                is_url = True
         # Form B: data: or javascript: URI
         elif RE_DATA_OR_JS.match(candidate_str):
             is_url = True
@@ -392,7 +442,10 @@ def extract_candidates(
         # Form D: Standard dotted-quad IPv4 without scheme (e.g. 192.168.1.1, 103.2.3.4:8080/x, 103.2.3.4/login)
         elif _is_bare_ipv4(candidate_str):
             is_url = True
-        # Form E: Bare domain (e.g. vcb-xacminh.com/login, google.com)
+        # Form E: Userinfo URL without scheme (e.g. vietcombank.com.vn@evil.xyz/login)
+        elif _is_userinfo_url(candidate_str, valid_tlds, multi_suffixes):
+            is_url = True
+        # Form F: Bare domain (e.g. vcb-xacminh.com/login, google.com, ngânhàng.vn)
         elif _is_bare_domain(candidate_str, valid_tlds, multi_suffixes):
             is_url = True
 
@@ -464,10 +517,10 @@ def extract_candidates(
         seen_urls.add(c.raw)
         unique_candidates.append(c)
 
-    # 6. Apply MAX_URLS limit
-    truncated = len(unique_candidates) > MAX_URLS
+    # 6. Apply MAX_CANDIDATES limit
+    truncated = len(unique_candidates) > MAX_CANDIDATES
     if truncated:
-        unique_candidates = unique_candidates[:MAX_URLS]
+        unique_candidates = unique_candidates[:MAX_CANDIDATES]
 
     if stats is not None:
         stats["truncated"] = truncated

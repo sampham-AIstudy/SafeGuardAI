@@ -4,37 +4,11 @@ from typing import Any
 
 from codebase.config import get_settings
 from codebase.text_utils import PhraseMatcher, make_variants
-
-
-class AnalysisDict(dict):
-    """
-    A dict subclass supporting attribute access (e.g. report.findings, finding.effective_host)
-    and transparent JSON serialization with standard json.dumps.
-    """
-    def __getattr__(self, name: str) -> Any:
-        try:
-            return self[name]
-        except KeyError:
-            raise AttributeError(name)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        self[name] = value
-
-    def to_dict(self) -> dict[str, Any]:
-        return dict(self)
-
-
-def _wrap_report_dict(val: Any) -> Any:
-    """Recursively wrap dictionaries/lists into AnalysisDict for attribute access."""
-    if val is None:
-        return None
-    if hasattr(val, "to_dict") and not isinstance(val, dict):
-        val = val.to_dict()
-    if isinstance(val, dict):
-        return AnalysisDict({k: _wrap_report_dict(v) for k, v in val.items()})
-    if isinstance(val, list):
-        return [_wrap_report_dict(item) for item in val]
-    return val
+from codebase.url_analysis.analyzer import (
+    AnalysisDict,
+    _wrap_report_dict,
+    _clean_text_for_url_analysis,
+)
 
 OFFICIAL_WHITELIST_DOMAINS = {
     # Official Vietnam Banks
@@ -127,11 +101,42 @@ class ExplainableAgent:
     and Subdomain Impersonation / Phishing Links (80-99% risk).
     """
     def __init__(self):
-        # Scam action keywords (restored to 539ecb1)
-        self._scam_action_keywords = [
+        # Legacy scam action keywords (exact 539ecb1 / Phase 1)
+        self._legacy_scam_action_keywords = [
             "nạp tiền", "nạp quỹ", "cọc", "quỹ đảm bảo", "đặt cọc", "phí kích hoạt",
             "mã otp", "mã xác thực", "tải file apk", ".apk", "chuyển khoản cho",
             "vừa bị lừa", "chuyển tiền gấp"
+        ]
+
+        # Scam action keywords (R2.5: accented and unaccented, including T1.6 (b), (a), (g) and specific evasion phrases)
+        self._scam_action_keywords = [
+            # Original keywords and unaccented forms
+            "nạp tiền", "nap tien", "nạp quỹ", "nap quy", "cọc", "coc", "quỹ đảm bảo", "quy dam bao",
+            "đặt cọc", "dat coc", "phí kích hoạt", "phi kich hoat", "mã otp", "ma otp",
+            "mã xác thực", "ma xac thuc", "tải file apk", "tai file apk", ".apk",
+            "chuyển khoản cho", "chuyen khoan cho", "vừa bị lừa", "vua bi lua",
+            "chuyển tiền gấp", "chuyen tien gap",
+
+            # R2.5 required additions
+            "nhập otp", "nhap otp", "đọc mã otp", "doc ma otp", "gửi mã otp", "gui ma otp",
+            "cung cấp otp", "cung cap otp", "xin otp", "xin ma otp", "nhập mã xác thực", "nhap ma xac thuc",
+            "số thẻ", "so the", "16 số", "16 so", "cvv", "cvc", "3 số mặt sau", "3 so mat sau",
+            "mật khẩu", "mat khau", "chuyển khoản gấp", "chuyen khoan gap", "chuyển gấp", "chuyen gap",
+            "chuyển ngay", "chuyen ngay", "chuyển khoản ngay", "chuyen khoan ngay",
+            "nhận thưởng", "nhan thuong", "trúng thưởng", "trung thuong", "tặng quà", "tang qua",
+            "nhận quà", "nhan qua", "quay số trúng", "quay so trung",
+
+            # T1.6 (a) advance fee
+            "nộp phí", "nop phi", "đóng phí", "dong phi", "phí làm hồ sơ", "phi lam ho so",
+            "phí vận chuyển", "phi van chuyen", "phí nhận giải", "phi nhan giai", "phí bảo hiểm", "phi bao hiem",
+            "phí giải ngân", "phi giai ngan", "phí xử lý", "phi xu ly", "chuyển trước phí", "chuyen truoc phi",
+            "chuyển trước", "chuyen truoc", "chuyển tiền trước", "chuyen tien truoc",
+            "nạp thẻ cào", "nap the cao", "mua thẻ cào", "mua the cao", "tiền cọc", "tien coc",
+
+            # T1.6 (g) threats / coercion
+            "khóa tài khoản", "khoa tai khoan", "tạm khóa", "tam khoa", "đóng băng tài khoản", "dong bang tai khoan",
+            "lệnh bắt giam", "lenh bat giam", "khởi tố", "khoi to", "viện kiểm sát", "vien kiem sat",
+            "bộ công an", "bo cong an"
         ]
 
         # BLOCK A: Fake Recruitment / CTV (539ecb1)
@@ -480,7 +485,7 @@ class ExplainableAgent:
 
         if url_report is None and module_enabled:
             try:
-                clean_for_url = re.sub(r'(?<![0-9a-zA-Z/])(?:[01]?[0-9]|2[0-3]):[0-5][0-9](?![0-9a-zA-Z/]|(?:\.[a-zA-Z]))', ' ', text)
+                clean_for_url = _clean_text_for_url_analysis(text)
                 url_report = self.url_analyzer.analyze_text(clean_for_url)
             except Exception:
                 url_report = None
@@ -520,8 +525,11 @@ class ExplainableAgent:
             has_only_official_urls = has_urls and (official_urls_count == len(urls))
             has_suspicious_urls = any(not self.is_official_domain(h) for h in url_hostnames)
 
-        # Check for explicit scam action indicators (exact 539ecb1 logic)
-        has_scam_actions = any(kw in text_lower for kw in self._scam_action_keywords)
+        # Check for explicit scam action indicators (R2.5 when module enabled; exact Phase 1 when disabled)
+        if module_enabled:
+            has_scam_actions = any(kw in text_lower or kw in folded_norm for kw in self._scam_action_keywords)
+        else:
+            has_scam_actions = any(kw in text_lower for kw in self._legacy_scam_action_keywords)
 
         # G1: Educational tone vs 2nd person call to action
         has_educational_tone = bool(self._educational_tone_matcher.search(variants))
@@ -1045,15 +1053,51 @@ class ExplainableAgent:
             factors.append({"factor": f"Xuất hiện {len(matched_flags)} từ khoá nghi vấn trong CSDL PhishVN", "weight": weight})
             total_risk_score += weight
 
-        # Special Override: If input contains ONLY official whitelisted domains and no scam actions, set risk to 0%
-        if module_enabled and url_report is not None:
-            has_medium_plus = any(
-                (getattr(s, "severity", None) if not isinstance(s, dict) else s.get("severity")) in ("medium", "high", "critical")
-                for s in all_signals
-            )
-            if has_only_official_urls and not has_medium_plus and not has_scam_actions:
-                final_risk_score = 0
-                factors = []
+        # ─────────────────────────────────────────
+        # Consensus rule & Official Domain Override (R2.5 when module_enabled, exact Phase 1 otherwise)
+        # ─────────────────────────────────────────
+        if module_enabled:
+            def _is_url_factor(f_item: dict[str, Any]) -> bool:
+                f_name = f_item.get("factor", "")
+                return (
+                    f_name.startswith("Đường link")
+                    or f_name.startswith("Chứa đường link")
+                    or "link không xác minh được" in f_name
+                )
+
+            text_factors = [f for f in factors if not _is_url_factor(f)]
+            text_risk_score = sum(f.get("weight", 0) for f in text_factors)
+
+            # (b) Consensus rule: unverified URL (url_risk 1-39) + text risk >= 25 -> +15
+            if url_report is not None:
+                max_url_risk = getattr(url_report, "max_url_risk", None)
+                if max_url_risk is None and isinstance(url_report, dict):
+                    max_url_risk = url_report.get("max_url_risk", 0)
+                max_url_risk = max_url_risk or 0
+
+                if 1 <= max_url_risk <= 39 and text_risk_score >= 25:
+                    consensus_factor = "link không xác minh được đi kèm yêu cầu đáng ngờ"
+                    if not any(consensus_factor in f.get("factor", "") for f in factors):
+                        factors.append({"factor": consensus_factor, "weight": 15})
+                        total_risk_score += 15
+
+            # (a) Official domain override
+            has_medium_plus = False
+            if url_report is not None:
+                has_medium_plus = any(
+                    (getattr(s, "severity", None) if not isinstance(s, dict) else s.get("severity")) in ("medium", "high", "critical")
+                    for s in all_signals
+                )
+
+            if has_only_official_urls:
+                # Override to 0 ONLY IF text signals < 35 and no scam actions and no medium+ signals
+                if text_risk_score < 35 and not has_scam_actions and not has_medium_plus:
+                    final_risk_score = 0
+                    factors = []
+                else:
+                    # Text is suspicious or has scam actions: preserve text factors, drop URL factors
+                    factors = [f for f in factors if not _is_url_factor(f)]
+                    final_risk_score = min(sum(f.get("weight", 0) for f in factors), 99)
             else:
                 final_risk_score = min(total_risk_score, 99)
         else:

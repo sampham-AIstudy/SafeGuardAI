@@ -4,7 +4,6 @@ import base64
 import functools
 import re
 import urllib.parse
-from typing import Any
 
 from codebase.url_analysis.models import Candidate, ObfuscationStep, ParsedUrl, PeelResult
 from codebase.url_analysis.normalize import get_valid_tlds, load_url_lists
@@ -15,9 +14,11 @@ MAX_INNER_URLS = 10
 MAX_DECODED_CHARS = 4096
 
 COMMON_REDIRECT_PARAMS: set[str] = {
-    "url", "u", "q", "link", "target", "dest", "destination",
+    "url", "u", "ur", "q", "link", "target", "dest", "destination",
     "redirect", "redirect_uri", "next", "continue", "goto", "r",
-    "out", "to", "return", "returnurl", "rurl", "data"
+    "out", "to", "return", "returnurl", "rurl", "data",
+    "adurl", "aurl", "imgurl", "url2", "redir", "redirect_url",
+    "destination_url", "target_url"
 }
 
 RE_BASE64_TOKEN = re.compile(r"^[A-Za-z0-9_\-+/=]{16,4096}$")
@@ -45,6 +46,14 @@ def _is_url_or_domain(text: str, valid_tlds: set[str]) -> tuple[bool, str]:
 
     # Reject strings with whitespace or control characters
     if any(c in cand for c in " \t\r\n\x00"):
+        return False, ""
+
+    # Reject UUIDs (negative check)
+    if re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", cand):
+        return False, ""
+
+    # Reject pure hex hashes of length 32, 40, 64 (MD5, SHA1, SHA256)
+    if len(cand) in (32, 40, 64) and re.fullmatch(r"[0-9a-fA-F]+", cand):
         return False, ""
 
     # If starts with scheme
@@ -82,59 +91,87 @@ def _is_url_or_domain(text: str, valid_tlds: set[str]) -> tuple[bool, str]:
     return False, ""
 
 
-def _try_decode_base64_url(token: str, valid_tlds: set[str]) -> tuple[str | None, str | None]:
+def _try_decode_base64_url(
+    token: str,
+    valid_tlds: set[str],
+    max_layers: int = 4,
+) -> tuple[str | None, str | None]:
     """
-    Attempt to decode base64/base64url token.
+    Attempt to decode base64/base64url token, peeling up to max_layers nested base64.
     Must decode to >= 90% printable UTF-8 and contain :// or domain.tld.
     Returns: (extracted_url, full_decoded_text) or (None, None).
     """
-    if not token or not (16 <= len(token) <= 4096):
-        return None, None
-    if not RE_BASE64_TOKEN.fullmatch(token):
+    if not token or len(token) > 4096:
         return None, None
 
-    # Base64url normalization
-    norm = token.replace("-", "+").replace("_", "/")
-    padding = (4 - len(norm) % 4) % 4
-    norm += "=" * padding
-
-    try:
-        raw_bytes = base64.b64decode(norm, validate=False)
-    except Exception:
+    # Replace percent-encoded '=' (%3D, %3d)
+    cleaned_token = token.replace("%3D", "=").replace("%3d", "=").strip()
+    if len(cleaned_token) < 16:
         return None, None
 
-    try:
-        decoded_text = raw_bytes.decode("utf-8")
-    except Exception:
+    # Reject UUID or pure hex hashes (32, 40, 64 chars)
+    if re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", cleaned_token):
+        return None, None
+    if len(cleaned_token) in (32, 40, 64) and re.fullmatch(r"[0-9a-fA-F]+", cleaned_token):
         return None, None
 
-    if not decoded_text:
-        return None, None
+    curr_token = cleaned_token
+    outer_decoded_text: str | None = None
 
-    # Check printable characters >= 90%
-    printable_count = sum(1 for c in decoded_text if c.isprintable() or c in "\t\r\n")
-    if printable_count / len(decoded_text) < 0.90:
-        return None, None
+    for layer in range(max_layers):
+        if not RE_BASE64_TOKEN.fullmatch(curr_token):
+            break
 
-    cand = decoded_text.strip()
-    if "://" in cand:
-        m = re.search(r"(?:https?|ftp)://[^\s'\"`<>]{3,2048}", cand, re.IGNORECASE)
-        if m:
-            extracted = m.group(0)
-            is_valid, norm_url = _is_url_or_domain(extracted, valid_tlds)
+        # Base64url normalization with proper padding
+        norm = curr_token.replace("-", "+").replace("_", "/").rstrip("=")
+        padding = (4 - len(norm) % 4) % 4
+        norm += "=" * padding
+
+        try:
+            raw_bytes = base64.b64decode(norm, validate=False)
+        except Exception:
+            break
+
+        try:
+            decoded_text = raw_bytes.decode("utf-8")
+        except Exception:
+            break
+
+        if not decoded_text:
+            break
+
+        # Check printable characters >= 90%
+        printable_count = sum(1 for c in decoded_text if c.isprintable() or c in "\t\r\n")
+        if printable_count / len(decoded_text) < 0.90:
+            break
+
+        if outer_decoded_text is None:
+            outer_decoded_text = decoded_text
+
+        cand = decoded_text.strip()
+        if "://" in cand:
+            m = re.search(r"(?:https?|ftp)://[^\s'\"`<>]{3,2048}", cand, re.IGNORECASE)
+            if m:
+                extracted = m.group(0)
+                is_valid, norm_url = _is_url_or_domain(extracted, valid_tlds)
+                if is_valid:
+                    return norm_url, outer_decoded_text
+        else:
+            is_valid, norm_url = _is_url_or_domain(cand, valid_tlds)
             if is_valid:
-                return norm_url, decoded_text
-    else:
-        is_valid, norm_url = _is_url_or_domain(cand, valid_tlds)
-        if is_valid:
-            return norm_url, decoded_text
+                return norm_url, outer_decoded_text
 
-        m = re.search(r"\b([a-zA-Z0-9-]{1,63}\.[a-zA-Z]{2,63}(?:/[^\s'\"`<>]*)?)\b", cand)
-        if m:
-            extracted = m.group(1)
-            is_valid, norm_url = _is_url_or_domain(extracted, valid_tlds)
-            if is_valid:
-                return norm_url, decoded_text
+            m = re.search(r"\b([a-zA-Z0-9-]{1,63}\.[a-zA-Z]{2,63}(?:/[^\s'\"`<>]*)?)\b", cand)
+            if m:
+                extracted = m.group(1)
+                is_valid, norm_url = _is_url_or_domain(extracted, valid_tlds)
+                if is_valid:
+                    return norm_url, outer_decoded_text
+
+        # If not a URL, prepare for nested base64 unpeeling
+        curr_token = cand.replace("%3D", "=").replace("%3d", "=").strip()
+        if len(curr_token) < 16:
+            break
 
     return None, None
 
@@ -171,12 +208,20 @@ def _is_trusted_redirector(effective_host: str, path: str, redirectors: dict[str
     if clean_host.startswith("www."):
         clean_host = clean_host[4:]
 
+    # Wildcards: *.safelinks.* or safelinks.protection.outlook.com
+    if ".safelinks." in clean_host or clean_host.startswith("safelinks."):
+        return True, ["url"]
+
+    # click.*
+    if clean_host.startswith("click."):
+        return True, ["url", "target", "link", "redir", "redirect_url", "adurl"]
+
     host_path = f"{clean_host}{path}".rstrip("/")
     for redir_pattern, params in redirectors.items():
         pattern_norm = redir_pattern.rstrip("/")
         if host_path == pattern_norm or host_path.startswith(pattern_norm + "/"):
             return True, params
-        if clean_host == pattern_norm:
+        if clean_host == pattern_norm or clean_host.endswith("." + pattern_norm):
             return True, params
 
     return False, []
@@ -273,6 +318,8 @@ def peel(
     for q_str in queries_to_scan:
         if not q_str:
             continue
+        if discovered_inners:
+            break
         try:
             params = urllib.parse.parse_qsl(q_str, keep_blank_values=True)
         except Exception:
@@ -293,6 +340,11 @@ def peel(
                     if next_val == val_unquoted:
                         break
                     val_unquoted = next_val
+                # If param is 'q' and not on a trusted redirector (like youtube.com/redirect or google.com/url),
+                # require http(s):// or // to avoid parsing search query sentences/hashes as redirect URLs
+                if p_name_lower == "q" and not is_trusted_redir:
+                    if not val_unquoted.lower().startswith(("http://", "https://", "ftp://", "//")):
+                        continue
 
                 is_valid, norm_url = _is_url_or_domain(val_unquoted, valid_tlds)
                 if is_valid:

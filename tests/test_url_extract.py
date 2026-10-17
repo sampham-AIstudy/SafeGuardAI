@@ -3,6 +3,7 @@ import pytest
 
 from codebase.url_analysis.extract import (
     MAX_URLS,
+    MAX_CANDIDATES,
     extract_candidates,
     trim_url,
 )
@@ -136,12 +137,12 @@ class TestUrlExtract:
         assert len(cands) == 3
 
     def test_max_urls_limit(self):
-        # 30 unique URLs in text
-        links = [f"https://domain{i}.com/path" for i in range(30)]
+        # 220 unique URLs in text to test candidate capping at MAX_CANDIDATES (200) per R2.1
+        links = [f"https://domain{i}.com/path" for i in range(220)]
         text = " ".join(links)
         stats = {}
         cands = extract_candidates(text, stats=stats)
-        assert len(cands) == MAX_URLS
+        assert len(cands) == MAX_CANDIDATES
         assert cands.truncated is True
         assert stats["truncated"] is True
 
@@ -281,4 +282,56 @@ class TestUrlExtract:
         for text in bare_strange:
             cands = extract_candidates(f"Connect {text} here")
             assert len(cands) == 0, f"Strange bare IP '{text}' should not be extracted, got {[c.raw for c in cands]}"
+
+
+class TestR22LooseAndUnicodeExtract:
+    """R2.2: Loose schemes, userinfo without scheme, bare Unicode/IDN domains, and negatives."""
+
+    def test_loose_schemes_extracted(self):
+        cases = [
+            ("http:/example.com/x", "http:/example.com/x"),
+            ("http:\\example.com\\x", "http:\\example.com\\x"),
+            ("http:example.com/path", "http:example.com/path"),
+            ("//example.com/portal", "//example.com/portal"),
+            ("HTTP://EXAMPLE.COM/ABC", "HTTP://EXAMPLE.COM/ABC"),
+        ]
+        for inp, expected in cases:
+            cands = extract_candidates(f"Vào ngay {inp} để kiểm tra")
+            raws = [c.raw for c in cands]
+            assert expected in raws, f"Expected '{expected}' in {raws}"
+
+    def test_userinfo_without_scheme_extracted(self):
+        # Left side looks like a domain, right side is host with TLD + path
+        cand_str = "vietcombank.com.vn@vcb-login-verify.xyz/login"
+        cands = extract_candidates(f"Xác nhận tại {cand_str} ngay")
+        raws = [c.raw for c in cands]
+        assert cand_str in raws
+
+    def test_userinfo_without_scheme_negative_emails(self):
+        # Regular emails must NOT be treated as userinfo URLs
+        emails = [
+            "Liên hệ ten@congty.vn để được hỗ trợ",
+            "Gửi email về support@vietcombank.com.vn ngay",
+            "Email: customer-care@shopee.vn xin cảm ơn",
+            "admin@gmail.com",
+        ]
+        for em in emails:
+            cands = extract_candidates(em)
+            assert len(cands) == 0, f"Email was falsely extracted as URL candidate: {[c.raw for c in cands]}"
+
+    def test_bare_unicode_idn_extracted(self):
+        text = "Truy cập ngânhàng.vn/login để xem chi tiết"
+        cands = extract_candidates(text)
+        assert any("ngânhàng.vn" in c.raw for c in cands)
+
+    def test_r2_2_negative_phrases(self):
+        negatives = [
+            "chấm điểm bài thi học kỳ",
+            "cham soc khach hang 24/7",
+            "http: là giao thức truyền tải siêu văn bản",
+            "hôm nay trời đẹp quá bạn ơi",
+        ]
+        for neg in negatives:
+            cands = extract_candidates(neg)
+            assert len(cands) == 0, f"Falsely extracted candidate from '{neg}': {[c.raw for c in cands]}"
 

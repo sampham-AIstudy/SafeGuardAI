@@ -11,9 +11,7 @@ from codebase.url_analysis.brands import BrandCatalog
 from codebase.url_analysis.decode import peel_url
 from codebase.url_analysis.extract import extract_candidates
 from codebase.url_analysis.models import (
-    Candidate,
     ObfuscationStep,
-    ParsedUrl,
     UrlAnalysisReport,
     UrlFinding,
     UrlSignal,
@@ -22,6 +20,38 @@ from codebase.url_analysis.normalize import load_url_lists, normalize_for_urls
 from codebase.url_analysis.parse import parse_url
 
 MAX_TEXT_CHARS = 20000
+
+
+class AnalysisDict(dict):
+    """Dictionary supporting attribute access for report structures."""
+
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(f"'AnalysisDict' has no attribute '{name}'")
+
+
+def _wrap_report_dict(val: Any) -> Any:
+    """Recursively wrap objects and dicts into AnalysisDict for attribute access."""
+    if hasattr(val, "to_dict") and callable(val.to_dict):
+        return AnalysisDict(_wrap_report_dict(val.to_dict()))
+    elif isinstance(val, dict):
+        return AnalysisDict({k: _wrap_report_dict(v) for k, v in val.items()})
+    elif isinstance(val, list):
+        return [_wrap_report_dict(item) for item in val]
+    return val
+
+
+def _clean_text_for_url_analysis(text: str) -> str:
+    """Pre-clean text for URL analysis (e.g. separating standalone time strings)."""
+    if not isinstance(text, str):
+        text = str(text or "")
+    return re.sub(
+        r'(?<![0-9a-zA-Z/])(?:[01]?[0-9]|2[0-3]):[0-5][0-9](?![0-9a-zA-Z/]|(?:\.[a-zA-Z]))',
+        ' ',
+        text,
+    )
 
 _shared_analyzer_lock = threading.Lock()
 _shared_analyzer_instance: UrlAnalyzer | None = None
@@ -257,12 +287,58 @@ class UrlAnalyzer:
 
             # 2. Extract
             candidates = extract_candidates(norm_text, extra_urls=extra_urls, stats=norm_stats)
-            is_truncated = text_truncated or getattr(candidates, "truncated", False)
+
+            def _quick_suspicion(cand: Any) -> int:
+                raw_cand = cand.raw if hasattr(cand, "raw") else str(cand)
+                raw_c_low = raw_cand.lower()
+                sc = 0
+                if "@" in raw_cand:
+                    sc += 25
+                if "xn--" in raw_c_low:
+                    sc += 25
+                if "%" in raw_cand:
+                    sc += 20
+                if "\\" in raw_cand:
+                    sc += 20
+                if re.search(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", raw_cand):
+                    sc += 30
+                if any(s in raw_c_low for s in self.shorteners):
+                    sc += 20
+                if any(fh in raw_c_low for fh in self.free_hosting):
+                    sc += 20
+                for st in self.suspicious_tlds:
+                    if f".{st}" in raw_c_low:
+                        sc += 25
+                        break
+                if any(p in raw_c_low for p in ("url=", "redirect=", "link=", "dest=", "target=", "q=", "continue=", "adurl=")):
+                    sc += 20
+                if any(t in raw_c_low for t in self.lure_tokens):
+                    sc += 25
+                if any(d in raw_c_low for d in ("hxxp", "[.]", "[:]", "[dot]", "(dot)")):
+                    sc += 20
+                if any(k in raw_c_low for k in ("vietcombank", "vcb", "techcombank", "agribank", "bidv", "momo", "zalo", "shopee")):
+                    sc += 20
+                if getattr(cand, "source", "") in ("markdown", "anchor") and getattr(cand, "display_text", None):
+                    sc += 10
+                return sc
+
+            total_cands = len(candidates)
+            has_url_flood = total_cands > 20
+            if has_url_flood:
+                indexed = list(enumerate(candidates))
+                indexed.sort(key=lambda it: (-_quick_suspicion(it[1]), it[0]))
+                candidates_to_analyze = [it[1] for it in indexed[:20]]
+                is_truncated = True
+            else:
+                candidates_to_analyze = list(candidates)
+                is_truncated = text_truncated or getattr(candidates, "truncated", False)
 
             # 3. Analyze each candidate
             findings: list[UrlFinding] = []
-            for cand in candidates:
-                # Associate initial normalization steps if applicable
+            for cand in candidates_to_analyze:
+                if (time.perf_counter() - start_time) > deadline_s:
+                    is_truncated = True
+                    break
                 f = self.analyze_url(
                     cand.raw,
                     source=cand.source,
@@ -273,8 +349,23 @@ class UrlAnalyzer:
                 )
                 findings.append(f)
 
+            if has_url_flood and findings:
+                flood_sig = UrlSignal(
+                    code="URL_FLOOD",
+                    severity="medium",
+                    weight=20,
+                    message_vi="Tin chứa quá nhiều đường link, một số chưa được kiểm tra.",
+                    evidence=f"total_candidates={total_cands}, analyzed={len(findings)}",
+                )
+                findings[0].signals.append(flood_sig)
+                findings[0].url_risk_score = min(99, max(findings[0].url_risk_score, 20))
+                if findings[0].verdict in ("benign", "official"):
+                    findings[0].verdict = "suspicious" if findings[0].url_risk_score >= 40 else "low"
+
             # 4. Aggregates
             max_url_risk = max((f.url_risk_score for f in findings), default=0)
+            if has_url_flood:
+                max_url_risk = max(max_url_risk, 20)
 
             # has_obfuscation: True if any finding has obfuscation steps or obfuscation signals
             obf_codes = {
@@ -287,7 +378,7 @@ class UrlAnalyzer:
                 for f in findings
             )
 
-            # has_only_official_urls: True if all findings (and children) are official
+            # has_only_official_urls: True if all findings (and children) are official and no unverified URL flood
             def _all_official(flist: list[UrlFinding]) -> bool:
                 for f in flist:
                     if not f.is_official:
@@ -296,7 +387,7 @@ class UrlAnalyzer:
                         return False
                 return True
 
-            has_only_official = _all_official(findings) if findings else False
+            has_only_official = _all_official(findings) if (findings and not has_url_flood) else False
 
             # Critical codes
             crit_set: set[str] = set()
@@ -322,6 +413,11 @@ class UrlAnalyzer:
                 summary_vi.append("Không phát hiện dấu hiệu lừa đảo nguy hiểm trên các liên kết được phân tích.")
             else:
                 summary_vi.append("Không tìm thấy liên kết nào trong nội dung.")
+
+            if has_url_flood:
+                flood_msg = "Tin chứa quá nhiều đường link, một số chưa được kiểm tra."
+                if flood_msg not in summary_vi:
+                    summary_vi.append(flood_msg)
 
             for f in findings:
                 for s in f.signals:
@@ -554,14 +650,35 @@ class UrlAnalyzer:
             )
 
         # Signal: APK DOWNLOAD
+        raw_low = raw.lower()
         p_low = (parsed.path or "").lower()
+        q_low = (parsed.query or "").lower()
         h_low = effective_host.lower()
-        if (
-            p_low.endswith((".apk", ".xapk", ".apks"))
-            or ".apk" in p_low
-            or ".apk?" in raw.lower()
-            or h_low.endswith(".apk")
-        ):
+
+        apk_exts = (".apk", ".xapk", ".apks")
+        has_apk = False
+        if any(ext in raw_low for ext in apk_exts):
+            has_apk = (
+                p_low.endswith(apk_exts)
+                or any(f"{ext}?" in raw_low or f"{ext}&" in raw_low or f"{ext};" in raw_low or f"{ext}#" in raw_low for ext in apk_exts)
+                or any(f"{ext}/" in p_low or f"{ext};" in p_low for ext in apk_exts)
+                or h_low.endswith(".apk")
+            )
+            if not has_apk and q_low:
+                try:
+                    for _, q_val in urllib.parse.parse_qsl(q_low, keep_blank_values=True):
+                        v_clean = q_val.split(";")[0].strip()
+                        if any(v_clean.endswith(ext) for ext in apk_exts):
+                            has_apk = True
+                            break
+                except Exception:
+                    pass
+
+            if not has_apk:
+                if re.search(r"(?:[?&;=]|^)[^&;]*\.(?:apk|xapk|apks)(?=[?&#;&\s]|$)", raw_low):
+                    has_apk = True
+
+        if has_apk:
             add_sig(
                 "APK_DOWNLOAD",
                 "critical",
@@ -569,6 +686,53 @@ class UrlAnalyzer:
                 "Đường dẫn trực tiếp tải về tệp ứng dụng Android (.apk) tiềm ẩn mã độc.",
                 f"url={raw}",
             )
+
+        # Signal: ARCHIVE DOWNLOAD on non-official domains
+        if not is_off:
+            archive_exts = (".zip", ".rar", ".7z", ".iso")
+            exec_exts = (".exe", ".msi", ".scr", ".bat", ".js", ".jar")
+
+            def _check_ext_match(target_exts: tuple[str, ...]) -> str | None:
+                if not any(ext in raw_low for ext in target_exts):
+                    return None
+                for ext in target_exts:
+                    if p_low.endswith(ext) or f"{ext}?" in raw_low or f"{ext}&" in raw_low or f"{ext};" in raw_low or f"{ext}#" in raw_low:
+                        return ext
+                    if f"{ext}/" in p_low or f"{ext};" in p_low:
+                        return ext
+                if q_low:
+                    try:
+                        for _, q_val in urllib.parse.parse_qsl(q_low, keep_blank_values=True):
+                            v_clean = q_val.split(";")[0].strip()
+                            for ext in target_exts:
+                                if v_clean.endswith(ext):
+                                    return ext
+                    except Exception:
+                        pass
+                m = re.search(r"(?:[?&;=]|^)[^&;]*\.(" + "|".join(e.lstrip(".") for e in target_exts) + r")(?=[?&#;&\s]|$)", raw_low)
+                if m:
+                    return "." + m.group(1).lower()
+                return None
+
+            exec_match = _check_ext_match(exec_exts)
+            if exec_match:
+                add_sig(
+                    "ARCHIVE_DOWNLOAD",
+                    "high",
+                    40,
+                    f"Đường dẫn tải về tệp thực thi/kịch bản nguy hiểm ({exec_match}) trên tên miền không chính thức.",
+                    f"ext={exec_match}, url={raw}",
+                )
+            else:
+                arch_match = _check_ext_match(archive_exts)
+                if arch_match:
+                    add_sig(
+                        "ARCHIVE_DOWNLOAD",
+                        "medium",
+                        25,
+                        f"Đường dẫn tải về tệp nén ({arch_match}) trên tên miền không chính thức, tiềm ẩn mã độc.",
+                        f"ext={arch_match}, url={raw}",
+                    )
 
         # Signal: DATA OR JS URI
         if "DATA_OR_JS_URI" in parsed.flags or parsed.scheme in ("data", "javascript", "vbscript"):
@@ -926,10 +1090,21 @@ class UrlAnalyzer:
             else:
                 verdict = "benign"
 
+        # Normalized URL (canonical scheme, effective host, path, query, fragment)
+        scheme_prefix = f"{parsed.scheme}://" if parsed.scheme else "http://"
+        norm_url = f"{scheme_prefix}{effective_host}{parsed.path}"
+        if parsed.query:
+            norm_url += f"?{parsed.query}"
+        if parsed.fragment:
+            norm_url += f"#{parsed.fragment}"
+
+        # Destination URL after redirect peeling or embedded extraction
+        final_dest = children[-1].final_url if children else norm_url
+
         return UrlFinding(
             raw=raw,
-            normalized=raw,
-            final_url=children[-1].final_url if (children and self._is_trusted_redirector(effective_host, parsed.path)) else raw,
+            normalized=norm_url,
+            final_url=final_dest,
             display_host=display_host,
             effective_host=effective_host,
             effective_host_unicode=parsed.effective_host_unicode,

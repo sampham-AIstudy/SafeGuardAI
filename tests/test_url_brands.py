@@ -324,3 +324,50 @@ class TestNewBrandsRecognition:
         m_pvcb = catalog.brand_match("pvcombank-online.xyz")
         assert m_pvcb is not None
         assert m_pvcb["brand_id"] == "pvcombank"
+
+
+class TestR27ShortBrands:
+    """R2.7: Short brands (<= 4 chars: momo, zalo, acb, vib, mb) homoglyph skeleton matching."""
+
+    @pytest.mark.parametrize(
+        "domain,expected_brand",
+        [
+            ("rnomo-vn.com", "momo"),
+            ("rnorno-vn.com", "momo"),
+            ("m0m0-pay.xyz", "momo"),
+            ("za1o-chat.top", "zalo"),
+            ("zal0-verify.cc", "zalo"),
+            ("z4lo-hotro.top", "zalo"),
+            ("rn-b-bank.top", "mbbank"),
+            ("rnb-online.xyz", "mbbank"),
+        ],
+    )
+    def test_r2_7_short_brand_variants_detected(self, catalog, domain, expected_brand):
+        m = catalog.brand_match(domain)
+        assert m is not None, f"Failed to match short brand variant '{domain}'"
+        assert m["brand_id"] == expected_brand
+        assert m["technique"] == "homoglyph"
+
+    @pytest.mark.parametrize(
+        "domain",
+        [
+            "momentum.com",
+            "placebo.com",
+            "chambank.net",
+            "tambang.vn",
+            "zambia.gov",
+            "acbiology.org",
+            "vibrational.com",
+            "embarcadero.com",
+            "amazon.com",
+            "google.com",
+            "microsoft.com",
+            "apple.com",
+            "cloudflare.com",
+            "github.com",
+            "wikipedia.org",
+        ],
+    )
+    def test_r2_7_popular_legit_domains_not_flagged(self, catalog, domain):
+        m = catalog.brand_match(domain)
+        assert m is None, f"Legitimate domain '{domain}' was falsely flagged as brand match: {m}"

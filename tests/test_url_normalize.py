@@ -212,3 +212,44 @@ class TestUrlNormalize:
         d_cand = cand.to_dict()
         assert isinstance(d_cand, dict)
         assert d_cand["raw"] == "https://vcb.com"
+
+
+class TestR22NormalizeDefang:
+    """R2.2: Vietnamese dots ('chấm', 'cham'), commas, odd unicode dots, and tabs/newlines in URLs."""
+
+    def test_cham_and_commas_normalized(self):
+        cases = [
+            ("vcb-xacminh chấm com", "vcb-xacminh.com"),
+            ("vcb-xacminh cham top", "vcb-xacminh.top"),
+            ("vcb-xacminh,com", "vcb-xacminh.com"),
+            ("vcb-xacminh\u2024com", "vcb-xacminh.com"),
+            ("vcb-xacminh\ufe52com", "vcb-xacminh.com"),
+        ]
+        for inp, expected in cases:
+            clean, steps, stats = normalize_for_urls(inp)
+            assert expected in clean, f"Expected '{expected}' in '{clean}' from '{inp}'"
+            assert any(s.technique in ("defanged", "fullwidth") for s in steps)
+
+    def test_tab_inside_url_joined(self):
+        raw = "https://vcb-portal.top/auth/\tlogin?v=1"
+        clean, steps, stats = normalize_for_urls(raw)
+        assert "https://vcb-portal.top/auth/login?v=1" in clean
+        assert any("tab" in s.detail_vi.lower() for s in steps)
+
+    def test_newline_inside_url_joined(self):
+        raw = "https://vcb-portal.top/auth/\nlogin"
+        clean, steps, stats = normalize_for_urls(raw)
+        assert "https://vcb-portal.top/auth/login" in clean
+        assert any("ngắt dòng" in s.detail_vi.lower() for s in steps)
+
+    def test_negative_sentences_with_cham(self):
+        # Ordinary sentences with 'chấm' or commas should not become URLs
+        negatives = [
+            "Hôm nay cô giáo chấm điểm bài thi rất kỹ.",
+            "Số tiền là 10,000 đồng nhé bạn.",
+            "Tôi thích ăn chôm chôm, bạn có thích không?",
+        ]
+        for s in negatives:
+            clean, steps, stats = normalize_for_urls(s)
+            assert clean == s
+            assert len(steps) == 0

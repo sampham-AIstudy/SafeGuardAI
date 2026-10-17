@@ -37,13 +37,18 @@
     "y2u.be"
   ],
   "redirectors": {
+    "ad.doubleclick.net": ["adurl", "url"],
+    "doubleclick.net": ["adurl", "url"],
     "facebook.com/l.php": ["u"],
     "google.com/url": ["q", "url"],
+    "googleadservices.com": ["adurl", "url"],
+    "googleads.g.doubleclick.net": ["adurl", "url"],
     "l.facebook.com/l.php": ["u"],
     "linkedin.com/safety/go": ["url"],
     "lm.facebook.com/l.php": ["u"],
     "m.facebook.com/l.php": ["u"],
     "out.line.me": ["u"],
+    "safelinks.protection.outlook.com": ["url"],
     "slack-redir.net/link": ["url"],
     "steamcommunity.com/linkfilter": ["url"],
     "t.umblr.com/redirect": ["z"],

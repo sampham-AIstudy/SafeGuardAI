@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import functools
 import json
 import re
 import unicodedata
@@ -482,9 +481,20 @@ class BrandCatalog:
         for tok, is_full in candidate_tokens:
             tok_bounded = tok[:63]
             sk_no_repl = skeleton(tok_bounded, replace_digits=False, replace_lookalikes=False)
-            for brand, kw, _ in self.brand_keywords:
+            sk_full = skeleton(tok_bounded, replace_digits=True, replace_lookalikes=True)
+            for brand, kw, is_short in self.brand_keywords:
                 # If skeleton without digits/lookalikes equals brand keyword, but the raw token is not pure ASCII kw:
                 if sk_no_repl == kw and tok_bounded != kw:
+                    return {
+                        "brand_id": brand["brand_id"],
+                        "display_name": brand["display_name"],
+                        "technique": "homoglyph",
+                        "distance": 0,
+                        "official_domain": brand["official_domains"][0] if brand["official_domains"] else "",
+                    }
+                # R2.7: For short brands (<= 4 chars, e.g. momo, zalo, acb, vib, mb),
+                # compare skeleton(token) == keyword with full lookalikes (rn->m, 0->o, 1->l, vv->w, cl->d)
+                if (is_short or len(kw) <= 4) and sk_full == kw and tok_bounded != kw:
                     return {
                         "brand_id": brand["brand_id"],
                         "display_name": brand["display_name"],

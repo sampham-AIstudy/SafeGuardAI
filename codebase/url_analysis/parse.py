@@ -5,7 +5,6 @@ import ipaddress
 import re
 import unicodedata
 import urllib.parse
-from typing import Any
 
 import idna
 
@@ -263,7 +262,9 @@ def parse_url(raw: str) -> ParsedUrl:
             rest = rest.replace("\\", "/")
 
     # 5. Separate authority from path/query/fragment
-    if rest.startswith("//"):
+    if scheme in ("http", "https", "ftp", "ws", "wss"):
+        rest = rest.lstrip("/")
+    elif rest.startswith("//"):
         rest = rest[2:]
 
     delim_match = RE_DELIMITERS.search(rest)

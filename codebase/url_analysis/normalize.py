@@ -34,11 +34,20 @@ RE_COLON_SLASHES = re.compile(r"\[:\]//|\[://\]", re.IGNORECASE)
 RE_SCHEME_COLON = re.compile(r"\b(https?|ftp)\[:\](//)?", re.IGNORECASE)
 RE_BRACKET_DOT = re.compile(r"\[\.\]|\(\.\)|\{\.\}|\[dot\]|\(dot\)|\{dot\}", re.IGNORECASE)
 
-# Linear bounded regex for ' dot ' and ' . '
+# Linear bounded regex for ' dot ', ' . ', ' cham ', ' chấm ', commas and strange Unicode dots (‥ ․ ﹒ ・)
 RE_SPACED_DOT = re.compile(
-    r"(?<=[a-zA-Z0-9-])[ \t]+(?:\.|\bdot\b)[ \t]+([a-zA-Z]{2,63})(?=[/?#\s,;:]|$)",
+    r"([a-zA-Z0-9\-\u00c0-\u024f\u1ea0-\u1ef9])"
+    r"(?:"
+    r"[ \t]*(?:,|\u2024|\u2025|\ufe52|\u30fb)[ \t]*|"
+    r"[ \t]+(?:\.|\bdot\b|\bch[aấá]m\b|\bcham\b)[ \t]+"
+    r")"
+    r"([a-zA-Z]{2,63})"
+    r"(?=[/?#\s,;:]|$)",
     re.IGNORECASE,
 )
+
+RE_TAB_URL = re.compile(r"((?:https?|ftp)://[^\s\r\n]{1,500})\t([^\s\r\n]{1,500})", re.IGNORECASE)
+RE_NL_URL = re.compile(r"((?:https?|ftp)://[^\s\r\n]{1,500})\r?\n([a-zA-Z0-9/_?&=-]{1,500})", re.IGNORECASE)
 
 
 class NormalizeStats(dict):
@@ -179,72 +188,121 @@ def normalize_for_urls(
 
     # Step 5: Refang schemes and separators
     # 5a: hxxp / h**p
-    scheme_fixed = RE_SCHEME_DEFANG.sub(_refang_scheme_match, text)
-    if scheme_fixed != text:
-        steps.append(
-            ObfuscationStep(
-                technique="defanged",
-                detail_vi="Khôi phục scheme URL bị làm mờ (hxxp/h**p -> http(s))",
-                before=text[:200],
-                after=scheme_fixed[:200],
+    if "hxx" in text.lower() or "h**" in text.lower():
+        scheme_fixed = RE_SCHEME_DEFANG.sub(_refang_scheme_match, text)
+        if scheme_fixed != text:
+            steps.append(
+                ObfuscationStep(
+                    technique="defanged",
+                    detail_vi="Khôi phục scheme URL bị làm mờ (hxxp/h**p -> http(s))",
+                    before=text[:200],
+                    after=scheme_fixed[:200],
+                )
             )
-        )
-        text = scheme_fixed
+            text = scheme_fixed
 
     # 5b: [:]// or [://] -> ://, and scheme[:]// -> scheme://
-    colon_fixed = RE_COLON_SLASHES.sub("://", text)
-    colon_fixed = RE_SCHEME_COLON.sub(
-        lambda m: f"{m.group(1)}://" if m.group(2) else f"{m.group(1)}:",
-        colon_fixed,
-    )
-    if colon_fixed != text:
-        steps.append(
-            ObfuscationStep(
-                technique="defanged",
-                detail_vi="Khôi phục dấu phân cách scheme bị làm mờ ([:]// hoặc [://] -> ://)",
-                before=text[:200],
-                after=colon_fixed[:200],
-            )
+    if "[:]" in text or "[://]" in text:
+        colon_fixed = RE_COLON_SLASHES.sub("://", text)
+        colon_fixed = RE_SCHEME_COLON.sub(
+            lambda m: f"{m.group(1)}://" if m.group(2) else f"{m.group(1)}:",
+            colon_fixed,
         )
-        text = colon_fixed
+        if colon_fixed != text:
+            steps.append(
+                ObfuscationStep(
+                    technique="defanged",
+                    detail_vi="Khôi phục dấu phân cách scheme bị làm mờ ([:]// hoặc [://] -> ://)",
+                    before=text[:200],
+                    after=colon_fixed[:200],
+                )
+            )
+            text = colon_fixed
 
     # 5c: Bracket dots [.] (.) {.} [dot] (dot) {dot}
-    bracket_fixed = RE_BRACKET_DOT.sub(".", text)
-    if bracket_fixed != text:
-        steps.append(
-            ObfuscationStep(
-                technique="defanged",
-                detail_vi="Khôi phục dấu chấm phân tách domain bị làm mờ ([.]/(.)/[dot]/(dot) -> .)",
-                before=text[:200],
-                after=bracket_fixed[:200],
+    if any(c in text for c in "([{"):
+        bracket_fixed = RE_BRACKET_DOT.sub(".", text)
+        if bracket_fixed != text:
+            steps.append(
+                ObfuscationStep(
+                    technique="defanged",
+                    detail_vi="Khôi phục dấu chấm phân tách domain bị làm mờ ([.]/(.)/[dot]/(dot) -> .)",
+                    before=text[:200],
+                    after=bracket_fixed[:200],
+                )
             )
-        )
-        text = bracket_fixed
+            text = bracket_fixed
 
-    # 5d: Spaced dots: ' dot ' or ' . ' only when right-hand side is a valid TLD
-    def _replace_spaced_dot(m: re.Match) -> str:
-        right = m.group(1)
-        if right.lower() in valid_tlds:
-            return f".{right}"
-        return m.group(0)
+    # 5d: Spaced dots: ' dot ', ' . ', ' cham ', ' chấm ', commas, and strange Unicode dots (‥ ․ ﹒ ・)
+    has_spaced_dot_trigger = (
+        " dot " in text.lower()
+        or " . " in text
+        or "cham" in text.lower()
+        or any(k in text for k in ("chấm", "chám", "châm", "\u2024", "\u2025", "\ufe52", "\u30fb"))
+        or ("," in text and any(c.isalpha() for c in text))
+    )
+    if has_spaced_dot_trigger:
+        def _replace_spaced_dot(m: re.Match) -> str:
+            left = m.group(1)
+            right = m.group(2)
+            if right.lower() in valid_tlds:
+                return f"{left}.{right}"
+            return m.group(0)
 
-    cur_text = text
-    for _ in range(5):  # loop up to 5 passes for chained spaced dots like vcb . com . vn
-        next_text = RE_SPACED_DOT.sub(_replace_spaced_dot, cur_text)
-        if next_text == cur_text:
-            break
-        cur_text = next_text
+        cur_text = text
+        for _ in range(5):  # loop up to 5 passes for chained spaced dots like vcb . com . vn
+            next_text = RE_SPACED_DOT.sub(_replace_spaced_dot, cur_text)
+            if next_text == cur_text:
+                break
+            cur_text = next_text
 
-    if cur_text != text:
-        steps.append(
-            ObfuscationStep(
-                technique="defanged",
-                detail_vi="Khôi phục dấu chấm phân tách domain bị làm mờ (' dot ' hoặc ' . ' -> .)",
-                before=text[:200],
-                after=cur_text[:200],
+        if cur_text != text:
+            steps.append(
+                ObfuscationStep(
+                    technique="defanged",
+                    detail_vi="Khôi phục dấu phân cách domain bị làm mờ (' dot ', ' chấm ', dấu phẩy hoặc ký tự chấm lạ -> .)",
+                    before=text[:200],
+                    after=cur_text[:200],
+                )
             )
-        )
-        text = cur_text
+            text = cur_text
+
+    # 5e: Tab or newline inside a schemed URL (WHATWG URL parsing ignores tabs/newlines within URLs)
+    if "\t" in text and "://" in text:
+        cur_text = text
+        for _ in range(10):
+            next_text = RE_TAB_URL.sub(r"\1\2", cur_text)
+            if next_text == cur_text:
+                break
+            cur_text = next_text
+        if cur_text != text:
+            steps.append(
+                ObfuscationStep(
+                    technique="defanged",
+                    detail_vi="Khôi phục liên kết bị chèn ký tự tab (\\t) làm gián đoạn",
+                    before=text[:200],
+                    after=cur_text[:200],
+                )
+            )
+            text = cur_text
+
+    if "\n" in text and "://" in text:
+        cur_text = text
+        for _ in range(5):
+            next_text = RE_NL_URL.sub(r"\1\2", cur_text)
+            if next_text == cur_text:
+                break
+            cur_text = next_text
+        if cur_text != text:
+            steps.append(
+                ObfuscationStep(
+                    technique="defanged",
+                    detail_vi="Ghép liên kết bị ngắt dòng bất thường",
+                    before=text[:200],
+                    after=cur_text[:200],
+                )
+            )
+            text = cur_text
 
     stats.cleaned_length = len(text)
     return text, steps, stats

@@ -758,3 +758,103 @@ def test_mutation_14_warning_tone_f6_reduced(agent):
     text = "Vietcombank khuyến cáo: Ngân hàng không bao giờ yêu cầu khách hàng cung cấp mật khẩu, mã OTP qua điện thoại, tin nhắn hay đường link"
     res = agent.explain(text, matched_flags=[], ocr_anomalies=[])
     assert res["risk_score"] < 40
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# R2.5: OFFICIAL DOMAIN OVERRIDE & CONSENSUS RULE TESTS
+# ─────────────────────────────────────────────────────────────────────────────
+class TestR25OfficialDomainOverride:
+    """R2.5 tests: Official domain override guards and consensus rule."""
+
+    R25_SCAM_OFFICIAL_URL_TEXTS = [
+        # 1: Bank phishing + OTP + 16-digit card + bank staff
+        "Vietcombank cảnh báo: Tài khoản của quý khách bị khóa. Vui lòng đăng nhập ngay để xác minh thông tin và cung cấp mã OTP cùng số thẻ 16 số cho chuyên viên ngân hàng để mở khóa tài khoản tại https://vietcombank.com.vn",
+        # 2: Authority threat + law enforcement + safe account deposit
+        "Bộ Công an thông báo: Bạn đang liên quan đến đường dây rửa tiền xuyên quốc gia, tài khoản bị tạm khóa. Yêu cầu chuyển tiền ngay vào tài khoản tạm giữ để chứng minh vô tội theo hướng dẫn tại https://dichvucong.gov.vn",
+        # 3: Bank phishing + CVV + bank staff
+        "Techcombank cảnh báo: Tài khoản của quý khách bị khóa. Vui lòng đăng nhập ngay để xác minh thông tin và cung cấp mã CVV cùng mã OTP cho nhân viên ngân hàng để mở khóa tại https://techcombank.com.vn",
+        # 4: Prize lure + advance fee
+        "Chúc mừng quý khách đã trúng thưởng 500 triệu đồng từ chương trình tri ân! Vui lòng nộp phí làm hồ sơ 2 triệu đồng để nhận thưởng ngay tại https://vietcombank.com.vn",
+        # 5: Police arrest warrant + urgent money transfer to custody account
+        "Cục Cảnh sát điều tra Bộ Công an: Lệnh bắt giam và khởi tố bị can đối với bạn về tội rửa tiền. Yêu cầu chuyển khoản gấp 50 triệu tiền cọc vào tài khoản tạm giữ để bảo lãnh tại https://dichvucong.gov.vn",
+        # 6: Bank phishing + 16-digit card + OTP + specialist
+        "Ngân hàng Techcombank thông báo: Tài khoản của quý khách bị tạm khóa. Vui lòng đăng nhập ngay và gửi mã xác thực OTP cùng 16 số trên thẻ ngân hàng cho chuyên viên ngân hàng để mở khóa gấp tại https://techcombank.com.vn",
+        # 7: Prize lottery + shipping fee + advance fee
+        "Vietcombank trân trọng thông báo: Bạn đã quay số trúng thưởng xe máy SH. Vui lòng chuyển trước phí vận chuyển và nộp phí bảo hiểm để nhận quà tại https://vietcombank.com.vn",
+        # 8: Supreme Procuracy + frozen account + safe account transfer
+        "Viện kiểm sát nhân dân tối cao thông báo: Quyết định khởi tố và phong tỏa tài khoản ngân hàng. Yêu cầu chuyển khoản ngay vào tài khoản tạm giữ của cơ quan điều tra tại https://dichvucong.gov.vn",
+        # 9: Held funds + advance disbursement fee + OTP
+        "Techcombank: Quý khách vừa nhận được khoản tiền 100 triệu nhưng đang bị tạm giữ. Vui lòng thanh toán trước phí giải ngân và nhập mã OTP xác thực tại https://techcombank.com.vn",
+        # 10: Prize lure + advance processing fee + OTP to bank specialist
+        "Vietcombank thông báo: Quý khách vừa trúng thưởng 200 triệu đồng. Vui lòng nộp phí làm hồ sơ 5 triệu đồng và cung cấp mã OTP cho chuyên viên ngân hàng để nhận giải tại https://vietcombank.com.vn"
+    ]
+
+    R25_BENIGN_OFFICIAL_URL_TEXTS = [
+        # 1: Bill payment notification
+        "Vietcombank thông báo: Quý khách vừa thực hiện giao dịch thanh toán hóa đơn tiền điện 450.000 VND thành công. Chi tiết xem tại https://vietcombank.com.vn",
+        # 2: Payment OTP with clear warning not to share
+        "Mã OTP xác thực thanh toán đơn hàng Tiki của quý khách là 839201. Tuyệt đối không chia sẻ mã này cho bất kỳ ai. Chi tiết tại https://techcombank.com.vn",
+        # 3: Public administrative service notification
+        "Cổng dịch vụ công Quốc gia https://dichvucong.gov.vn trân trọng thông báo: Hồ sơ đăng ký cấp đổi giấy phép lái xe của bạn đã được tiếp nhận và đang xử lý.",
+        # 4: Fee schedule update announcement
+        "Vietcombank trân trọng kính mời quý khách tham khảo biểu phí dịch vụ tài khoản mới được cập nhật trên website chính thức https://vietcombank.com.vn",
+        # 5: Monthly credit card statement
+        "Techcombank thông báo sao kê định kỳ thẻ tín dụng tháng 10 của quý khách. Vui lòng tra cứu bảng kê chi tiết tại https://techcombank.com.vn",
+        # 6: Official security advisory
+        "Ngân hàng khuyến cáo khách hàng nâng cao cảnh giác: Không bao giờ cung cấp mật khẩu hoặc mã OTP cho người lạ qua điện thoại hay website. Xem hướng dẫn tại https://vietcombank.com.vn",
+        # 7: VAT invoice announcement
+        "Hóa đơn giá trị gia tăng số HD-92817 đã được phát hành cho quý khách. Quý khách có thể tra cứu thông tin hóa đơn tại https://dichvucong.gov.vn",
+        # 8: Birthday greetings
+        "Techcombank chúc mừng sinh nhật quý khách! Cảm ơn quý khách đã đồng hành cùng ngân hàng trong suốt năm qua. Khám phá các tiện ích tại https://techcombank.com.vn",
+        # 9: Maintenance notification
+        "Lịch bảo trì nâng cấp hệ thống định kỳ của Vietcombank từ 01h00 đến 03h00 sáng chủ nhật. Thông tin chi tiết có tại https://vietcombank.com.vn",
+        # 10: Public service portal login verification code
+        "Mã xác thực đăng nhập Cổng Dịch vụ công Quốc gia của bạn là 492018. Mã có hiệu lực trong 5 phút. Vui lòng không gửi mã cho người khác. Truy cập https://dichvucong.gov.vn"
+    ]
+
+    @pytest.mark.parametrize("text", R25_SCAM_OFFICIAL_URL_TEXTS)
+    def test_r25_scam_with_official_url_at_least_75(self, agent, text):
+        """10 scam texts with official links must reach risk >= 75 despite official URL."""
+        res = agent.explain(text, matched_flags=[], ocr_anomalies=[])
+        assert res["risk_score"] >= 75, f"Expected risk >= 75, got {res['risk_score']} for text: {text}"
+
+    @pytest.mark.parametrize("text", R25_BENIGN_OFFICIAL_URL_TEXTS)
+    def test_r25_benign_with_official_url_under_40(self, agent, text):
+        """10 benign texts with official links must stay risk < 40."""
+        res = agent.explain(text, matched_flags=[], ocr_anomalies=[])
+        assert res["risk_score"] < 40, f"Expected risk < 40, got {res['risk_score']} for text: {text}"
+
+    def test_mutation_official_override_text_risk_threshold(self, agent):
+        """Mutation: Bỏ điều kiện text_risk_score < 35 ở official override -> phải FAIL.
+        
+        Text has investment promise (Family C = 35 points) and official domain, but NO scam action keywords.
+        Without mutation: text_risk_score >= 35 prevents official override -> risk_score remains 35.
+        With mutation: override resets risk_score to 0 -> fails assertion.
+        """
+        text = "Cơ hội đầu tư siêu lợi nhuận cam kết sinh lời 30%/ngày rút gốc linh hoạt cùng chuyên gia tại https://vietcombank.com.vn"
+        res = agent.explain(text, matched_flags=[], ocr_anomalies=[])
+        assert res["risk_score"] == 35, f"Expected risk == 35, got {res['risk_score']}"
+        factors = [f["factor"] for f in res["risk_breakdown"]]
+        assert any("cam kết đầu tư" in f.lower() for f in factors)
+
+    def test_mutation_official_override_unaccented_scam_actions(self, agent):
+        """Mutation: Bỏ has_scam_actions không dấu -> phải FAIL.
+        
+        Text has Urgency Pressure (Block H = 15 points) and unaccented scam action 'vui long nhap otp' with official domain.
+        Without mutation: unaccented scam action is detected -> official override is blocked -> risk_score == 15.
+        With mutation: has_scam_actions is False and text score 15 < 35 -> override sets score to 0 -> fails assertion.
+        """
+        text = "Yêu cầu hành động ngay lập tức trong 24h: vui long nhap otp xac thuc tai https://vietcombank.com.vn"
+        res = agent.explain(text, matched_flags=[], ocr_anomalies=[])
+        assert res["risk_score"] == 15, f"Expected risk == 15, got {res['risk_score']}"
+        factors = [f["factor"] for f in res["risk_breakdown"]]
+        assert any("hối thúc hành động ngay" in f.lower() for f in factors)
+
+    def test_r25_consensus_rule_unverified_url_with_suspicious_text(self, agent):
+        """R2.5(b): Link không xác minh được (url_risk 1-39) + điểm văn bản >= 25 -> cộng thêm 15 (cap 99)."""
+        text = "Thông báo tài khoản của quý khách bị tạm khóa. Vui lòng đăng nhập ngay để cập nhật thông tin tại https://bit.ly/3xyz"
+        res = agent.explain(text, matched_flags=[], ocr_anomalies=[])
+        factors = [f["factor"] for f in res["risk_breakdown"]]
+        assert any("link không xác minh được đi kèm yêu cầu đáng ngờ" in f for f in factors)
+        assert res["risk_score"] >= 70
+
