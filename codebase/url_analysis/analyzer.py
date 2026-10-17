@@ -46,6 +46,58 @@ class UrlAnalyzer:
         self.free_hosting = {h.lower().strip(".") for h in self.lists.get("free_hosting", [])}
         self.valid_tlds = {t.lower().strip(".") for t in self.lists.get("valid_tlds", [])}
         self.redirectors = self.lists.get("redirectors", {})
+        self.lure_tokens = [t.lower().strip() for t in self.lists.get("lure_tokens", []) if t.strip()]
+
+    def _is_official_or_platform(self, host: str, registrable: str) -> bool:
+        if not host:
+            return False
+        h = host.lower().strip(".")
+        reg = (registrable or "").lower().strip(".")
+        is_off, _ = self.catalog.is_official(h)
+        if is_off:
+            return True
+        plats = getattr(self.catalog, "platform_domains", set())
+        for p in plats:
+            p_clean = p.lower().strip(".")
+            # Exclude free hosting domains from protected platform exemption
+            if p_clean not in self.free_hosting:
+                if h == p_clean or reg == p_clean or h.endswith("." + p_clean):
+                    return True
+        return False
+
+    def _find_lure_tokens(self, host: str, registrable: str) -> list[str]:
+        if not host:
+            return []
+        h = host.lower().strip(".")
+        labels = h.split(".")
+        multi_suffixes = {s.lower() for s in self.lists.get("multi_level_suffixes", [])}
+        if len(labels) >= 3 and f"{labels[-2]}.{labels[-1]}".lower() in multi_suffixes:
+            domain_labels = labels[:-2]
+        elif len(labels) >= 2 and labels[-1] in self.valid_tlds:
+            domain_labels = labels[:-1]
+        else:
+            domain_labels = labels
+
+        matched: list[str] = []
+        for token in self.lure_tokens:
+            tok = token.lower().strip()
+            if not tok:
+                continue
+            is_match = False
+            for dl in domain_labels:
+                sub_parts = [s for s in dl.split("-") if s]
+                no_hyphen = dl.replace("-", "")
+                if len(tok) >= 5:
+                    if tok in dl or tok in no_hyphen or any(tok in s for s in sub_parts):
+                        is_match = True
+                        break
+                else:
+                    if tok == dl or tok == no_hyphen or any(tok == s for s in sub_parts):
+                        is_match = True
+                        break
+            if is_match:
+                matched.append(tok)
+        return matched
 
     def _is_shortener(self, host: str) -> bool:
         if not host:
@@ -555,6 +607,25 @@ class UrlAnalyzer:
                 f"Liên kết đặt trên nền tảng hosting/chia sẻ miễn phí ({effective_host}).",
                 f"host={effective_host}",
             )
+
+        # Signal: LURE KEYWORD DOMAIN
+        lure_matches = self._find_lure_tokens(effective_host, registrable)
+        if lure_matches and not self._is_official_or_platform(effective_host, registrable):
+            has_suspicious_tld = self._is_suspicious_tld(effective_host, registrable)
+            has_free_hosting = self._is_free_hosting(effective_host, registrable)
+            has_brand_match = bool(b_match)
+            reg_label = (registrable or effective_host).split(".")[0]
+            has_hyphens = reg_label.count("-") >= 2
+
+            if has_suspicious_tld or has_free_hosting or has_brand_match or has_hyphens:
+                matched_str = ", ".join(sorted(list(set(lure_matches))))
+                add_sig(
+                    "LURE_KEYWORD_DOMAIN",
+                    "medium",
+                    25,
+                    f"Tên miền chứa từ khóa mồi nhử lừa đảo '{matched_str}' kết hợp với các yếu tố bất thường.",
+                    f"host={effective_host}, tokens={matched_str}",
+                )
 
         # Signal: INVALID TLD
         is_invalid_tld = (

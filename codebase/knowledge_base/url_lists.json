@@ -315,5 +315,32 @@
     "work",
     "xyz",
     "za"
+  ],
+  "lure_tokens": [
+    "quatang",
+    "nhanqua",
+    "trungthuong",
+    "khuyenmai",
+    "uudai",
+    "hoantien",
+    "hoantra",
+    "voucher",
+    "khaosat",
+    "xacthuc",
+    "xacminh",
+    "baomat",
+    "capnhat",
+    "hotro",
+    "kiemtra",
+    "tracuu",
+    "phatnguoi",
+    "nopphat",
+    "nhantien",
+    "vaytien",
+    "tuyendung",
+    "kiemtien",
+    "dautu",
+    "thuong",
+    "quatri"
   ]
 }

@@ -433,3 +433,93 @@ class TestRealDatasetBlacklist:
             assert "BLACKLIST_HIT" in sig_codes, f"Expected BLACKLIST_HIT for real phishing host {host}, got {sig_codes}"
             assert finding.verdict in ("suspicious", "dangerous")
 
+
+class TestLureKeywordDomain:
+    """Tests for B2, B3, B4: LURE_KEYWORD_DOMAIN signal, secondary factors, and mutation coverage."""
+
+    def test_b2_lure_with_suspicious_tld(self, analyzer):
+        """Domain with lure token + suspicious TLD => suspicious (weight 25 + 15 = 40)."""
+        finding = analyzer.analyze_url("https://quatang-vn.xyz")
+        sig_codes = {s.code for s in finding.signals}
+        assert "LURE_KEYWORD_DOMAIN" in sig_codes
+        assert "SUSPICIOUS_TLD" in sig_codes
+        assert finding.url_risk_score >= 40
+        assert finding.verdict == "suspicious"
+
+        lure_sig = next(s for s in finding.signals if s.code == "LURE_KEYWORD_DOMAIN")
+        assert lure_sig.severity == "medium"
+        assert lure_sig.weight == 25
+        assert "quatang" in lure_sig.evidence
+        assert "mồi nhử" in lure_sig.message_vi
+
+    def test_b3_similar_golden_v2_url(self, analyzer):
+        """
+        B3 CASE_65: LURE + SUSPICIOUS_TLD + BRAND_IN_PATH gives score >= 40.
+        Tested with similar non-golden URL 'https://khao-sat-uu-dai.top/lazada-voucher'.
+        """
+        finding = analyzer.analyze_url("https://khao-sat-uu-dai.top/lazada-voucher")
+        sig_codes = {s.code for s in finding.signals}
+        assert "LURE_KEYWORD_DOMAIN" in sig_codes
+        assert "SUSPICIOUS_TLD" in sig_codes
+        assert "BRAND_IN_PATH" in sig_codes
+        assert finding.url_risk_score >= 40
+        assert finding.verdict in ("suspicious", "dangerous")
+
+    def test_b4_isolated_dot_com_not_suspicious(self, analyzer):
+        """
+        B4: Domain with lure token on .com without secondary factors (no suspicious TLD,
+        no free hosting, no brand match, < 2 hyphens) MUST NOT trigger LURE_KEYWORD_DOMAIN.
+        """
+        finding = analyzer.analyze_url("https://khuyenmai.com")
+        sig_codes = {s.code for s in finding.signals}
+        assert "LURE_KEYWORD_DOMAIN" not in sig_codes
+        assert finding.url_risk_score < 40
+        assert finding.verdict == "benign"
+
+    def test_b4_official_and_platform_never_lure(self, analyzer):
+        """
+        B4: Official domains and platform domains (docs.google.com, etc.) must NEVER trigger LURE_KEYWORD_DOMAIN.
+        """
+        protected_urls = [
+            "https://vietcombank.com.vn",
+            "https://giaohangnhanh.vn",
+            "https://docs.google.com/document/d/123",
+            "https://forms.gle/xyz123",
+            "https://zalo.me/g/abc123",
+            "https://facebook.com/vietcombank",
+        ]
+        assert len(protected_urls) >= 4
+        for url in protected_urls:
+            finding = analyzer.analyze_url(url)
+            sig_codes = {s.code for s in finding.signals}
+            assert "LURE_KEYWORD_DOMAIN" not in sig_codes, f"LURE signal falsely fired on protected URL: {url}"
+            assert finding.verdict != "suspicious", f"Protected URL {url} marked suspicious with score {finding.url_risk_score}"
+
+    def test_b4_mutations_killed(self, analyzer):
+        """
+        B4: Mutation tests verifying 4 specific bug patterns are impossible:
+          Mutation 1: Drop secondary factors of LURE -> would cause khuyenmai.com to be flagged.
+          Mutation 2: Drop scheme rule for strange IPs -> would allow bare decimal/octal/hex IPs.
+          Mutation 3: Allow single numbers with '/' -> would extract dates/fractions like 16/10.
+          Mutation 4: Apply LURE to official domains -> would flag official domains.
+        """
+        from codebase.url_analysis.extract import extract_candidates
+
+        # 1. Secondary factors check: khuyenmai.com MUST NOT get LURE
+        f1 = analyzer.analyze_url("https://khuyenmai.com")
+        assert not any(s.code == "LURE_KEYWORD_DOMAIN" for s in f1.signals), "Mutation 1 survived: LURE without secondary factor!"
+        assert f1.url_risk_score == 0
+
+        # 2. Strange IPs without scheme MUST NOT be extracted
+        c2 = extract_candidates("Connect 2130706433 or 0x5DB8D822 or 0135.0270.0330.042 or 93.12113954 here")
+        assert len(c2) == 0, f"Mutation 2 survived: Strange IPs without scheme extracted: {[c.raw for c in c2]}"
+
+        # 3. Single numbers with '/' MUST NOT be extracted
+        c3 = extract_candidates("luc 10:15 16/10. thanh toan 20/10 ti le 1/2 va 3/4 ngay 10/10/2026")
+        assert len(c3) == 0, f"Mutation 3 survived: Numbers with slash extracted: {[c.raw for c in c3]}"
+
+        # 4. Official domains MUST NEVER get LURE
+        f4 = analyzer.analyze_url("https://vietcombank.com.vn")
+        assert not any(s.code == "LURE_KEYWORD_DOMAIN" for s in f4.signals), "Mutation 4 survived: Official domain got LURE!"
+
+

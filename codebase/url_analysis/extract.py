@@ -54,6 +54,7 @@ def load_url_lists() -> dict[str, Any]:
         "suspicious_tlds": [],
         "multi_level_suffixes": [],
         "valid_tlds": [],
+        "lure_tokens": [],
     }
 
 
@@ -119,6 +120,48 @@ def _is_valid_ipv4_host(host: str) -> bool:
     elif len(nums) == 4:
         return all(n <= 255 for n in nums)
     return False
+
+
+def _is_standard_dotted_quad_ipv4(host: str) -> bool:
+    """
+    Check if host is a standard 4-part decimal dotted-quad IPv4 address (a.b.c.d).
+    Each part must be 0-255 in decimal with no leading zeros (unless the part is '0').
+    Rejects octal, hex, single-int, or shortened IPs.
+    """
+    if not host:
+        return False
+    parts = host.split(".")
+    if len(parts) != 4:
+        return False
+    for p in parts:
+        if not p.isdigit():
+            return False
+        if len(p) > 1 and p.startswith("0"):
+            return False
+        val = int(p)
+        if not (0 <= val <= 255):
+            return False
+    return True
+
+
+def _is_bare_ipv4(candidate: str) -> bool:
+    """
+    Check if candidate without scheme is a valid bare standard dotted-quad IPv4.
+    Format: a.b.c.d optionally followed by ':port' (1-65535) and/or '/path' / '?query' / '#fragment'.
+    """
+    host_port = re.split(r"[/?#]", candidate, maxsplit=1)[0]
+    if ":" in host_port:
+        parts = host_port.split(":")
+        if len(parts) != 2:
+            return False
+        port_str = parts[1]
+        if not port_str.isdigit() or not (1 <= int(port_str) <= 65535):
+            return False
+        host = parts[0]
+    else:
+        host = host_port
+
+    return _is_standard_dotted_quad_ipv4(host)
 
 
 def _is_bare_domain(
@@ -346,14 +389,10 @@ def extract_candidates(
             # www alone or www. alone is not a valid URL
             if len(labels) >= 3 and _is_bare_domain(host_part, valid_tlds, multi_suffixes):
                 is_url = True
-        # Form D: IPv4 candidate (only when followed by '/' or ':port' without scheme)
-        elif ("/" in candidate_str) or (re.search(r":\d{1,5}(?:/|$|\?|#)", candidate_str) is not None):
-            host_candidate = re.split(r"[/?#]", candidate_str, maxsplit=1)[0].split(":")[0]
-            if _is_valid_ipv4_host(host_candidate):
-                is_url = True
-            elif _is_bare_domain(candidate_str, valid_tlds, multi_suffixes):
-                is_url = True
-        # Form E: Bare domain
+        # Form D: Standard dotted-quad IPv4 without scheme (e.g. 192.168.1.1, 103.2.3.4:8080/x, 103.2.3.4/login)
+        elif _is_bare_ipv4(candidate_str):
+            is_url = True
+        # Form E: Bare domain (e.g. vcb-xacminh.com/login, google.com)
         elif _is_bare_domain(candidate_str, valid_tlds, multi_suffixes):
             is_url = True
 

@@ -61,6 +61,10 @@ class TestUrlExtract:
             ("Kết nối 1.2.3.4:8080/path để tiếp tục", "1.2.3.4:8080/path", "text", None),
             # 22. IPv4 without scheme followed by slash
             ("Quản trị tại 127.0.0.1/admin", "127.0.0.1/admin", "text", None),
+            # 22b. Bare dotted-quad IPv4 without slash or port
+            ("Quản trị tại 192.168.1.1 hệ thống", "192.168.1.1", "text", None),
+            # 22c. IPv4 without scheme with path
+            ("Đăng nhập 103.2.3.4/login ngay", "103.2.3.4/login", "text", None),
             # 23. Wikipedia URL with balanced parentheses
             ("Tra cứu https://en.wikipedia.org/wiki/Python_(programming_language) chi tiết", "https://en.wikipedia.org/wiki/Python_(programming_language)", "text", None),
             # 24. URL surrounded by quotes
@@ -201,3 +205,80 @@ class TestUrlExtract:
         if t_s1 >= 0.002:
             ratio = t_s2 / t_s1
             assert ratio <= 3.0, f"Scaling ratio was {ratio:.2f} > 3.0 for {base_pattern}"
+
+    def test_b1_date_time_fraction_strange_ip_rejection(self):
+        """
+        B1: Ensure >= 20 non-URL strings (dates with slash, dates with dot, times, fractions,
+        ratios, phone numbers, order codes, amounts, versions, and strange IPs without scheme)
+        are NEVER extracted as URLs.
+        """
+        negative_samples = [
+            "16/10",
+            "20/10",
+            "30/10",
+            "05/10",
+            "20/11",
+            "31/10",
+            "25/10",
+            "22/10",
+            "01/01",
+            "10/10/2026",
+            "1/2",
+            "3/4",
+            "16.10.2024",
+            "05.10.2024",
+            "10:15",
+            "08:00",
+            "16:9",
+            "0912.345.678",
+            "DH12345/67",
+            "500.000đ",
+            "v2.0",
+            "1.2.3",
+            "luc 10:15 16/10. SD: 500.000VND",
+            "thanh toán trước ngày 20/10",
+            "tỉ lệ 1/2 và phân số 3/4",
+            "Server 2130706433 test",
+            "Host 0x5DB8D822 kiem tra",
+            "Octal 0135.0270.0330.042 here",
+            "Shortened 93.12113954 test",
+        ]
+        assert len(negative_samples) >= 20, "Must test at least 20 negative non-URL samples"
+        for sample in negative_samples:
+            cands = extract_candidates(sample)
+            assert len(cands) == 0, f"Expected 0 candidates for '{sample}', but got {[c.raw for c in cands]}"
+
+    def test_b1_ip_extraction_with_and_without_scheme(self):
+        """
+        B1: Verify strange IPs are extracted WITH scheme, and only standard dotted-quad
+        IPv4 is extracted without scheme.
+        """
+        # Schemed strange/standard IPs must be extracted
+        schemed = [
+            ("http://2130706433/", "http://2130706433/"),
+            ("http://0x5DB8D822/", "http://0x5DB8D822/"),
+            ("http://0135.0270.0330.042/", "http://0135.0270.0330.042/"),
+            ("http://93.12113954/", "http://93.12113954/"),
+            ("https://103.2.3.4:8080/x", "https://103.2.3.4:8080/x"),
+            ("103.2.3.4/login", "103.2.3.4/login"),
+            ("192.168.1.1", "192.168.1.1"),
+        ]
+        assert len(schemed) == 7
+        for text, expected in schemed:
+            cands = extract_candidates(f"Link {text} here")
+            assert len(cands) >= 1, f"Failed to extract '{expected}' from '{text}'"
+            assert expected in [c.raw for c in cands]
+
+        # Bare strange IPs (without scheme) MUST NOT be extracted
+        bare_strange = [
+            "2130706433",
+            "0x5DB8D822",
+            "0135.0270.0330.042",
+            "93.12113954",
+            "2130706433/login",
+            "0x5DB8D822/login",
+        ]
+        for text in bare_strange:
+            cands = extract_candidates(f"Connect {text} here")
+            assert len(cands) == 0, f"Strange bare IP '{text}' should not be extracted, got {[c.raw for c in cands]}"
+
