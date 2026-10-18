@@ -6,13 +6,25 @@ document.addEventListener("DOMContentLoaded", () => {
     // Client ID management (UUID v4 with localStorage and fallback)
     let inMemoryClientId = null;
 
+    function fallbackUUID() {
+        if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+            const buf = new Uint8Array(16);
+            crypto.getRandomValues(buf);
+            buf[6] = (buf[6] & 0x0f) | 0x40; // UUID v4
+            buf[8] = (buf[8] & 0x3f) | 0x80; // variant
+            const hex = Array.from(buf, b => b.toString(16).padStart(2, "0")).join("");
+            return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+        }
+        return "fallback-uuid-0000-000000000000";
+    }
+
     function getClientId() {
         try {
             let cid = localStorage.getItem("safeguard_client_id");
             if (!cid) {
                 cid = (typeof crypto !== "undefined" && crypto.randomUUID) 
                     ? crypto.randomUUID() 
-                    : "cid_" + Date.now() + "_" + Math.random().toString(36).substring(2, 15);
+                    : fallbackUUID();
                 localStorage.setItem("safeguard_client_id", cid);
             }
             return cid;
@@ -20,7 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!inMemoryClientId) {
                 inMemoryClientId = (typeof crypto !== "undefined" && crypto.randomUUID)
                     ? crypto.randomUUID()
-                    : "cid_" + Date.now() + "_" + Math.random().toString(36).substring(2, 15);
+                    : fallbackUUID();
             }
             return inMemoryClientId;
         }
@@ -30,7 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (typeof crypto !== "undefined" && crypto.randomUUID) {
             return `session_${crypto.randomUUID()}`;
         }
-        return `session_${Date.now()}`;
+        return `session_${fallbackUUID()}`;
     }
 
     // State Variables

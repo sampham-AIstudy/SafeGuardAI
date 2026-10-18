@@ -1,5 +1,6 @@
 import re
 import threading
+import hashlib
 from collections import OrderedDict, deque
 
 
@@ -8,13 +9,33 @@ class MemoryAgent:
     Memory Agent:
     Maintains interaction history across multi-turn / multi-day conversations
     to detect escalating sequential scam patterns (e.g. Day 1 -> Day 3 -> Day 5).
-    Thread-safe, session-isolated, with bounded session count (LRU) and deque maxlen.
+    Thread-safe, client-isolated with per-client quota (max 50 sessions/client, LRU within client),
+    global session ceiling (max 2000 sessions total; evict least active client),
+    and per-interaction text truncation (max 2000 chars).
     """
-    def __init__(self, max_history: int = 20, max_sessions: int = 1000):
+    def __init__(
+        self,
+        max_history: int = 20,
+        max_sessions: int = 2000,
+        max_sessions_per_client: int = 50,
+        max_text_chars: int = 2000
+    ):
         self._max_history = max_history
-        self._max_sessions = max_sessions
+        self._max_global_sessions = max_sessions
+        self._max_sessions_per_client = min(max_sessions_per_client, max_sessions)
+        self._max_text_chars = max_text_chars
         self._lock = threading.Lock()
-        self._sessions = OrderedDict()  # session_id -> deque(maxlen=20)
+        
+        # Global session map for backward compatibility and quick lookup:
+        # key -> deque(maxlen=max_history)
+        self._sessions = OrderedDict()
+        
+        # Per-client structures for strict client quotas and LRU within client:
+        # client_id -> OrderedDict of session_id -> deque(maxlen=max_history)
+        self._client_sessions: dict[str, OrderedDict[str, deque]] = {}
+        # Client LRU tracking: client_id -> True
+        self._clients_lru = OrderedDict()
+
         self._vi_recruitment_regex = re.compile(
             r"(?<!\w)(?:việc làm|nhận việc|tuyển dụng|cộng tác viên|làm thêm)(?!\w)", re.IGNORECASE
         )
@@ -24,36 +45,76 @@ class MemoryAgent:
             return (client_id, session_id)
         return session_id
 
-    def _get_session_deque(self, session_id: str, client_id: str | None = None, create: bool = True) -> deque:
+    def _get_session_deque(self, session_id: str, client_id: str | None = None, create: bool = True, touch: bool = True) -> deque:
         # Caller must hold self._lock
+        cid = client_id if client_id is not None else "__default__"
         key = self._make_key(session_id, client_id)
-        if key in self._sessions:
-            self._sessions.move_to_end(key)
-            return self._sessions[key]
+
+        # 1. If session already exists for this client, mark active and return
+        if cid in self._client_sessions and session_id in self._client_sessions[cid]:
+            if touch:
+                self._clients_lru.move_to_end(cid)
+                self._client_sessions[cid].move_to_end(session_id)
+                if key in self._sessions:
+                    self._sessions.move_to_end(key)
+            return self._client_sessions[cid][session_id]
+
         if not create:
             return deque(maxlen=self._max_history)
-        if len(self._sessions) >= self._max_sessions:
-            self._sessions.popitem(last=False)
+
+        # 2. Ensure client map exists
+        if cid not in self._client_sessions:
+            self._client_sessions[cid] = OrderedDict()
+        if touch:
+            self._clients_lru[cid] = True
+            self._clients_lru.move_to_end(cid)
+        else:
+            self._clients_lru.setdefault(cid, True)
+
+        client_map = self._client_sessions[cid]
+
+        # 3. Check per-client quota (max 50 sessions per client)
+        if len(client_map) >= self._max_sessions_per_client:
+            evicted_sid, _ = client_map.popitem(last=False)
+            evicted_key = self._make_key(evicted_sid, client_id)
+            self._sessions.pop(evicted_key, None)
+
+        # 4. Check global quota (max 2000 sessions total across all clients)
+        # When full, evict from least active client (not the currently active client)
+        if len(self._sessions) >= self._max_global_sessions:
+            evicted = False
+            for oldest_cid in list(self._clients_lru.keys()):
+                if oldest_cid != cid and oldest_cid in self._client_sessions and self._client_sessions[oldest_cid]:
+                    old_sid, _ = self._client_sessions[oldest_cid].popitem(last=False)
+                    old_key = self._make_key(old_sid, None if oldest_cid == "__default__" else oldest_cid)
+                    self._sessions.pop(old_key, None)
+                    if not self._client_sessions[oldest_cid]:
+                        del self._client_sessions[oldest_cid]
+                        self._clients_lru.pop(oldest_cid, None)
+                    evicted = True
+                    break
+            if not evicted:
+                if client_map:
+                    evicted_sid, _ = client_map.popitem(last=False)
+                    evicted_key = self._make_key(evicted_sid, client_id)
+                    self._sessions.pop(evicted_key, None)
+
         d = deque(maxlen=self._max_history)
+        client_map[session_id] = d
         self._sessions[key] = d
         return d
 
     @property
     def history(self):
         with self._lock:
-            if "session_default" not in self._sessions:
-                if len(self._sessions) >= self._max_sessions:
-                    self._sessions.popitem(last=False)
-                self._sessions["session_default"] = deque(maxlen=self._max_history)
-            return self._sessions["session_default"]
+            return self._get_session_deque("session_default", client_id=None, create=True, touch=False)
 
     @history.setter
     def history(self, value):
         with self._lock:
-            if "session_default" not in self._sessions and len(self._sessions) >= self._max_sessions:
-                self._sessions.popitem(last=False)
-            self._sessions["session_default"] = deque(value or [], maxlen=self._max_history)
-            self._sessions.move_to_end("session_default")
+            dq = self._get_session_deque("session_default", client_id=None, create=True)
+            dq.clear()
+            dq.extend(value or [])
 
     def reset(self, session_id: str = None, client_id: str = None):
         """
@@ -65,19 +126,32 @@ class MemoryAgent:
         with self._lock:
             if session_id is None and client_id is None:
                 self._sessions.clear()
+                self._client_sessions.clear()
+                self._clients_lru.clear()
             elif session_id is None and client_id is not None:
-                to_del = [k for k in self._sessions if isinstance(k, tuple) and k[0] == client_id]
-                for k in to_del:
-                    self._sessions.pop(k, None)
+                cid = client_id
+                if cid in self._client_sessions:
+                    for sid in list(self._client_sessions[cid].keys()):
+                        key = self._make_key(sid, client_id)
+                        self._sessions.pop(key, None)
+                    del self._client_sessions[cid]
+                self._clients_lru.pop(cid, None)
             else:
+                cid = client_id if client_id is not None else "__default__"
+                if cid in self._client_sessions:
+                    self._client_sessions[cid].pop(session_id, None)
+                    if not self._client_sessions[cid]:
+                        del self._client_sessions[cid]
+                        self._clients_lru.pop(cid, None)
                 key = self._make_key(session_id, client_id)
                 self._sessions.pop(key, None)
 
     def add_interaction(self, user_text, risk_level, matched_flags, session_id: str = "session_default", client_id: str = None):
+        truncated_text = (user_text or "")[:self._max_text_chars]
         with self._lock:
             dq = self._get_session_deque(session_id, client_id=client_id, create=True)
             dq.append({
-                "text": user_text,
+                "text": truncated_text,
                 "risk_level": risk_level,
                 "flags": matched_flags
             })
@@ -93,7 +167,7 @@ class MemoryAgent:
                 dq.clear()
                 for row in db_history:
                     flags = []
-                    user_text = row.get("user_text", "")
+                    user_text = (row.get("user_text", "") or "")[:self._max_text_chars]
                     risk_level = row.get("risk_level", "LOW")
                     dq.append({
                         "text": user_text,
@@ -101,16 +175,33 @@ class MemoryAgent:
                         "flags": flags
                     })
                 count = len(dq)
-            print(f"[MemoryAgent] Successfully loaded {count} historical records from MySQL for session `{session_id}` (client={client_id}).")
+            client_hash = hashlib.sha256(client_id.encode('utf-8')).hexdigest()[:8] if client_id else "none"
+            print(f"[MemoryAgent] Successfully loaded {count} historical records from MySQL for session `{session_id}` (client_hash={client_hash}).")
+
+    def get_total_stored_chars(self) -> int:
+        """Calculate total characters stored across all sessions in memory."""
+        with self._lock:
+            total = 0
+            for dq in self._sessions.values():
+                for item in dq:
+                    total += len(item.get("text", ""))
+            return total
 
     def analyze_escalation(self, current_text, session_id: str = "session_default", client_id: str = None):
         key = self._make_key(session_id, client_id)
+        cid = client_id if client_id is not None else "__default__"
         with self._lock:
-            if key not in self._sessions:
-                hist_snapshot = []
-            else:
+            if cid in self._client_sessions and session_id in self._client_sessions[cid]:
+                self._clients_lru.move_to_end(cid)
+                self._client_sessions[cid].move_to_end(session_id)
+                if key in self._sessions:
+                    self._sessions.move_to_end(key)
+                hist_snapshot = list(self._client_sessions[cid][session_id])
+            elif key in self._sessions:
                 self._sessions.move_to_end(key)
                 hist_snapshot = list(self._sessions[key])
+            else:
+                hist_snapshot = []
 
         escalation_detected = False
         escalation_reason = ""
@@ -146,4 +237,3 @@ if __name__ == "__main__":
     mem.add_interaction("Anh ơi em tìm được việc làm tuyển dụng xem TikTok 500k/ngày", "LOW", ["tuyển dụng"])
     res = mem.analyze_escalation("Họ bảo em phải chuyển 500k cọc quỹ đảm bảo mới cho nhận việc")
     print("[MemoryAgent] Escalation Result:", res)
-

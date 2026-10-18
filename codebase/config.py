@@ -22,8 +22,11 @@ class Settings:
     max_concurrency: int = 4
     cors_origins: tuple[str, ...] = ()
     trust_proxy: bool = False
+    trusted_proxy_hops: int = 1
     llm_timeout_s: float = 15.0
     runner_deadline_s: float = 20.0
+    db_timeout_s: float = 5.0
+    max_connections: int = 256
 
 
 _SETTINGS_INSTANCE: Settings | None = None
@@ -139,6 +142,12 @@ def get_settings(refresh: bool = False) -> Settings:
     trust_proxy = _parse_bool(os.environ.get("SAFEGUARD_TRUST_PROXY"), False)
 
     try:
+        raw_hops = int(os.environ.get("SAFEGUARD_TRUSTED_PROXY_HOPS", "1").strip())
+        trusted_proxy_hops = max(1, min(10, raw_hops))
+    except (ValueError, TypeError):
+        trusted_proxy_hops = 1
+
+    try:
         raw_llm_timeout = float(os.environ.get("SAFEGUARD_LLM_TIMEOUT", "15.0").strip())
         llm_timeout_s = max(3.0, min(60.0, raw_llm_timeout))
     except (ValueError, TypeError):
@@ -149,6 +158,18 @@ def get_settings(refresh: bool = False) -> Settings:
         runner_deadline_s = max(5.0, min(60.0, raw_runner_deadline))
     except (ValueError, TypeError):
         runner_deadline_s = 20.0
+
+    try:
+        raw_db_timeout = float(os.environ.get("SAFEGUARD_DB_TIMEOUT", "5.0").strip())
+        db_timeout_s = max(1.0, min(30.0, raw_db_timeout))
+    except (ValueError, TypeError):
+        db_timeout_s = 5.0
+
+    try:
+        raw_max_conn = int(os.environ.get("SAFEGUARD_MAX_CONNECTIONS", "256").strip())
+        max_connections = max(16, min(4096, raw_max_conn))
+    except (ValueError, TypeError):
+        max_connections = 256
 
     _SETTINGS_INSTANCE = Settings(
         offline=offline,
@@ -169,7 +190,10 @@ def get_settings(refresh: bool = False) -> Settings:
         max_concurrency=max_concurrency,
         cors_origins=cors_origins,
         trust_proxy=trust_proxy,
+        trusted_proxy_hops=trusted_proxy_hops,
         llm_timeout_s=llm_timeout_s,
         runner_deadline_s=runner_deadline_s,
+        db_timeout_s=db_timeout_s,
+        max_connections=max_connections,
     )
     return _SETTINGS_INSTANCE

@@ -1,6 +1,13 @@
 import os
 import json
 import threading
+import hashlib
+
+
+def _mask_client_id(cid: str | None) -> str:
+    if not cid:
+        return "none"
+    return hashlib.sha256(cid.encode("utf-8")).hexdigest()[:8]
 
 try:
     from dotenv import load_dotenv
@@ -39,6 +46,10 @@ class MySQLManager:
             self._ensure_schema()
 
     def _connect(self):
+        settings = get_settings()
+        db_to = getattr(settings, "db_timeout_s", 5.0)
+        conn_to = max(1, int(min(3.0, db_to)))
+        rw_to = max(1, int(min(5.0, db_to)))
         try:
             import pymysql
             self.conn = pymysql.connect(
@@ -48,7 +59,10 @@ class MySQLManager:
                 database=self.database,
                 port=self.port,
                 charset='utf8mb4',
-                cursorclass=pymysql.cursors.DictCursor
+                cursorclass=pymysql.cursors.DictCursor,
+                connect_timeout=conn_to,
+                read_timeout=rw_to,
+                write_timeout=rw_to,
             )
             self.is_connected = True
             print(f"[MySQLManager] Successfully connected to MariaDB/MySQL Database `{self.database}` on port {self.port}!")
@@ -66,7 +80,8 @@ class MySQLManager:
                 user=self.user,
                 password=self.password,
                 database=self.database,
-                port=self.port
+                port=self.port,
+                connection_timeout=conn_to,
             )
             self.is_connected = True
             print(f"[MySQLManager] Successfully connected via mysql-connector to `{self.database}`!")
@@ -89,35 +104,42 @@ class MySQLManager:
         """Auto-migrates schema to add session_id, bot_response, image_base64, has_image, client_id columns if missing."""
         if not self.is_connected or not self.conn:
             return
-        with self._lock:
-            try:
-                with self.conn.cursor() as cursor:
-                    # Check columns in user_logs
-                    cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'session_id'")
-                    if not cursor.fetchone():
-                        cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `session_id` VARCHAR(100) DEFAULT 'session_default' AFTER `id`")
-                        cursor.execute("ALTER TABLE `user_logs` ADD INDEX `idx_session` (`session_id`)")
+        settings = get_settings()
+        db_to = getattr(settings, "db_timeout_s", 5.0)
+        acquired = self._lock.acquire(timeout=db_to)
+        if not acquired:
+            print("[MySQLManager] Lock acquisition timeout during _ensure_schema (fail-open).")
+            return
+        try:
+            with self.conn.cursor() as cursor:
+                # Check columns in user_logs
+                cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'session_id'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `session_id` VARCHAR(100) DEFAULT 'session_default' AFTER `id`")
+                    cursor.execute("ALTER TABLE `user_logs` ADD INDEX `idx_session` (`session_id`)")
 
-                    cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'client_id'")
-                    if not cursor.fetchone():
-                        cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `client_id` VARCHAR(64) DEFAULT NULL AFTER `session_id`")
-                        cursor.execute("ALTER TABLE `user_logs` ADD INDEX `idx_client` (`client_id`)")
+                cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'client_id'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `client_id` VARCHAR(64) DEFAULT NULL AFTER `session_id`")
+                    cursor.execute("ALTER TABLE `user_logs` ADD INDEX `idx_client` (`client_id`)")
 
-                    cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'bot_response'")
-                    if not cursor.fetchone():
-                        cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `bot_response` TEXT AFTER `user_text`")
+                cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'bot_response'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `bot_response` TEXT AFTER `user_text`")
 
-                    cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'image_base64'")
-                    if not cursor.fetchone():
-                        cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `image_base64` LONGTEXT AFTER `user_text`")
+                cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'image_base64'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `image_base64` LONGTEXT AFTER `user_text`")
 
-                    cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'has_image'")
-                    if not cursor.fetchone():
-                        cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `has_image` TINYINT DEFAULT 0 AFTER `image_base64`")
+                cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'has_image'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `has_image` TINYINT DEFAULT 0 AFTER `image_base64`")
 
-                self.conn.commit()
-            except Exception as e:
-                print(f"[MySQLManager] Schema check notice: {e}")
+            self.conn.commit()
+        except Exception as e:
+            print(f"[MySQLManager] Schema check notice: {e}")
+        finally:
+            self._lock.release()
 
     def log_user_analysis(self, user_text, risk_score, risk_level, confidence_score, matched_flags, latency_ms, session_id="session_default", bot_response="", image_base64=None, client_id=None):
         """
@@ -129,42 +151,55 @@ class MySQLManager:
         settings = get_settings()
         has_image = 1 if image_base64 else 0
         stored_image = image_base64 if settings.store_images else None
+        stored_client_id = None if (client_id and client_id.startswith("anonymous-")) else client_id
 
-        with self._lock:
+        db_to = getattr(settings, "db_timeout_s", 5.0)
+        acquired = self._lock.acquire(timeout=db_to)
+        if not acquired:
+            print("[MySQLManager] Lock acquisition timeout during log_user_analysis (fail-open).")
+            return False
+        try:
             self._ping()
+            flags_str = ", ".join(matched_flags) if isinstance(matched_flags, list) else str(matched_flags)
+            with self.conn.cursor() as cursor:
+                sql = """
+                INSERT INTO `user_logs` (`session_id`, `client_id`, `user_text`, `image_base64`, `has_image`, `bot_response`, `risk_score`, `risk_level`, `confidence_score`, `matched_flags`, `latency_ms`)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(sql, (session_id, stored_client_id, user_text, stored_image, has_image, str(bot_response), risk_score, risk_level, confidence_score, flags_str, latency_ms))
+            self.conn.commit()
+            client_hash = _mask_client_id(client_id)
+            print(f"[MySQLManager] Logged analysis result for session `{session_id}` (client_hash={client_hash}) to MySQL.")
+            return True
+        except Exception as e:
+            # Fallback in case table has older schema without client_id or has_image
             try:
-                flags_str = ", ".join(matched_flags) if isinstance(matched_flags, list) else str(matched_flags)
                 with self.conn.cursor() as cursor:
-                    sql = """
-                    INSERT INTO `user_logs` (`session_id`, `client_id`, `user_text`, `image_base64`, `has_image`, `bot_response`, `risk_score`, `risk_level`, `confidence_score`, `matched_flags`, `latency_ms`)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    sql_legacy = """
+                    INSERT INTO `user_logs` (`session_id`, `user_text`, `image_base64`, `bot_response`, `risk_score`, `risk_level`, `confidence_score`, `matched_flags`, `latency_ms`)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """
-                    cursor.execute(sql, (session_id, client_id, user_text, stored_image, has_image, str(bot_response), risk_score, risk_level, confidence_score, flags_str, latency_ms))
+                    cursor.execute(sql_legacy, (session_id, user_text, stored_image, str(bot_response), risk_score, risk_level, confidence_score, flags_str, latency_ms))
                 self.conn.commit()
-                print(f"[MySQLManager] Logged analysis result for session `{session_id}` (client={client_id}) to MySQL.")
                 return True
-            except Exception as e:
-                # Fallback in case table has older schema without client_id or has_image
-                try:
-                    with self.conn.cursor() as cursor:
-                        sql_legacy = """
-                        INSERT INTO `user_logs` (`session_id`, `user_text`, `image_base64`, `bot_response`, `risk_score`, `risk_level`, `confidence_score`, `matched_flags`, `latency_ms`)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """
-                        cursor.execute(sql_legacy, (session_id, user_text, stored_image, str(bot_response), risk_score, risk_level, confidence_score, flags_str, latency_ms))
-                    self.conn.commit()
-                    return True
-                except Exception as inner_e:
-                    print(f"[MySQLManager] Error logging analysis: {inner_e}")
-                    return False
+            except Exception as inner_e:
+                print(f"[MySQLManager] Error logging analysis: {inner_e}")
+                return False
+        finally:
+            self._lock.release()
 
     def get_chat_history(self, session_id, client_id=None):
         """Fetches history of a specific session from MySQL database, optionally filtered by client_id."""
         if not self.is_connected or not self.conn:
             return []
         settings = get_settings()
+        db_to = getattr(settings, "db_timeout_s", 5.0)
+        acquired = self._lock.acquire(timeout=db_to)
+        if not acquired:
+            print("[MySQLManager] Lock acquisition timeout during get_chat_history (fail-open).")
+            return []
         rows = []
-        with self._lock:
+        try:
             self._ping()
             try:
                 with self.conn.cursor() as cursor:
@@ -199,6 +234,8 @@ class MySQLManager:
                 except Exception as inner_e:
                     print(f"[MySQLManager] Error fetching chat history: {inner_e}")
                     return []
+        finally:
+            self._lock.release()
 
         processed = []
         for r in rows:
@@ -214,35 +251,47 @@ class MySQLManager:
         """Returns distinct session IDs with title preview and latest timestamp (excluding benchmark test runs)."""
         if not self.is_connected or not self.conn:
             return []
-        with self._lock:
+        settings = get_settings()
+        db_to = getattr(settings, "db_timeout_s", 5.0)
+        acquired = self._lock.acquire(timeout=db_to)
+        if not acquired:
+            print("[MySQLManager] Lock acquisition timeout during get_all_sessions (fail-open).")
+            return []
+        try:
             self._ping()
-            try:
-                with self.conn.cursor() as cursor:
-                    if client_id is not None:
-                        sql = """
-                        SELECT `session_id`, MIN(`user_text`) as title, MAX(`created_at`) as last_active, COUNT(*) as msg_count
-                        FROM `user_logs`
-                        WHERE `session_id` NOT LIKE 'eval_%%' AND `session_id` NOT LIKE 'session_test%%' AND `client_id` = %s
-                        GROUP BY `session_id`
-                        ORDER BY last_active DESC
-                        """
-                        cursor.execute(sql, (client_id,))
-                    else:
-                        sql = """
-                        SELECT `session_id`, MIN(`user_text`) as title, MAX(`created_at`) as last_active, COUNT(*) as msg_count
-                        FROM `user_logs`
-                        WHERE `session_id` NOT LIKE 'eval_%%' AND `session_id` NOT LIKE 'session_test%%'
-                        GROUP BY `session_id`
-                        ORDER BY last_active DESC
-                        """
-                        cursor.execute(sql)
-                    return cursor.fetchall()
-            except Exception as e:
-                print(f"[MySQLManager] Error fetching sessions: {e}")
-                return []
+            with self.conn.cursor() as cursor:
+                if client_id is not None:
+                    sql = """
+                    SELECT `session_id`, MIN(`user_text`) as title, MAX(`created_at`) as last_active, COUNT(*) as msg_count
+                    FROM `user_logs`
+                    WHERE `session_id` NOT LIKE 'eval_%%' AND `session_id` NOT LIKE 'session_test%%' AND `client_id` = %s
+                    GROUP BY `session_id`
+                    ORDER BY last_active DESC
+                    """
+                    cursor.execute(sql, (client_id,))
+                else:
+                    sql = """
+                    SELECT `session_id`, MIN(`user_text`) as title, MAX(`created_at`) as last_active, COUNT(*) as msg_count
+                    FROM `user_logs`
+                    WHERE `session_id` NOT LIKE 'eval_%%' AND `session_id` NOT LIKE 'session_test%%'
+                    GROUP BY `session_id`
+                    ORDER BY last_active DESC
+                    """
+                    cursor.execute(sql)
+                return cursor.fetchall()
+        except Exception as e:
+            print(f"[MySQLManager] Error fetching sessions: {e}")
+            return []
+        finally:
+            self._lock.release()
 
     def close(self):
-        with self._lock:
+        settings = get_settings()
+        db_to = getattr(settings, "db_timeout_s", 5.0)
+        acquired = self._lock.acquire(timeout=db_to)
+        if not acquired:
+            return
+        try:
             if self.conn and self.is_connected:
                 try:
                     self.conn.close()
@@ -250,6 +299,8 @@ class MySQLManager:
                     pass
                 self.is_connected = False
                 self.conn = None
+        finally:
+            self._lock.release()
 
     def __del__(self):
         self.close()

@@ -293,20 +293,26 @@ def test_health_endpoint_no_secrets_leaked(test_server, monkeypatch):
 
 def test_health_endpoint_reflects_environment_flags(test_server, monkeypatch):
     """Changing SAFEGUARD_* environment variables must update the health endpoint flags."""
+    from codebase.config import get_settings
     monkeypatch.setenv("SAFEGUARD_STORE_IMAGES", "1")
     monkeypatch.setenv("SAFEGUARD_MAX_CONCURRENCY", "7")
     monkeypatch.setenv("SAFEGUARD_RATE_LIMIT", "45")
     monkeypatch.setenv("SAFEGUARD_URL_MODULE", "0")
+    get_settings(refresh=True)
 
-    host, port, _ = test_server
-    status, body, _ = make_request(host, port, "GET", "/api/health")
+    try:
+        host, port, _ = test_server
+        status, body, _ = make_request(host, port, "GET", "/api/health")
 
-    assert status == 200
-    data = json.loads(body.decode("utf-8"))
-    assert data["store_images"] is True
-    assert data["max_concurrency"] == 7
-    assert data["rate_limit_per_min"] == 45
-    assert data["url_module"] is False
+        assert status == 200
+        data = json.loads(body.decode("utf-8"))
+        assert data["store_images"] is True
+        assert data["max_concurrency"] == 7
+        assert data["rate_limit_per_min"] == 45
+        assert data["url_module"] is False
+    finally:
+        monkeypatch.undo()
+        get_settings(refresh=True)
 
 
 def test_health_endpoint_post_returns_405(test_server):
