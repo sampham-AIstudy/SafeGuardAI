@@ -11,6 +11,7 @@ import pytest
 from codebase.server import create_server, orchestrator, CLIENT_ID_PATTERN, SESSION_ID_PATTERN
 from codebase.agents.memory_agent import MemoryAgent
 from codebase.orchestrator import SafeGuardOrchestrator
+from codebase.knowledge_base.db_connect import SQLiteManager
 
 
 class FakeInMemoryDB:
@@ -99,17 +100,18 @@ class FakeInMemoryDB:
 
 @pytest.fixture
 def isolation_server(monkeypatch):
-    """Sets up live server with isolated FakeInMemoryDB on ephemeral port."""
-    fake_db = FakeInMemoryDB()
-    monkeypatch.setattr(orchestrator, "db_manager", fake_db)
+    """Sets up live server with isolated SQLiteManager in-memory on ephemeral port."""
+    sqlite_db = SQLiteManager(":memory:")
+    monkeypatch.setattr(orchestrator, "db_manager", sqlite_db)
 
     server = create_server(host="127.0.0.1", port=0)
     server_thread = threading.Thread(target=lambda: server.serve_forever(poll_interval=0.02), daemon=True)
     server_thread.start()
     host, port = server.server_address[:2]
-    yield host, port, server, fake_db
+    yield host, port, server, sqlite_db
     server.shutdown()
     server.server_close()
+    sqlite_db.close()
 
 
 def make_request(host, port, method, path, body=None, headers=None):

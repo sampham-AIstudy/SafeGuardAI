@@ -6,3 +6,9 @@ __pycache__/
 *.pyc
 eval/results/
 !tests/data/
+data/*.db
+data/*.db-wal
+data/*.db-shm
+*.db
+*.db-wal
+*.db-shm

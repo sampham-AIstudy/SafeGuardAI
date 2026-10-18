@@ -21,7 +21,7 @@ from codebase.server import (
     orchestrator,
     PUBLIC_DIR,
 )
-from codebase.knowledge_base.db_connect import MySQLManager
+from codebase.knowledge_base.db_connect import SQLiteManager
 
 
 @pytest.fixture
@@ -189,8 +189,8 @@ def test_slow_analyze_does_not_block_static_get(test_server, monkeypatch):
 
 
 def test_mysql_manager_lock_and_ping_fail_open():
-    """MySQLManager queries must acquire lock, call ping, and fail-open on connection errors."""
-    mgr = MySQLManager.__new__(MySQLManager)
+    """SQLiteManager queries must acquire lock, call ping, and fail-open on connection errors."""
+    mgr = SQLiteManager.__new__(SQLiteManager)
     mgr._lock = threading.Lock()
     mgr.is_connected = True
 
@@ -448,7 +448,7 @@ def test_store_images_default_false_insert_params(monkeypatch):
     monkeypatch.setenv("SAFEGUARD_STORE_IMAGES", "0")
     get_settings(refresh=True)
 
-    mgr = MySQLManager.__new__(MySQLManager)
+    mgr = SQLiteManager.__new__(SQLiteManager)
     mgr._lock = threading.Lock()
     mgr.is_connected = True
 
@@ -502,7 +502,7 @@ def test_get_chat_history_masks_image_when_store_images_false(monkeypatch):
     monkeypatch.setenv("SAFEGUARD_STORE_IMAGES", "0")
     get_settings(refresh=True)
 
-    mgr = MySQLManager.__new__(MySQLManager)
+    mgr = SQLiteManager.__new__(SQLiteManager)
     mgr._lock = threading.Lock()
     mgr.is_connected = True
 

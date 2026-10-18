@@ -220,7 +220,7 @@ def _check_json_depth(text: str, max_depth: int = 200) -> bool:
 class SafeGuardAPIHandler(BaseHTTPRequestHandler):
     """
     REST API Handler & Static Web File Server for SafeGuard AI.
-    Provides API endpoints for Multi-Agent analysis, MySQL persistence, and serves static HTML/CSS/JS.
+    Provides API endpoints for Multi-Agent analysis, SQLite persistence, and serves static HTML/CSS/JS.
     """
     timeout = 10
     server_version = "SafeGuardAI"
@@ -347,7 +347,7 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
             self.send_json_response(orchestrator.health_info())
             return
 
-        # 1. API: Get all chat sessions from MySQL (client-isolated, rate limited 60/min/IP)
+        # 1. API: Get all chat sessions from SQLite (client-isolated, rate limited 60/min/IP)
         if path == '/api/sessions':
             limiter = getattr(self.server, "session_rate_limiter", _DEFAULT_SESSION_RATE_LIMITER)
             client_ip = get_client_ip(self)

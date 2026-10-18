@@ -32,7 +32,7 @@ from codebase.agents.url_analysis_agent import URLAnalysisAgent
 from codebase.url_analysis.analyzer import UrlAnalyzer
 from codebase.url_analysis.resolver import NetworkRecorder
 from codebase.url_analysis.blacklist import PhishBlacklist
-from codebase.knowledge_base.db_connect import MySQLManager
+from codebase.knowledge_base.db_connect import SQLiteManager
 from codebase.config import get_settings
 
 SAFEGUARD_VERSION = "1.0.0"
@@ -125,7 +125,7 @@ class SafeGuardOrchestrator:
         self.threat_intel_agent = ThreatIntelAgent()
         self.multi_llm_client = MultiLLMClient()
         self.llm_client = self.multi_llm_client
-        self.db_manager = MySQLManager()
+        self.db_manager = SQLiteManager()
 
         # URL Analysis Agent — single instantiation in __init__
         try:

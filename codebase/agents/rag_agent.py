@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from codebase.knowledge_base.dataset_loader import DatasetLoader
-from codebase.knowledge_base.db_connect import MySQLManager
+from codebase.knowledge_base.db_connect import SQLiteManager
 from codebase.text_utils import PhraseMatcher
 from codebase.config import get_settings
 from typing import Any
@@ -86,9 +86,9 @@ def _extract_blacklist_domains_from_report(url_report: Any) -> list[str]:
 class RAGAgent:
     """
     RAG Agent:
-    Searches Vietnamese Scam Knowledge Base, MySQL Database `ai-anti-scam` (phishing_urls),
-    PhishVN Datasets (ver1 & ver2 - 51,362 records), and Global Email/SMS Phishing Datasets.
-    Matches query text and extracted URLs/domains against hybrid local & MySQL threat feeds.
+    Searches Vietnamese Scam Knowledge Base, PhishVN Datasets (ver1 & ver2 - 51,362 records),
+    and Global Email/SMS Phishing Datasets.
+    Matches query text and extracted URLs/domains against local threat feeds and offline knowledge bases.
     """
     def __init__(self, kb_path=None):
         self.kb_path = Path(kb_path) if kb_path else DEFAULT_KB_PATH
@@ -97,7 +97,7 @@ class RAGAgent:
         self.loader = DatasetLoader()
         self.phish_data = self.loader.load_phish_vn_datasets()
         self.global_data = self.loader.load_global_phishing_datasets()
-        self.db_manager = MySQLManager()
+        self.db_manager = SQLiteManager()
         self._url_analyzer = None
         self._cached_phish_id = None
         self._custom_analyzers: dict[int, Any] = {}
@@ -198,27 +198,7 @@ class RAGAgent:
         # Sort by matched score descending
         matched_tactics.sort(key=lambda x: x["matched_count"], reverse=True)
 
-        # 2. Query MySQL Database `ai-anti-scam` if connected
-        if self.db_manager.is_connected and self.db_manager.conn:
-            try:
-                with self.db_manager.conn.cursor() as cursor:
-                    # Extract potential domain tokens from query
-                    tokens = [t for t in re.split(r'[\s/:]+', query_lower) if '.' in t and len(t) > 4]
-                    for token in tokens:
-                        sql = "SELECT `domain`, `scenario` FROM `phishing_urls` WHERE `domain` = %s OR `url` LIKE %s LIMIT 1"
-                        cursor.execute(sql, (token, f"%{token}%"))
-                        row = cursor.fetchone()
-                        if row:
-                            dname = row["domain"]
-                            if dname not in matched_phish_domains:
-                                matched_phish_domains.append(dname)
-                                flag_str = f"Tên miền lừa đảo MySQL `ai-anti-scam` (NCSC/ChongLuaDao): {dname} [{row['scenario']}]"
-                                if flag_str not in matched_flags:
-                                    matched_flags.append(flag_str)
-            except Exception as e:
-                print(f"[RAGAgent] MySQL search error: {e}")
-
-        # 3. Fallback / Complement with In-memory PhishVN Blacklist Domains
+        # 2. PhishVN Blacklist Domains
         phish_domains = self.phish_data.get("phishing_domains", set())
 
         if get_settings().url_module_enabled:
@@ -273,7 +253,7 @@ class RAGAgent:
                                 matched_flags.append(flag_str)
 
 
-        # 4. Match Global Phishing Patterns (English / Global Email & SMS Spam)
+        # 3. Match Global Phishing Patterns (English / Global Email & SMS Spam)
         global_indicators = ["wire transfer", "verify account now", "lottery winner", "nigerian prince", "account locked"]
         for ind in global_indicators:
             if ind in query_lower:
@@ -285,6 +265,7 @@ class RAGAgent:
             "matched_tactics": matched_tactics,
             "matched_flags": matched_flags,
             "matched_phish_domains": matched_phish_domains,
+            "db_active": self.db_manager.is_connected,
             "mysql_active": self.db_manager.is_connected,
             "phish_vn_stats": {
                 "total_phishing_records": self.phish_data.get("total_phishing_records", 0),
@@ -300,5 +281,5 @@ if __name__ == "__main__":
     rag = RAGAgent()
     res = rag.search("Truy cập ngay chinhphu2025.com hoặc dvc.bcavn.cc để nạp quỹ tuyển dụng tiktok")
     print(f"[RAGAgent] Matched {len(res['matched_tactics'])} tactics, {len(res['matched_phish_domains'])} PhishVN domains.")
-    print(f"[RAGAgent] MySQL Active: {res['mysql_active']}")
+    print(f"[RAGAgent] DB Active: {res['db_active']}")
     print("Matched flags:", res["matched_flags"])

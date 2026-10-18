@@ -12,7 +12,7 @@ Loai: [x] Tinh nang moi
     - 16/25 nguoi (64%) khong chac cach nhan biet bill chuyen khoan gia, domain typo-squatting hoac app APK gia mao.
     - 14/25 nguoi (56%) tung bam vao link la, suyt cung cap thong tin, hoac tung mat tien nho do duoc can thiep kip thoi.
   - **Data mining / knowledge base**:
-    - Prototype doi soat bo PhishVN 51.362 ban ghi URL lua dao/hop le, ket hop knowledge base `vn_scam_tactics.json`, du lieu phishing email/SMS quoc te va log MySQL `ai-anti-scam.sql`.
+    - Prototype doi soat bo PhishVN 51.362 ban ghi URL lua dao/hop le, ket hop knowledge base `vn_scam_tactics.json`, du lieu phishing email/SMS quoc te va SQLite database `safeguard.db`.
     - Nhom phan loai theo 8 kich ban: Bank, Government/Police, Tax/VNeID, E-commerce, Telecom, Delivery/COD, Social account, Gaming/Job task.
   - **5 quote/vi du da an danh**:
     1. "Em nhan link Shopee nhan qua, ten mien co them chu e nhung nhin qua rat giong that."
@@ -50,7 +50,7 @@ Loai: [x] Tinh nang moi
   2. Khong dam bao ket luan phap ly "chac chan lua dao"; he thong chi ho tro quyet dinh dua tren bang chung.
   3. Khong thu thap/luu CCCD, OTP, mat khau, ma the hoac du lieu nhay cam cua nguoi dung.
   4. Khong xay cong cu tan cong nguoc, truy vet IP hay dox doi tuong lua dao.
-- **Muc prototype**: Working Prototype. Backend `codebase/server.py` chay REST API va static web; Orchestrator goi cac agent that. MySQL va hotline co the chay dang local/mock tuy moi truong.
+- **Muc prototype**: Working Prototype. Backend `codebase/server.py` chay REST API va static web; Orchestrator goi cac agent that. SQLite va hotline co the chay dang local/mock tuy moi truong.
 - **Automation**: `conditional / AI-assisted decision support`. AI tinh rui ro va dua khuyen nghi, nguoi dung van la nguoi quyet dinh vi cost-of-error cao: bao nham co the lam bo lo thong bao that, bo sot co the gay mat tien.
 - **Mo ta kien truc Multi-Agent**:
 

@@ -204,7 +204,7 @@ class MemoryAgent:
             })
 
     def load_history_from_db(self, db_manager, session_id: str = "session_default", client_id: str = None):
-        """Loads interaction history from MySQL database for a specific session and client."""
+        """Loads interaction history from SQLite database for a specific session and client."""
         if not db_manager or not db_manager.is_connected:
             return
         db_history = db_manager.get_chat_history(session_id, client_id=client_id)
@@ -226,7 +226,7 @@ class MemoryAgent:
                     })
                 count = len(dq)
             client_hash = hashlib.sha256(client_id.encode('utf-8')).hexdigest()[:8] if client_id else "none"
-            print(f"[MemoryAgent] Successfully loaded {count} historical records from MySQL for session `{session_id}` (client_hash={client_hash}).")
+            print(f"[MemoryAgent] Successfully loaded {count} historical records from SQLite for session `{session_id}` (client_hash={client_hash}).")
 
     def get_total_stored_chars(self) -> int:
         """Calculate total characters stored across all sessions in memory."""

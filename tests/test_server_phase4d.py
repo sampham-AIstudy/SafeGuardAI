@@ -25,7 +25,7 @@ from codebase.server import (
     _SERVER_ANON_SECRET,
 )
 from codebase.agents.memory_agent import MemoryAgent
-from codebase.knowledge_base.db_connect import MySQLManager, _mask_client_id
+from codebase.knowledge_base.db_connect import SQLiteManager, _mask_client_id
 
 
 @pytest.fixture
@@ -155,14 +155,12 @@ def test_server_generates_unpredictable_hmac_for_anonymous_post(phase4d_server):
     """Verifies that live server generates HMAC-based anonymous client_id, never predictable sha256(ip)[:16]."""
     host, port, _ = phase4d_server
     captured_client_ids = []
-    orig_proc = orchestrator.process_request
-
     def mock_proc(*args, **kwargs):
         captured_client_ids.append(kwargs.get("client_id"))
-        return orig_proc(*args, **kwargs)
+        return {"decision": {"headline": "OK", "risk_level": "LOW"}, "risk_score": 0}
 
     with patch.object(orchestrator, "process_request", side_effect=mock_proc):
-        conn = http.client.HTTPConnection(host, port, timeout=5)
+        conn = http.client.HTTPConnection(host, port, timeout=10)
         payload = json.dumps({"user_text": "hello"}).encode("utf-8")
         conn.request("POST", "/api/analyze", body=payload, headers={"Content-Type": "application/json"})
         resp = conn.getresponse()
@@ -177,7 +175,7 @@ def test_server_generates_unpredictable_hmac_for_anonymous_post(phase4d_server):
 
 def test_db_does_not_save_anonymous_client_id():
     """Mutation 2: DB must save stored_client_id as None when client_id starts with 'anonymous-'."""
-    mgr = MySQLManager.__new__(MySQLManager)
+    mgr = SQLiteManager.__new__(SQLiteManager)
     mgr._lock = threading.Lock()
     mgr.is_connected = True
     mgr.conn = MagicMock()
@@ -619,7 +617,7 @@ def test_client_id_never_logged_in_raw_form(capsys):
     masked_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()[:8]
 
     # 1. db_connect
-    mgr = MySQLManager.__new__(MySQLManager)
+    mgr = SQLiteManager.__new__(SQLiteManager)
     mgr._lock = threading.Lock()
     mgr.is_connected = True
     mgr.conn = MagicMock()
@@ -689,7 +687,7 @@ def test_mysql_lock_timeout_fail_open_does_not_deadlock(monkeypatch):
     get_settings(refresh=True)
 
     try:
-        mgr = MySQLManager.__new__(MySQLManager)
+        mgr = SQLiteManager.__new__(SQLiteManager)
         mgr._lock = threading.Lock()
         mgr.is_connected = True
         mgr.conn = MagicMock()

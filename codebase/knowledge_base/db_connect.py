@@ -1,13 +1,16 @@
 import os
 import json
+import sqlite3
 import threading
 import hashlib
+from typing import Any
 
 
 def _mask_client_id(cid: str | None) -> str:
     if not cid:
         return "none"
     return hashlib.sha256(cid.encode("utf-8")).hexdigest()[:8]
+
 
 try:
     from dotenv import load_dotenv
@@ -22,24 +25,44 @@ except ImportError:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
     from codebase.config import get_settings
 
-class MySQLManager:
+
+class _CursorWrapper:
+    """Helper context manager to support both stdlib sqlite3 cursors and MagicMock cursors."""
+    def __init__(self, conn):
+        self.conn = conn
+        self.cursor = None
+
+    def __enter__(self):
+        raw = self.conn.cursor()
+        if hasattr(raw, "__enter__"):
+            self.cursor = raw.__enter__()
+        else:
+            self.cursor = raw
+        return self.cursor
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if hasattr(self.cursor, "__exit__"):
+            self.cursor.__exit__(exc_type, exc_val, exc_tb)
+        elif hasattr(self.cursor, "close"):
+            try:
+                self.cursor.close()
+            except Exception:
+                pass
+
+
+class SQLiteManager:
     """
-    MySQL Database Manager for XAMPP / MariaDB integration.
-    Connects to MySQL database `ai-anti-scam` using environment variables from .env.
-    Includes safe fallback to in-memory/JSON if MySQL service is not running.
-    Supports Session-based Chat Memory persistence.
+    SQLite Database Manager for SafeGuardAI.
+    Connects to SQLite database file (default: data/safeguard.db or SAFEGUARD_DB_PATH).
+    Supports thread-safe operations, WAL mode, client isolation, and fail-open timeout semantics.
     """
-    def __init__(self, host=None, user=None, password=None, database=None, port=None):
+    def __init__(self, db_path=None, host=None, user=None, password=None, database=None, port=None, force=False, **kwargs):
         settings = get_settings()
         self._lock = threading.Lock()
-        self.host = host or os.environ.get("MYSQL_HOST", "localhost")
-        self.user = user or os.environ.get("MYSQL_USER", "root")
-        self.password = password if password is not None else os.environ.get("MYSQL_PASSWORD", "")
-        self.database = database or os.environ.get("MYSQL_DATABASE", "ai-anti-scam")
-        self.port = int(port or os.environ.get("MYSQL_PORT", 3306))
+        self.db_path = db_path or os.environ.get("SAFEGUARD_DB_PATH") or getattr(settings, "db_path", "data/safeguard.db")
         self.conn = None
         self.is_connected = False
-        if settings.offline or not settings.db_enabled:
+        if not force and (settings.offline or not settings.db_enabled) and db_path is None:
             return
         self._connect()
         if self.is_connected:
@@ -48,48 +71,27 @@ class MySQLManager:
     def _connect(self):
         settings = get_settings()
         db_to = getattr(settings, "db_timeout_s", 5.0)
-        conn_to = max(1, int(min(3.0, db_to)))
-        rw_to = max(1, int(min(5.0, db_to)))
+        busy_timeout_ms = max(1000, int(db_to * 1000))
         try:
-            import pymysql
-            self.conn = pymysql.connect(
-                host=self.host,
-                user=self.user,
-                password=self.password,
-                database=self.database,
-                port=self.port,
-                charset='utf8mb4',
-                cursorclass=pymysql.cursors.DictCursor,
-                connect_timeout=conn_to,
-                read_timeout=rw_to,
-                write_timeout=rw_to,
-            )
+            if self.db_path != ":memory:":
+                db_dir = os.path.dirname(os.path.abspath(self.db_path))
+                if db_dir:
+                    os.makedirs(db_dir, exist_ok=True)
+            self.conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=db_to)
+            self.conn.row_factory = sqlite3.Row
+            try:
+                if self.db_path != ":memory:":
+                    self.conn.execute("PRAGMA journal_mode=WAL;")
+                self.conn.execute(f"PRAGMA busy_timeout = {busy_timeout_ms};")
+                self.conn.execute("PRAGMA synchronous = NORMAL;")
+            except Exception as pe:
+                print(f"[SQLiteManager] PRAGMA notice: {pe}")
             self.is_connected = True
-            print(f"[MySQLManager] Successfully connected to MariaDB/MySQL Database `{self.database}` on port {self.port}!")
-            return
-        except ImportError:
-            pass
+            print(f"[SQLiteManager] Successfully connected to SQLite Database `{self.db_path}`!")
         except Exception as e:
-            print(f"[MySQLManager] Notice: Could not connect to MySQL ({e}). System operating on JSON/In-memory fallback.")
-            return
-
-        try:
-            import mysql.connector
-            self.conn = mysql.connector.connect(
-                host=self.host,
-                user=self.user,
-                password=self.password,
-                database=self.database,
-                port=self.port,
-                connection_timeout=conn_to,
-            )
-            self.is_connected = True
-            print(f"[MySQLManager] Successfully connected via mysql-connector to `{self.database}`!")
-            return
-        except ImportError:
-            print("[MySQLManager] Notice: Missing `pymysql` module. Please run: pip install pymysql")
-        except Exception as e:
-            print(f"[MySQLManager] Notice: Could not connect to MySQL ({e}). System operating on JSON/In-memory fallback.")
+            print(f"[SQLiteManager] Notice: Could not connect to SQLite ({e}). System operating on JSON/In-memory fallback.")
+            self.conn = None
+            self.is_connected = False
 
     def _ping(self):
         if not self.is_connected or not self.conn:
@@ -97,53 +99,77 @@ class MySQLManager:
         try:
             if hasattr(self.conn, "ping"):
                 self.conn.ping(reconnect=True)
+            elif hasattr(self.conn, "execute"):
+                self.conn.execute("SELECT 1")
         except Exception as e:
-            print(f"[MySQLManager] Notice: ping reconnect error (fail-open): {e}")
+            print(f"[SQLiteManager] Notice: ping reconnect error (fail-open): {e}")
 
     def _ensure_schema(self):
-        """Auto-migrates schema to add session_id, bot_response, image_base64, has_image, client_id columns if missing."""
+        """Auto-creates user_logs table and indices, or migrates missing columns."""
         if not self.is_connected or not self.conn:
             return
         settings = get_settings()
         db_to = getattr(settings, "db_timeout_s", 5.0)
         acquired = self._lock.acquire(timeout=db_to)
         if not acquired:
-            print("[MySQLManager] Lock acquisition timeout during _ensure_schema (fail-open).")
+            print("[SQLiteManager] Lock acquisition timeout during _ensure_schema (fail-open).")
             return
         try:
-            with self.conn.cursor() as cursor:
-                # Check columns in user_logs
-                cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'session_id'")
-                if not cursor.fetchone():
-                    cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `session_id` VARCHAR(100) DEFAULT 'session_default' AFTER `id`")
-                    cursor.execute("ALTER TABLE `user_logs` ADD INDEX `idx_session` (`session_id`)")
+            with _CursorWrapper(self.conn) as cursor:
+                cursor.execute("""
+                CREATE TABLE IF NOT EXISTS `user_logs` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+                    `session_id` TEXT DEFAULT 'session_default',
+                    `client_id` TEXT COLLATE BINARY DEFAULT NULL,
+                    `user_text` TEXT NOT NULL,
+                    `image_base64` TEXT,
+                    `has_image` INTEGER DEFAULT 0,
+                    `bot_response` TEXT,
+                    `risk_score` INTEGER,
+                    `risk_level` TEXT,
+                    `confidence_score` INTEGER,
+                    `matched_flags` TEXT,
+                    `latency_ms` REAL DEFAULT 0,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                """)
+                cursor.execute("CREATE INDEX IF NOT EXISTS `idx_user_logs_session` ON `user_logs` (`session_id`);")
+                cursor.execute("CREATE INDEX IF NOT EXISTS `idx_user_logs_client` ON `user_logs` (`client_id`);")
 
-                cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'client_id'")
-                if not cursor.fetchone():
-                    cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `client_id` VARCHAR(64) DEFAULT NULL AFTER `session_id`")
-                    cursor.execute("ALTER TABLE `user_logs` ADD INDEX `idx_client` (`client_id`)")
-
-                cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'bot_response'")
-                if not cursor.fetchone():
-                    cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `bot_response` TEXT AFTER `user_text`")
-
-                cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'image_base64'")
-                if not cursor.fetchone():
-                    cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `image_base64` LONGTEXT AFTER `user_text`")
-
-                cursor.execute("SHOW COLUMNS FROM `user_logs` LIKE 'has_image'")
-                if not cursor.fetchone():
-                    cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `has_image` TINYINT DEFAULT 0 AFTER `image_base64`")
-
-            self.conn.commit()
+                # Schema evolution check for existing tables
+                cursor.execute("PRAGMA table_info(`user_logs`);")
+                rows = cursor.fetchall() or []
+                existing_cols = {row[1] if isinstance(row, (list, tuple)) else row["name"] for row in rows}
+                if "client_id" not in existing_cols:
+                    cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `client_id` TEXT COLLATE BINARY DEFAULT NULL;")
+                if "has_image" not in existing_cols:
+                    cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `has_image` INTEGER DEFAULT 0;")
+                if "image_base64" not in existing_cols:
+                    cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `image_base64` TEXT;")
+                if "bot_response" not in existing_cols:
+                    cursor.execute("ALTER TABLE `user_logs` ADD COLUMN `bot_response` TEXT;")
+            if hasattr(self.conn, "commit"):
+                self.conn.commit()
         except Exception as e:
-            print(f"[MySQLManager] Schema check notice: {e}")
+            print(f"[SQLiteManager] Schema check notice: {e}")
         finally:
             self._lock.release()
 
-    def log_user_analysis(self, user_text, risk_score, risk_level, confidence_score, matched_flags, latency_ms, session_id="session_default", bot_response="", image_base64=None, client_id=None):
+    def log_user_analysis(
+        self,
+        user_text,
+        risk_score,
+        risk_level,
+        confidence_score,
+        matched_flags,
+        latency_ms,
+        session_id="session_default",
+        bot_response="",
+        image_base64=None,
+        client_id=None
+    ):
         """
-        Logs user analysis results to `user_logs` table in MySQL database `ai-anti-scam`.
+        Logs user analysis results to `user_logs` table in SQLite database.
         """
         if not self.is_connected or not self.conn:
             return False
@@ -156,90 +182,68 @@ class MySQLManager:
         db_to = getattr(settings, "db_timeout_s", 5.0)
         acquired = self._lock.acquire(timeout=db_to)
         if not acquired:
-            print("[MySQLManager] Lock acquisition timeout during log_user_analysis (fail-open).")
+            print("[SQLiteManager] Lock acquisition timeout during log_user_analysis (fail-open).")
             return False
         try:
             self._ping()
             flags_str = ", ".join(matched_flags) if isinstance(matched_flags, list) else str(matched_flags)
-            with self.conn.cursor() as cursor:
+            with _CursorWrapper(self.conn) as cursor:
                 sql = """
                 INSERT INTO `user_logs` (`session_id`, `client_id`, `user_text`, `image_base64`, `has_image`, `bot_response`, `risk_score`, `risk_level`, `confidence_score`, `matched_flags`, `latency_ms`)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 cursor.execute(sql, (session_id, stored_client_id, user_text, stored_image, has_image, str(bot_response), risk_score, risk_level, confidence_score, flags_str, latency_ms))
-            self.conn.commit()
+            if hasattr(self.conn, "commit"):
+                self.conn.commit()
             client_hash = _mask_client_id(client_id)
-            print(f"[MySQLManager] Logged analysis result for session `{session_id}` (client_hash={client_hash}) to MySQL.")
+            print(f"[SQLiteManager] Logged analysis result for session `{session_id}` (client_hash={client_hash}) to SQLite.")
             return True
         except Exception as e:
-            # Fallback in case table has older schema without client_id or has_image
-            try:
-                with self.conn.cursor() as cursor:
-                    sql_legacy = """
-                    INSERT INTO `user_logs` (`session_id`, `user_text`, `image_base64`, `bot_response`, `risk_score`, `risk_level`, `confidence_score`, `matched_flags`, `latency_ms`)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """
-                    cursor.execute(sql_legacy, (session_id, user_text, stored_image, str(bot_response), risk_score, risk_level, confidence_score, flags_str, latency_ms))
-                self.conn.commit()
-                return True
-            except Exception as inner_e:
-                print(f"[MySQLManager] Error logging analysis: {inner_e}")
-                return False
+            print(f"[SQLiteManager] Error logging analysis: {e}")
+            return False
         finally:
             self._lock.release()
 
     def get_chat_history(self, session_id, client_id=None):
-        """Fetches history of a specific session from MySQL database, optionally filtered by client_id."""
+        """Fetches history of a specific session from SQLite database, optionally filtered by client_id."""
         if not self.is_connected or not self.conn:
             return []
         settings = get_settings()
         db_to = getattr(settings, "db_timeout_s", 5.0)
         acquired = self._lock.acquire(timeout=db_to)
         if not acquired:
-            print("[MySQLManager] Lock acquisition timeout during get_chat_history (fail-open).")
+            print("[SQLiteManager] Lock acquisition timeout during get_chat_history (fail-open).")
             return []
         rows = []
         try:
             self._ping()
-            try:
-                with self.conn.cursor() as cursor:
-                    if client_id is not None:
-                        sql = """
-                        SELECT `user_text`, `image_base64`, `has_image`, `bot_response`, `risk_score`, `risk_level`, `created_at`
-                        FROM `user_logs`
-                        WHERE `session_id` = %s AND `client_id` = %s
-                        ORDER BY `id` ASC
-                        """
-                        cursor.execute(sql, (session_id, client_id))
-                    else:
-                        sql = """
-                        SELECT `user_text`, `image_base64`, `has_image`, `bot_response`, `risk_score`, `risk_level`, `created_at`
-                        FROM `user_logs`
-                        WHERE `session_id` = %s
-                        ORDER BY `id` ASC
-                        """
-                        cursor.execute(sql, (session_id,))
-                    rows = cursor.fetchall()
-            except Exception as e:
-                # Fallback if has_image column does not exist
-                try:
-                    with self.conn.cursor() as cursor:
-                        if client_id is not None:
-                            sql = "SELECT `user_text`, `image_base64`, `bot_response`, `risk_score`, `risk_level`, `created_at` FROM `user_logs` WHERE `session_id` = %s AND `client_id` = %s ORDER BY `id` ASC"
-                            cursor.execute(sql, (session_id, client_id))
-                        else:
-                            sql = "SELECT `user_text`, `image_base64`, `bot_response`, `risk_score`, `risk_level`, `created_at` FROM `user_logs` WHERE `session_id` = %s ORDER BY `id` ASC"
-                            cursor.execute(sql, (session_id,))
-                        rows = cursor.fetchall()
-                except Exception as inner_e:
-                    print(f"[MySQLManager] Error fetching chat history: {inner_e}")
-                    return []
+            with _CursorWrapper(self.conn) as cursor:
+                if client_id is not None:
+                    sql = """
+                    SELECT `user_text`, `image_base64`, `has_image`, `bot_response`, `risk_score`, `risk_level`, `created_at`
+                    FROM `user_logs`
+                    WHERE `session_id` = ? AND `client_id` = ? COLLATE BINARY
+                    ORDER BY `id` ASC
+                    """
+                    cursor.execute(sql, (session_id, client_id))
+                else:
+                    sql = """
+                    SELECT `user_text`, `image_base64`, `has_image`, `bot_response`, `risk_score`, `risk_level`, `created_at`
+                    FROM `user_logs`
+                    WHERE `session_id` = ?
+                    ORDER BY `id` ASC
+                    """
+                    cursor.execute(sql, (session_id,))
+                rows = cursor.fetchall() or []
+        except Exception as e:
+            print(f"[SQLiteManager] Error fetching chat history: {e}")
+            return []
         finally:
             self._lock.release()
 
         processed = []
         for r in rows:
-            row_dict = dict(r) if isinstance(r, dict) else r
+            row_dict = dict(r) if hasattr(r, "keys") else (dict(r) if isinstance(r, dict) else r)
             has_img = bool(row_dict.get("has_image") or row_dict.get("image_base64"))
             row_dict["has_image"] = has_img
             if not settings.store_images:
@@ -255,16 +259,16 @@ class MySQLManager:
         db_to = getattr(settings, "db_timeout_s", 5.0)
         acquired = self._lock.acquire(timeout=db_to)
         if not acquired:
-            print("[MySQLManager] Lock acquisition timeout during get_all_sessions (fail-open).")
+            print("[SQLiteManager] Lock acquisition timeout during get_all_sessions (fail-open).")
             return []
         try:
             self._ping()
-            with self.conn.cursor() as cursor:
+            with _CursorWrapper(self.conn) as cursor:
                 if client_id is not None:
                     sql = """
                     SELECT `session_id`, MIN(`user_text`) as title, MAX(`created_at`) as last_active, COUNT(*) as msg_count
                     FROM `user_logs`
-                    WHERE `session_id` NOT LIKE 'eval_%%' AND `session_id` NOT LIKE 'session_test%%' AND `client_id` = %s
+                    WHERE `session_id` NOT LIKE 'eval_%' AND `session_id` NOT LIKE 'session_test%' AND `client_id` = ? COLLATE BINARY
                     GROUP BY `session_id`
                     ORDER BY last_active DESC
                     """
@@ -273,14 +277,15 @@ class MySQLManager:
                     sql = """
                     SELECT `session_id`, MIN(`user_text`) as title, MAX(`created_at`) as last_active, COUNT(*) as msg_count
                     FROM `user_logs`
-                    WHERE `session_id` NOT LIKE 'eval_%%' AND `session_id` NOT LIKE 'session_test%%'
+                    WHERE `session_id` NOT LIKE 'eval_%' AND `session_id` NOT LIKE 'session_test%'
                     GROUP BY `session_id`
                     ORDER BY last_active DESC
                     """
                     cursor.execute(sql)
-                return cursor.fetchall()
+                rows = cursor.fetchall() or []
+                return [dict(r) if hasattr(r, "keys") else (dict(r) if isinstance(r, dict) else r) for r in rows]
         except Exception as e:
-            print(f"[MySQLManager] Error fetching sessions: {e}")
+            print(f"[SQLiteManager] Error fetching sessions: {e}")
             return []
         finally:
             self._lock.release()
@@ -305,10 +310,11 @@ class MySQLManager:
     def __del__(self):
         self.close()
 
+
 if __name__ == "__main__":
-    db = MySQLManager()
+    db = SQLiteManager()
     if db.is_connected:
-        db.log_user_analysis("Kiểm tra kết nối MariaDB/MySQL ai-anti-scam từ .env", 95, "HIGH", 98, ["tuyển dụng", "cọc tiền"], 12.5, "session_test", "Phát hiện rủi ro cao")
+        db.log_user_analysis("Kiểm tra kết nối SQLite ai-anti-scam", 95, "HIGH", 98, ["tuyển dụng", "cọc tiền"], 12.5, "session_test", "Phát hiện rủi ro cao")
         history = db.get_chat_history("session_test")
-        print(f"[MySQLManager] Test history retrieved ({len(history)} items).")
+        print(f"[SQLiteManager] Test history retrieved ({len(history)} items).")
         db.close()

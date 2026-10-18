@@ -53,7 +53,7 @@ pip install -r requirements.txt
 copy .env.example .env
 ```
 
-Neu dung MySQL/XAMPP, import `ai-anti-scam.sql` vao database local va cap nhat bien moi truong trong `.env`. Neu khong co MySQL/API key, prototype van co the chay mot phan bang fallback/offline tuy theo agent.
+He thong su dung SQLite database (mac dinh tu dong tao tai data/safeguard.db). Khong can cai dat MySQL hay XAMPP. Neu khong co API key, prototype van co the chay hoan toan offline bang fallback tuy theo agent.
 
 ## Chay prototype hien tai
 Ban web hien tai duoc phuc vu qua REST API server va static HTML:

@@ -29,6 +29,7 @@ class Settings:
     max_connections: int = 256
     max_connections_per_ip: int = 32
     max_memory_chars: int = 8_000_000
+    db_path: str = "data/safeguard.db"
 
 
 _SETTINGS_INSTANCE: Settings | None = None
@@ -185,6 +186,8 @@ def get_settings(refresh: bool = False) -> Settings:
     except (ValueError, TypeError):
         max_memory_chars = 8_000_000
 
+    db_path = os.environ.get("SAFEGUARD_DB_PATH", "data/safeguard.db").strip() or "data/safeguard.db"
+
     _SETTINGS_INSTANCE = Settings(
         offline=offline,
         llm_mode=llm_mode,
@@ -211,5 +214,6 @@ def get_settings(refresh: bool = False) -> Settings:
         max_connections=max_connections,
         max_connections_per_ip=max_connections_per_ip,
         max_memory_chars=max_memory_chars,
+        db_path=db_path,
     )
     return _SETTINGS_INSTANCE
