@@ -18,12 +18,19 @@ class MemoryAgent:
         max_history: int = 20,
         max_sessions: int = 2000,
         max_sessions_per_client: int = 50,
-        max_text_chars: int = 2000
+        max_text_chars: int = 2000,
+        max_total_chars: int | None = None,
     ):
+        from codebase.config import get_settings
+        settings = get_settings()
         self._max_history = max_history
         self._max_global_sessions = max_sessions
         self._max_sessions_per_client = min(max_sessions_per_client, max_sessions)
         self._max_text_chars = max_text_chars
+        if max_total_chars is not None:
+            self._max_total_chars = max(100, int(max_total_chars))
+        else:
+            self._max_total_chars = getattr(settings, "max_memory_chars", 8_000_000)
         self._lock = threading.Lock()
         
         # Global session map for backward compatibility and quick lookup:
@@ -40,14 +47,52 @@ class MemoryAgent:
             r"(?<!\w)(?:việc làm|nhận việc|tuyển dụng|cộng tác viên|làm thêm)(?!\w)", re.IGNORECASE
         )
 
+    def _resolve_cid(self, client_id: str | None) -> str:
+        if client_id == "":
+            return "__empty__"
+        if client_id is not None:
+            return client_id
+        return "__default__"
+
     def _make_key(self, session_id: str, client_id: str | None = None):
+        if client_id == "":
+            return ("__empty__", session_id)
         if client_id is not None:
             return (client_id, session_id)
         return session_id
 
+    def _make_key_from_cid(self, session_id: str, cid: str):
+        if cid == "__default__":
+            return session_id
+        return (cid, session_id)
+
+    def _evict_chars_unlocked(self, current_cid: str, incoming_chars: int):
+        # Must hold self._lock
+        curr_chars = 0
+        for dq in self._sessions.values():
+            for item in dq:
+                curr_chars += len(item.get("text", ""))
+
+        while curr_chars + incoming_chars > self._max_total_chars:
+            evicted = False
+            for oldest_cid in list(self._clients_lru.keys()):
+                if oldest_cid != current_cid and oldest_cid in self._client_sessions and self._client_sessions[oldest_cid]:
+                    old_sid, old_dq = self._client_sessions[oldest_cid].popitem(last=False)
+                    old_key = self._make_key_from_cid(old_sid, oldest_cid)
+                    self._sessions.pop(old_key, None)
+                    for item in old_dq:
+                        curr_chars -= len(item.get("text", ""))
+                    if not self._client_sessions[oldest_cid]:
+                        del self._client_sessions[oldest_cid]
+                        self._clients_lru.pop(oldest_cid, None)
+                    evicted = True
+                    break
+            if not evicted:
+                break
+
     def _get_session_deque(self, session_id: str, client_id: str | None = None, create: bool = True, touch: bool = True) -> deque:
         # Caller must hold self._lock
-        cid = client_id if client_id is not None else "__default__"
+        cid = self._resolve_cid(client_id)
         key = self._make_key(session_id, client_id)
 
         # 1. If session already exists for this client, mark active and return
@@ -86,7 +131,7 @@ class MemoryAgent:
             for oldest_cid in list(self._clients_lru.keys()):
                 if oldest_cid != cid and oldest_cid in self._client_sessions and self._client_sessions[oldest_cid]:
                     old_sid, _ = self._client_sessions[oldest_cid].popitem(last=False)
-                    old_key = self._make_key(old_sid, None if oldest_cid == "__default__" else oldest_cid)
+                    old_key = self._make_key_from_cid(old_sid, oldest_cid)
                     self._sessions.pop(old_key, None)
                     if not self._client_sessions[oldest_cid]:
                         del self._client_sessions[oldest_cid]
@@ -129,7 +174,7 @@ class MemoryAgent:
                 self._client_sessions.clear()
                 self._clients_lru.clear()
             elif session_id is None and client_id is not None:
-                cid = client_id
+                cid = self._resolve_cid(client_id)
                 if cid in self._client_sessions:
                     for sid in list(self._client_sessions[cid].keys()):
                         key = self._make_key(sid, client_id)
@@ -137,7 +182,7 @@ class MemoryAgent:
                     del self._client_sessions[cid]
                 self._clients_lru.pop(cid, None)
             else:
-                cid = client_id if client_id is not None else "__default__"
+                cid = self._resolve_cid(client_id)
                 if cid in self._client_sessions:
                     self._client_sessions[cid].pop(session_id, None)
                     if not self._client_sessions[cid]:
@@ -148,7 +193,9 @@ class MemoryAgent:
 
     def add_interaction(self, user_text, risk_level, matched_flags, session_id: str = "session_default", client_id: str = None):
         truncated_text = (user_text or "")[:self._max_text_chars]
+        cid = self._resolve_cid(client_id)
         with self._lock:
+            self._evict_chars_unlocked(cid, len(truncated_text))
             dq = self._get_session_deque(session_id, client_id=client_id, create=True)
             dq.append({
                 "text": truncated_text,
@@ -162,7 +209,10 @@ class MemoryAgent:
             return
         db_history = db_manager.get_chat_history(session_id, client_id=client_id)
         if db_history:
+            cid = self._resolve_cid(client_id)
+            total_loaded = sum(len((r.get("user_text", "") or "")[:self._max_text_chars]) for r in db_history)
             with self._lock:
+                self._evict_chars_unlocked(cid, total_loaded)
                 dq = self._get_session_deque(session_id, client_id=client_id, create=True)
                 dq.clear()
                 for row in db_history:
@@ -189,7 +239,7 @@ class MemoryAgent:
 
     def analyze_escalation(self, current_text, session_id: str = "session_default", client_id: str = None):
         key = self._make_key(session_id, client_id)
-        cid = client_id if client_id is not None else "__default__"
+        cid = self._resolve_cid(client_id)
         with self._lock:
             if cid in self._client_sessions and session_id in self._client_sessions[cid]:
                 self._clients_lru.move_to_end(cid)

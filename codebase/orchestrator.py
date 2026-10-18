@@ -276,10 +276,11 @@ class SafeGuardOrchestrator:
         Processes multimodal input and returns unified risk analysis and decision.
 
         Valid execution_path values:
-        - 'deterministic_only': Offline or Stage A deterministic evaluation only.
-        - 'single_llm': Stage A deterministic + Stage B single-turn LLM refinement.
-        - 'agentic_llm': Stage A deterministic + Stage B multi-turn Gemini Agent Runner.
-        - 'prompt_guard_refusal': Immediate refusal when prompt injection or harmful jailbreak is detected.
+        - 'deterministic_only': Offline / deterministic pipeline (Stage A + deterministic Stage B).
+        - 'gemini_agentic': Multi-turn agentic Gemini runner execution.
+        - 'sequential_fallback': Sequential fallback when agentic runner encounters error or timeout.
+        - 'single_llm': Single-turn LLM synthesis merged with deterministic floor.
+        - 'prompt_guard_refusal': Safety guardrail triggered (prompt injection or malicious intent refused).
         """
         start_time = time.time()
         settings = get_settings()

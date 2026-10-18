@@ -6,43 +6,45 @@ document.addEventListener("DOMContentLoaded", () => {
     // Client ID management (UUID v4 with localStorage and fallback)
     let inMemoryClientId = null;
 
-    function fallbackUUID() {
-        if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-            const buf = new Uint8Array(16);
-            crypto.getRandomValues(buf);
-            buf[6] = (buf[6] & 0x0f) | 0x40; // UUID v4
-            buf[8] = (buf[8] & 0x3f) | 0x80; // variant
-            const hex = Array.from(buf, b => b.toString(16).padStart(2, "0")).join("");
-            return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    function generateSecureUUID() {
+        if (typeof crypto !== "undefined") {
+            if (crypto.randomUUID) {
+                return crypto.randomUUID();
+            }
+            if (crypto.getRandomValues) {
+                const buf = new Uint8Array(16);
+                crypto.getRandomValues(buf);
+                buf[6] = (buf[6] & 0x0f) | 0x40; // UUID v4
+                buf[8] = (buf[8] & 0x3f) | 0x80; // variant
+                const hex = Array.from(buf, b => b.toString(16).padStart(2, "0")).join("");
+                return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+            }
         }
-        return "fallback-uuid-0000-000000000000";
+        const errMsg = "Trình duyệt không hỗ trợ Web Crypto API bảo mật để tạo định danh phiên. Vui lòng sử dụng trình duyệt hiện đại hơn.";
+        if (typeof alert === "function") {
+            alert(errMsg);
+        }
+        throw new Error(errMsg);
     }
 
     function getClientId() {
         try {
             let cid = localStorage.getItem("safeguard_client_id");
             if (!cid) {
-                cid = (typeof crypto !== "undefined" && crypto.randomUUID) 
-                    ? crypto.randomUUID() 
-                    : fallbackUUID();
+                cid = generateSecureUUID();
                 localStorage.setItem("safeguard_client_id", cid);
             }
             return cid;
         } catch (e) {
             if (!inMemoryClientId) {
-                inMemoryClientId = (typeof crypto !== "undefined" && crypto.randomUUID)
-                    ? crypto.randomUUID()
-                    : fallbackUUID();
+                inMemoryClientId = generateSecureUUID();
             }
             return inMemoryClientId;
         }
     }
 
     function generateSessionId() {
-        if (typeof crypto !== "undefined" && crypto.randomUUID) {
-            return `session_${crypto.randomUUID()}`;
-        }
-        return `session_${fallbackUUID()}`;
+        return `session_${generateSecureUUID()}`;
     }
 
     // State Variables

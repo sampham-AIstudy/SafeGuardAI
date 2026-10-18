@@ -97,14 +97,37 @@ _DEFAULT_HEALTH_RATE_LIMITER = TokenBucketRateLimiter(60, max_ips=10_000)
 _DEFAULT_SESSION_RATE_LIMITER = TokenBucketRateLimiter(60, max_ips=10_000, burst=60)
 
 
+def _clean_ip_string(raw: str) -> str:
+    s = raw.strip()
+    if not s:
+        return ""
+    # Strip brackets if present: [ipv6]:port or [ipv6]
+    if s.startswith("["):
+        bracket_end = s.find("]")
+        if bracket_end != -1:
+            s = s[1:bracket_end]
+    elif ":" in s and s.count(":") == 1:
+        # IPv4 with port: 1.2.3.4:5555
+        host_part, port_part = s.split(":", 1)
+        if port_part.isdigit():
+            s = host_part
+        else:
+            return ""
+    # Strip scope ID if present, e.g. %eth0, %1
+    if "%" in s:
+        s = s.split("%", 1)[0]
+    return s.strip()
+
+
 def _normalize_ip(ip_str: str) -> str:
     """Normalize IP string, converting IPv4-mapped IPv6 (::ffff:1.2.3.4) to pure IPv4."""
     try:
-        obj = ipaddress.ip_address(ip_str.strip())
+        clean = _clean_ip_string(ip_str)
+        obj = ipaddress.ip_address(clean)
         if isinstance(obj, ipaddress.IPv6Address) and obj.ipv4_mapped:
             return str(obj.ipv4_mapped)
         return str(obj)
-    except ValueError:
+    except (ValueError, TypeError):
         return ip_str.strip() or "127.0.0.1"
 
 
@@ -113,8 +136,11 @@ def get_client_ip(handler) -> str:
     Extract client IP address safely:
     - Connection IP is the default fallback.
     - If SAFEGUARD_TRUST_PROXY=1:
-      - Ignores X-Forwarded-For if longer than 512 characters.
+      - Ignores X-Forwarded-For if empty.
+      - If XFF > 512 characters, takes rightmost hop from tail instead of falling back to proxy IP.
       - Takes the N-th hop from the right (SAFEGUARD_TRUSTED_PROXY_HOPS, default 1: rightmost).
+      - If number of hops < SAFEGUARD_TRUSTED_PROXY_HOPS, returns connection IP.
+      - Strips port and scope IDs.
       - Strictly validates with ipaddress.ip_address (invalid => fallback to connection IP).
       - Normalizes IPv4-mapped IPv6 (::ffff:1.2.3.4) to pure IPv4 (1.2.3.4).
     """
@@ -132,27 +158,33 @@ def get_client_ip(handler) -> str:
     if not xff:
         return normalized_conn_ip
 
-    if len(xff) > 512:
-        return normalized_conn_ip
-
-    hops = [h.strip() for h in xff.split(",") if h.strip()]
-    if not hops:
-        return normalized_conn_ip
-
     n_hops = getattr(settings, "trusted_proxy_hops", 1)
     try:
         n_hops = max(1, int(n_hops))
     except (ValueError, TypeError):
         n_hops = 1
 
-    target_hop = hops[-n_hops] if len(hops) >= n_hops else hops[0]
+    if len(xff) > 512:
+        # XFF > 512 characters: take rightmost hop from tail of header
+        tail = xff[-512:]
+        tail_hops = [h.strip() for h in tail.split(",") if h.strip()]
+        if not tail_hops:
+            return normalized_conn_ip
+        target_hop = tail_hops[-1]
+    else:
+        hops = [h.strip() for h in xff.split(",") if h.strip()]
+        if not hops or len(hops) < n_hops:
+            # If hops < SAFEGUARD_TRUSTED_PROXY_HOPS, hops[0] is set by attacker => return connection IP
+            return normalized_conn_ip
+        target_hop = hops[-n_hops]
 
+    clean_target = _clean_ip_string(target_hop)
     try:
-        ip_obj = ipaddress.ip_address(target_hop)
+        ip_obj = ipaddress.ip_address(clean_target)
         if isinstance(ip_obj, ipaddress.IPv6Address) and ip_obj.ipv4_mapped:
             return str(ip_obj.ipv4_mapped)
         return str(ip_obj)
-    except ValueError:
+    except (ValueError, TypeError):
         return normalized_conn_ip
 
 
@@ -193,11 +225,11 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
     timeout = 10
     server_version = "SafeGuardAI"
 
-    def _drain_and_close(self, max_bytes: int = 1_048_576, timeout_s: float = 2.0):
+    def _drain_and_close(self, max_bytes: int = 8_000_000, timeout_s: float = 3.0):
         """
         Gracefully shutdown write side and drain unread incoming body bytes
         to prevent client receiving connection reset (TCP RST).
-        Limits discarding to max_bytes (default 1MB) or timeout_s (default 2s).
+        Limits discarding to max_bytes (default 8MB) or timeout_s (default 3.0s).
         """
         self.close_connection = True
         try:
@@ -219,6 +251,14 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
             chunk_size = 65536
             t_start = time.monotonic()
             while bytes_drained < max_bytes and (time.monotonic() - t_start) < timeout_s:
+                remaining_time = timeout_s - (time.monotonic() - t_start)
+                if remaining_time <= 0:
+                    break
+                if hasattr(self, "connection") and self.connection:
+                    try:
+                        self.connection.settimeout(min(remaining_time, 0.5))
+                    except Exception:
+                        pass
                 to_read = min(chunk_size, max_bytes - bytes_drained)
                 try:
                     if hasattr(self, "connection") and self.connection:
@@ -436,9 +476,16 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
                 self.send_json_response(
                     {"error": "rate_limited", "error_id": err_id},
                     status=429,
-                    headers={"Retry-After": retry_str, "Connection": "close"}
+                    headers={"Retry-After": retry_str}
                 )
-                self._drain_and_close(max_bytes=1_048_576, timeout_s=2.0)
+                cl_header = self.headers.get('Content-Length')
+                try:
+                    cl_val = int(cl_header) if cl_header is not None else 0
+                except (ValueError, TypeError):
+                    cl_val = 0
+                max_body = get_settings().max_body_bytes
+                drain_bytes = min(max(0, cl_val), max_body) if cl_val > 0 else max_body
+                self._drain_and_close(max_bytes=drain_bytes, timeout_s=3.0)
                 return
 
             cl_header = self.headers.get('Content-Length')
@@ -460,10 +507,9 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
                 self.close_connection = True
                 self.send_json_response(
                     {"error": "Payload Too Large"},
-                    status=413,
-                    headers={"Connection": "close"}
+                    status=413
                 )
-                self._drain_and_close(max_bytes=1_048_576, timeout_s=2.0)
+                self._drain_and_close(max_bytes=max_body, timeout_s=3.0)
                 return
 
             body = self.rfile.read(content_length)
@@ -530,7 +576,7 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
                 # Validate client_id header
                 raw_client_id = self.headers.get('X-Client-Id')
                 if raw_client_id is not None:
-                    if not CLIENT_ID_PATTERN.fullmatch(raw_client_id):
+                    if not CLIENT_ID_PATTERN.fullmatch(raw_client_id) or raw_client_id.startswith('anonymous-'):
                         self.send_json_response({"error": "Invalid X-Client-Id header"}, status=400)
                         return
                     client_id = raw_client_id
@@ -622,10 +668,13 @@ class SafeGuardAPIHandler(BaseHTTPRequestHandler):
         body = json.dumps(data, ensure_ascii=False, default=self._json_default).encode('utf-8')
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
+        has_conn_header = False
         if headers:
             for k, v in headers.items():
+                if k.lower() == 'connection':
+                    has_conn_header = True
                 self.send_header(k, str(v))
-        if self.close_connection:
+        if self.close_connection and not has_conn_header:
             self.send_header('Connection', 'close')
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
@@ -644,13 +693,24 @@ class SafeGuardServer(ThreadingHTTPServer):
         self.health_rate_limiter = TokenBucketRateLimiter(rate_per_min=60, max_ips=10_000)
         self.session_rate_limiter = TokenBucketRateLimiter(rate_per_min=60, max_ips=10_000, burst=60)
         self._active_connections = 0
+        self._ip_connections = {}
+        self._request_to_ip = {}
         self._conn_lock = threading.Lock()
+
+    def extract_client_ip(self, client_address) -> str:
+        if client_address and len(client_address) > 0:
+            return _normalize_ip(str(client_address[0]))
+        return "127.0.0.1"
 
     def process_request(self, request, client_address):
         settings = get_settings()
         max_conn = getattr(settings, "max_connections", 256)
+        max_per_ip = getattr(settings, "max_connections_per_ip", 32)
+        ip = self.extract_client_ip(client_address)
+
         with self._conn_lock:
-            if self._active_connections >= max_conn:
+            ip_count = self._ip_connections.get(ip, 0)
+            if self._active_connections >= max_conn or ip_count >= max_per_ip:
                 try:
                     request.sendall(
                         b"HTTP/1.1 503 Service Unavailable\r\n"
@@ -667,12 +727,21 @@ class SafeGuardServer(ThreadingHTTPServer):
                     pass
                 return
             self._active_connections += 1
+            self._ip_connections[ip] = ip_count + 1
+            self._request_to_ip[id(request)] = ip
         super().process_request(request, client_address)
 
     def close_request(self, request):
         with self._conn_lock:
             if self._active_connections > 0:
                 self._active_connections -= 1
+            req_id = id(request)
+            if req_id in self._request_to_ip:
+                ip = self._request_to_ip.pop(req_id)
+                if ip in self._ip_connections:
+                    self._ip_connections[ip] -= 1
+                    if self._ip_connections[ip] <= 0:
+                        del self._ip_connections[ip]
         super().close_request(request)
 
 

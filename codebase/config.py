@@ -27,6 +27,8 @@ class Settings:
     runner_deadline_s: float = 20.0
     db_timeout_s: float = 5.0
     max_connections: int = 256
+    max_connections_per_ip: int = 32
+    max_memory_chars: int = 8_000_000
 
 
 _SETTINGS_INSTANCE: Settings | None = None
@@ -171,6 +173,18 @@ def get_settings(refresh: bool = False) -> Settings:
     except (ValueError, TypeError):
         max_connections = 256
 
+    try:
+        raw_max_conn_ip = int(os.environ.get("SAFEGUARD_MAX_CONNECTIONS_PER_IP", "32").strip())
+        max_connections_per_ip = max(1, min(256, raw_max_conn_ip))
+    except (ValueError, TypeError):
+        max_connections_per_ip = 32
+
+    try:
+        raw_mem_chars = int(os.environ.get("SAFEGUARD_MAX_MEMORY_CHARS", "8000000").strip())
+        max_memory_chars = max(10_000, min(100_000_000, raw_mem_chars))
+    except (ValueError, TypeError):
+        max_memory_chars = 8_000_000
+
     _SETTINGS_INSTANCE = Settings(
         offline=offline,
         llm_mode=llm_mode,
@@ -195,5 +209,7 @@ def get_settings(refresh: bool = False) -> Settings:
         runner_deadline_s=runner_deadline_s,
         db_timeout_s=db_timeout_s,
         max_connections=max_connections,
+        max_connections_per_ip=max_connections_per_ip,
+        max_memory_chars=max_memory_chars,
     )
     return _SETTINGS_INSTANCE
