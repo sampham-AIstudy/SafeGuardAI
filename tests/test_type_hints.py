@@ -67,10 +67,12 @@ def _find_names_in_annotation(node: ast.AST | None) -> list[str]:
 
 def test_ast_annotations_have_all_names_defined():
     """AST check: ensure all names used in annotations are imported or defined."""
-    codebase_dir = Path(__file__).resolve().parent.parent / "codebase"
+    repo_root = Path(__file__).resolve().parent.parent
+    # eval/ and scripts/ are included: Python <=3.13 evaluates annotations eagerly
+    scanned = [p for d in ("codebase", "eval", "scripts") for p in (repo_root / d).rglob("*.py")]
     missing_by_file: dict[str, list[str]] = {}
 
-    for py_file in codebase_dir.rglob("*.py"):
+    for py_file in scanned:
         if py_file.name.startswith("."):
             continue
         try:
@@ -102,7 +104,7 @@ def test_ast_annotations_have_all_names_defined():
                             missing_names.append(f"{py_file.name}:{node.lineno} var '{name}'")
 
         if missing_names:
-            rel_path = str(py_file.relative_to(codebase_dir))
+            rel_path = str(py_file.relative_to(repo_root))
             missing_by_file[rel_path] = missing_names
 
     assert not missing_by_file, f"Found undefined annotation names: {missing_by_file}"

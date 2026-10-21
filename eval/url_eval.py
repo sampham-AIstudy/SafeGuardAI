@@ -10,6 +10,7 @@ import time
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 # Ensure UTF-8 output on Windows
