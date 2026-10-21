@@ -41,16 +41,13 @@ Browser UI / Streamlit UI
 | `validation/user_feedback.md` | Log validation voi nguoi dung ben ngoai |
 | `codebase/` | Prototype backend, agent va web server |
 | `eval/` | Golden set va script danh gia |
-| `tham-khao/` | Tai lieu tham khao JTBD (Strategyn playbook) |
 
 ## Cai dat
-Yeu cau: Python 3.10+ va pip.
+Yeu cau: [pixi](https://pixi.sh).
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-copy .env.example .env
+```bash
+pixi install
+cp .env.example .env
 ```
 
 He thong su dung SQLite database (mac dinh tu dong tao tai data/safeguard.db). Khong can cai dat MySQL hay XAMPP. Neu khong co API key, prototype van co the chay hoan toan offline bang fallback tuy theo agent.
@@ -58,9 +55,8 @@ He thong su dung SQLite database (mac dinh tu dong tao tai data/safeguard.db). K
 ## Chay prototype hien tai
 Ban web hien tai duoc phuc vu qua REST API server va static HTML:
 
-```cmd
-.\.venv\Scripts\activate
-python codebase/server.py
+```bash
+pixi run python codebase/server.py
 ```
 
 Mo trinh duyet tai:
@@ -74,9 +70,8 @@ http://localhost:8000
 ## Kiem thu
 Chay golden set:
 
-```cmd
-.\.venv\Scripts\activate
-python eval/run_eval.py
+```bash
+pixi run python eval/run_eval.py
 ```
 
 Quality bar trong `spec.md`: Risk Accuracy >=85%, Critical Pass =100%, va High/Critical case phai co bang chung/red flags ro rang.

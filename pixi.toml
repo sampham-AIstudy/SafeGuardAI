@@ -1,0 +1,27 @@
+[workspace]
+name = "safeguard"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+python = "3.12.*"
+pandas = "*"
+numpy = "*"
+pillow = "*"
+idna = ">=3.4"
+python-dotenv = "*"
+# QR decoding in images (cv2); optional at runtime, imported lazily
+py-opencv = "*"
+
+[feature.dev.dependencies]
+pytest = ">=8"
+# generates QR fixtures in tests
+qrcode = "*"
+# builds self-signed certificates in tests/test_url_passive.py
+cryptography = "*"
+
+[feature.dev.tasks]
+test = { cmd = "pytest -q -p no:cacheprovider", env = { SAFEGUARD_OFFLINE = "1" } }
+
+[environments]
+default = { features = ["dev"], solve-group = "default" }
