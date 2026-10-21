@@ -12,7 +12,7 @@ from codebase.url_analysis.normalize import normalize_for_urls
 
 
 class TestUrlExtract:
-    """Tests for URL extraction per UPGRADE_PLAN Phase 2A."""
+    """Tests for URL extraction."""
 
     # 1. Minimum 25 positive test cases
     @pytest.mark.parametrize(

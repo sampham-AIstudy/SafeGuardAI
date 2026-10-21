@@ -13,7 +13,7 @@ from codebase.url_analysis.normalize import (
 
 
 class TestUrlNormalize:
-    """Tests for URL normalization and refanging per UPGRADE_PLAN Phase 2A."""
+    """Tests for URL normalization and refanging."""
 
     @pytest.mark.parametrize(
         "input_text,expected_contains,expected_techniques",

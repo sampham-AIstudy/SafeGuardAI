@@ -12,7 +12,7 @@ from codebase.url_analysis.models import ObfuscationStep
 
 MAX_TEXT_CHARS = 20000
 
-# Zero-width and invisible characters per UPGRADE_PLAN section 3.2
+# Zero-width and invisible characters stripped before URL extraction
 # U+00AD, U+034F, U+061C, U+115F/1160, U+17B4/5, U+180B-180E, U+200B-200F,
 # U+202A-202E, U+2060-2064, U+2066-206F, U+3164, U+FEFF, U+FFA0
 ZERO_WIDTH_CHARS: set[str] = set(

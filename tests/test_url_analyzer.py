@@ -21,7 +21,7 @@ def analyzer():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# (c) Minimum 30 samples from UPGRADE_PLAN table (Section 4 / Phase 2)
+# (c) URL obfuscation samples (at least 30)
 # ─────────────────────────────────────────────────────────────────────────────
 TABLE_CASES = [
     # 1
