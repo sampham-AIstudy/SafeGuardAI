@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Guide version | 1.1 (owner review applied 2026-10-22) |
+| Guide version | 1.2 (generator changed to Codex by owner decision, 2026-10-22) |
 | Date | 2026-10-22 |
-| Author | Claude (claude-opus-5-5), acting as the isolated test-set author |
+| Author | Claude (claude-opus-5-5) wrote this guide and the seed catalog. The conversations are written by an OpenAI model through the Codex CLI (owner decision, 2026-10-22); the exact model is recorded in `provenance.generator.model` |
 | Applies to | `testset/synthetic-v1/` (primary synthetic set), `testset/case-studies-real/` (optional, qualitative) and `devset/` (development set, Section 11) |
 | Status | Not frozen. Section 9 freezes the *test set*. The guide version used is recorded by hash in the test-set manifest. |
 
@@ -63,8 +63,9 @@ labels or checks test content.
    seed catalog (`testset/seeds/`). Owner decision, 2026-10-22.
 8. The development set (Section 11) is the only labeled data that the detection developers read. Its seed cases are
    disjoint from the test seed cases.
-7. The generator (Claude) is a different model family from the detection model (Gemini). The detection model is
-   not used to generate, label or adjudicate test content.
+7. The generator (an OpenAI model through the Codex CLI) is a different model family from the detection model
+   (Gemini) and from the second labeler (Claude, Section 8.2). The detection model is not used to generate, label or
+   adjudicate test content.
 
 ---
 
@@ -963,11 +964,12 @@ canonical line (so a single changed record is traceable).
 
 ## 10. Known limitations
 
-1. **Single-generator style bias.** One model family (Claude) writes all conversations. Its phrasing, rhythm and
+1. **Single-generator style bias.** One model family (OpenAI, through Codex) writes all conversations. Its phrasing, rhythm and
    choice of details are more uniform than real chat. A detector can learn or benefit from these regularities. The
    set measures detection of **these written patterns**, not of real messages.
-2. **Correlated labeling.** The author and the second labeler are Claude models. Agreement between them
-   overestimates agreement between independent humans. A human spot check (Section 8.6) reduces but does not remove
+2. **Correlated labeling.** The author (OpenAI) and the second labeler (Claude) are different model families, but
+   both are large language models trained on similar web text. Agreement between them can still overestimate
+   agreement between independent humans. A human spot check (Section 8.6) reduces but does not remove
    this risk.
 3. **No prevalence information.** The class balance (about 1:1) and the type counts are design choices. Precision on
    this set does not predict precision on real traffic, where most conversations are benign. Report a
