@@ -108,50 +108,13 @@
 
             <!-- ── BOTTOM CHAT BAR & FILE ATTACHMENT ── -->
             <div class="input-area">
-                <!-- Model Selector Dropdown Trigger & Popup -->
-                <div class="model-selector-wrapper">
-                    <button class="model-selector-btn" id="modelSelectorBtn" type="button">
-                        <span class="model-name-text">SafeGuard Agent 3.5</span>
-                        <span class="model-badge">Pro</span>
-                        <span class="dropdown-chevron">˅</span>
-                    </button>
-
-                    <div class="model-dropdown-menu hidden" id="modelDropdownMenu">
-                        <div class="model-option active" data-model="gemini">
-                            <div class="model-option-header">
-                                <span class="model-title">SafeGuard Agent 3.5</span>
-                                <span class="badge-tag pro">Pro</span>
-                                <span class="check-icon">✓</span>
-                            </div>
-                            <div class="model-desc">Tool-Calling & Agentic Multi-Agent Pipeline</div>
-                        </div>
-
-                        <div class="model-option" data-model="groq">
-                            <div class="model-option-header">
-                                <span class="model-title">Groq Llama 3.3 70B</span>
-                                <span class="badge-tag fast">Fast</span>
-                                <span class="check-icon"></span>
-                            </div>
-                            <div class="model-desc">NHANH NHẤT ~300ms — Tối ưu cho phản hồi tức thì</div>
-                        </div>
-
-                        <div class="model-option" data-model="mistral">
-                            <div class="model-option-header">
-                                <span class="model-title">Mistral Large</span>
-                                <span class="check-icon"></span>
-                            </div>
-                            <div class="model-desc">Xử lý tiếng Việt chuyên sâu & nhận diện ngữ cảnh</div>
-                        </div>
-
-                        <div class="model-option" data-model="offline">
-                            <div class="model-option-header">
-                                <span class="model-title">Offline Guard</span>
-                                <span class="check-icon"></span>
-                            </div>
-                            <div class="model-desc">Phân tích rule-based & RAG cục bộ (Offline)</div>
-                        </div>
-
-                    </div>
+                <!-- Online Check Toggle (U3) -->
+                <div class="online-check-container">
+                    <label class="online-check-label" for="onlineCheckCheckbox">
+                        <input type="checkbox" id="onlineCheckCheckbox" autocomplete="off">
+                        <span class="online-check-title">Kiểm tra trực tuyến (online_check)</span>
+                    </label>
+                    <div class="online-check-help">Khi bật, hệ thống có thể mở rộng link rút gọn và tra cứu tên miền (chỉ gửi tên miền) qua dịch vụ bên ngoài.</div>
                 </div>
 
                 <div class="attached-file-preview hidden" id="filePreview">
@@ -173,6 +136,9 @@
                         ↑
                     </button>
                 </div>
+                <div class="privacy-notice" id="privacyNotice">
+                    🔒 Quyền riêng tư: Văn bản và ảnh người dùng vẫn được gửi cho Gemini khi chế độ LLM đang bật (ngoài phạm vi kiểm tra trực tuyến); ảnh không lưu trên server theo mặc định.
+                </div>
                 <div class="disclaimer-text">SafeGuard AI — AI có thể sai sót - vui lòng kiểm tra kĩ</div>
             </div>
         </main>
@@ -188,6 +154,7 @@
         </div>
     </div>
 
+    <script src="ui_render.js"></script>
     <script src="app.js"></script>
 </body>
 

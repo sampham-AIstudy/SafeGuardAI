@@ -47,6 +47,18 @@ document.addEventListener("DOMContentLoaded", () => {
         return `session_${generateSecureUUID()}`;
     }
 
+    // Safe sanitize helper fallback if UIRender is not loaded
+    function sanitize(str, maxLen = 300) {
+        if (typeof UIRender !== "undefined" && typeof UIRender.sanitizeText === "function") {
+            return UIRender.sanitizeText(str, maxLen);
+        }
+        if (str === null || str === undefined) return "";
+        let s = String(str).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, "");
+        s = s.replace(/[\u202A-\u202E\u2066-\u2069\u200E\u200F\u061C]/g, "");
+        s = s.replace(/[\u200B-\u200D\uFEFF\u00AD\u2028\u2029\u2060\u180E\u034F]/g, "");
+        return s.slice(0, maxLen);
+    }
+
     // State Variables
     let activeSessionId = generateSessionId();
     let attachedFileBase64 = null;
@@ -61,8 +73,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const landingView = document.getElementById("landingView");
     const messagesContainer = document.getElementById("messagesContainer");
     const chatViewport = document.getElementById("chatViewport");
-    const thinkingWidget = document.getElementById("thinkingWidget");
-    const thinkingSteps = document.getElementById("thinkingSteps");
     const chatInput = document.getElementById("chatInput");
     const btnSend = document.getElementById("btnSend");
     const fileInput = document.getElementById("fileInput");
@@ -70,6 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const fileNameText = document.getElementById("fileNameText");
     const btnRemoveFile = document.getElementById("btnRemoveFile");
     const inputContainer = document.getElementById("inputContainer");
+    const onlineCheckCheckbox = document.getElementById("onlineCheckCheckbox");
 
     // Initialize App
     initApp();
@@ -84,6 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // New Chat
         btnNewChat.addEventListener("click", () => {
             activeSessionId = generateSessionId();
+            if (onlineCheckCheckbox) onlineCheckCheckbox.checked = false;
             renderChatView([]);
             showLanding();
             loadSessions();
@@ -97,60 +109,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 sendMessage();
             }
         });
-        
-        // Mode Pill / Model Selector Toggle
-        const modelSelectorBtn = document.getElementById("modelSelectorBtn");
-        const modelDropdownMenu = document.getElementById("modelDropdownMenu");
-
-        if (modelSelectorBtn && modelDropdownMenu) {
-            modelSelectorBtn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                const isHidden = modelDropdownMenu.classList.contains("hidden");
-                if (isHidden) {
-                    modelDropdownMenu.classList.remove("hidden");
-                    modelSelectorBtn.classList.add("open");
-                } else {
-                    modelDropdownMenu.classList.add("hidden");
-                    modelSelectorBtn.classList.remove("open");
-                }
-            });
-
-            document.addEventListener("click", (e) => {
-                if (!modelSelectorBtn.contains(e.target) && !modelDropdownMenu.contains(e.target)) {
-                    modelDropdownMenu.classList.add("hidden");
-                    modelSelectorBtn.classList.remove("open");
-                }
-            });
-
-            const modelOptions = modelDropdownMenu.querySelectorAll(".model-option");
-            modelOptions.forEach(opt => {
-                opt.addEventListener("click", () => {
-                    modelOptions.forEach(o => {
-                        o.classList.remove("active");
-                        const chk = o.querySelector(".check-icon");
-                        if (chk) chk.textContent = "";
-                    });
-                    opt.classList.add("active");
-                    const chk = opt.querySelector(".check-icon");
-                    if (chk) chk.textContent = "✓";
-
-                    const titleEl = opt.querySelector(".model-title");
-                    const badgeEl = opt.querySelector(".badge-tag");
-                    
-                    const title = titleEl ? titleEl.textContent : "SafeGuard Agent 3.5";
-                    const badgeText = badgeEl ? badgeEl.textContent : "";
-
-                    const nameTextEl = modelSelectorBtn.querySelector(".model-name-text");
-                    const badgeTextEl = modelSelectorBtn.querySelector(".model-badge");
-
-                    if (nameTextEl) nameTextEl.textContent = title;
-                    if (badgeTextEl) badgeTextEl.textContent = badgeText;
-
-                    modelDropdownMenu.classList.add("hidden");
-                    modelSelectorBtn.classList.remove("open");
-                });
-            });
-        }
 
         // Quick Suggestions & Quick Actions
         document.addEventListener("click", (e) => {
@@ -249,7 +207,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         attachedFileName = file.name;
-        if (fileNameText) fileNameText.textContent = file.name;
+        if (fileNameText) fileNameText.textContent = sanitize(file.name, 100);
         if (filePreview) filePreview.classList.remove("hidden");
 
         fileReadingPromise = new Promise((resolve, reject) => {
@@ -274,7 +232,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (filePreview) filePreview.classList.add("hidden");
     }
 
-    // Load Session list from MySQL API
+    // Load Session list from SQLite API
     async function loadSessions() {
         try {
             const res = await fetch("/api/sessions", {
@@ -298,10 +256,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const emptyDiv = document.createElement("div");
             emptyDiv.className = "empty-history-notice";
             emptyDiv.textContent = "Chưa có lịch sử chat";
-            emptyDiv.style.fontSize = "12px";
-            emptyDiv.style.color = "var(--text-muted)";
-            emptyDiv.style.padding = "12px 8px";
-            emptyDiv.style.textAlign = "center";
             sessionList.appendChild(emptyDiv);
             return;
         }
@@ -309,12 +263,20 @@ document.addEventListener("DOMContentLoaded", () => {
         sessions.forEach((s) => {
             const item = document.createElement("div");
             item.className = `session-item ${s.session_id === activeSessionId ? "active" : ""}`;
-            const displayTitle = s.title || s.session_id;
+            const displayTitle = sanitize(s.title || s.session_id, 80);
             item.title = displayTitle;
-            item.innerHTML = `
-                <span class="session-icon">💬</span>
-                <span class="session-title">${escapeHtml(displayTitle)}</span>
-            `;
+
+            const iconSpan = document.createElement("span");
+            iconSpan.className = "session-icon";
+            iconSpan.textContent = "💬";
+
+            const titleSpan = document.createElement("span");
+            titleSpan.className = "session-title";
+            titleSpan.textContent = displayTitle;
+
+            item.appendChild(iconSpan);
+            item.appendChild(titleSpan);
+
             item.addEventListener("click", () => switchSession(s.session_id));
             sessionList.appendChild(item);
         });
@@ -322,6 +284,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function switchSession(sessionId) {
         activeSessionId = sessionId;
+        if (onlineCheckCheckbox) onlineCheckCheckbox.checked = false;
         loadSessions();
 
         try {
@@ -376,17 +339,26 @@ document.addEventListener("DOMContentLoaded", () => {
         // Render User Message with Image Preview Thumbnail if attached
         appendUserMessage(userText || `[Đã đính kèm ảnh ${currentFileName || "bằng chứng"}]`, currentImageBase64);
 
+        // Strictly boolean online_check flag (U3)
+        const isOnlineCheck = Boolean(onlineCheckCheckbox && onlineCheckCheckbox.checked);
+
+        // Reset online_check checkbox to private default (off) immediately after reading
+        if (onlineCheckCheckbox) {
+            onlineCheckCheckbox.checked = false;
+        }
+
         const payload = {
             user_text: userText,
             session_id: activeSessionId,
-            image_base64: currentImageBase64
+            image_base64: currentImageBase64,
+            online_check: isOnlineCheck
         };
 
         // Reset Input Box & File Preview
         chatInput.value = "";
         clearAttachedFile();
 
-        // Show thinking indicator
+        // Show thinking indicator (replaces fake steps)
         showThinkingWidget();
 
         // Call REST API /api/analyze
@@ -407,10 +379,28 @@ document.addEventListener("DOMContentLoaded", () => {
                 appendAssistantMessage(result);
                 loadSessions();
             } else {
+                let errorHeadline = `⚠️ Yêu cầu thất bại (${res.status})`;
+                if (res.status === 429) {
+                    const retryHeader = res.headers ? res.headers.get("Retry-After") : null;
+                    const retrySec = retryHeader ? parseInt(retryHeader, 10) : NaN;
+                    if (!isNaN(retrySec) && retrySec > 0) {
+                        errorHeadline = `⚠️ Gửi quá nhanh, thử lại sau ${retrySec} giây`;
+                    } else {
+                        errorHeadline = "⚠️ Gửi quá nhanh, thử lại sau";
+                    }
+                } else if (res.status === 413) {
+                    errorHeadline = "⚠️ Ảnh/nội dung quá lớn";
+                } else if (res.status === 400) {
+                    errorHeadline = "⚠️ Dữ liệu không hợp lệ";
+                } else if (res.status === 503) {
+                    errorHeadline = "⚠️ Server đang bận";
+                } else if (res.status >= 500 && res.status <= 599) {
+                    errorHeadline = `⚠️ Lỗi hệ thống máy chủ (${res.status})`;
+                }
                 appendAssistantMessage({
                     decision: {
                         intent_type: "general_chat",
-                        headline: "⚠️ Đã xảy ra lỗi kết nối với Backend Server. Vui lòng kiểm tra lại dịch vụ."
+                        headline: errorHeadline
                     }
                 });
             }
@@ -420,7 +410,7 @@ document.addEventListener("DOMContentLoaded", () => {
             appendAssistantMessage({
                 decision: {
                     intent_type: "general_chat",
-                    headline: `⚠️ Không thể kết nối tới Server: ${e.message}`
+                    headline: `⚠️ Không kết nối được tới server: ${sanitize(e.message || "Lỗi mạng", 100)}`
                 }
             });
         } finally {
@@ -432,249 +422,300 @@ document.addEventListener("DOMContentLoaded", () => {
     function appendUserMessage(text, imageBase64, showNoStoreNotice = false) {
         const row = document.createElement("div");
         row.className = "message-row user";
-        
-        let imgHtml = "";
+
+        const avatar = document.createElement("div");
+        avatar.className = "message-avatar";
+        avatar.textContent = "👤";
+        row.appendChild(avatar);
+
+        const content = document.createElement("div");
+        content.className = "message-content";
+
         if (imageBase64 && typeof imageBase64 === "string") {
             const trimmedImg = imageBase64.trim();
             if (IMAGE_SRC_REGEX.test(trimmedImg)) {
-                imgHtml = `<img src="${trimmedImg}" class="chat-attached-img" alt="Attached evidence">`;
+                const img = document.createElement("img");
+                img.src = trimmedImg;
+                img.className = "chat-attached-img";
+                img.alt = "Attached evidence";
+                content.appendChild(img);
             }
         } else if (showNoStoreNotice) {
-            imgHtml = `<div class="image-not-stored-notice">(ảnh không được lưu)</div>`;
+            const noticeEl = document.createElement("div");
+            noticeEl.className = "image-not-stored-notice";
+            noticeEl.textContent = "(ảnh không được lưu)";
+            content.appendChild(noticeEl);
         }
 
-        row.innerHTML = `
-            <div class="message-avatar">👤</div>
-            <div class="message-content">
-                ${imgHtml}
-                <p class="user-msg-text">${escapeHtml(text)}</p>
-            </div>
-        `;
+        const p = document.createElement("p");
+        p.className = "user-msg-text";
+        p.textContent = sanitize(text, 5000);
+        content.appendChild(p);
 
-        const userMsgP = row.querySelector(".user-msg-text");
-        if (userMsgP) {
-            userMsgP.style.margin = "0";
-        }
-
-        const noticeEl = row.querySelector(".image-not-stored-notice");
-        if (noticeEl) {
-            noticeEl.style.fontSize = "12px";
-            noticeEl.style.color = "var(--text-muted)";
-            noticeEl.style.fontStyle = "italic";
-            noticeEl.style.marginBottom = "6px";
-        }
-
+        row.appendChild(content);
         messagesContainer.appendChild(row);
         scrollToBottom();
     }
 
-    // Render Assistant Output
+    // Render Assistant Output (Guaranteed ZERO innerHTML for server data)
     function appendAssistantMessage(res) {
         const row = document.createElement("div");
         row.className = "message-row assistant";
-        
-        const decision = res.decision || {};
-        const intentType = decision.intent_type || "scam_analysis";
-        const headline = decision.headline || "Rủi ro không xác định";
 
-        let html = `<div class="message-avatar"><img src="/assets/AIScamavatar.jpg" class="chatbot-avatar-img" alt="SafeGuard AI"></div><div class="message-content">`;
+        const avatar = document.createElement("div");
+        avatar.className = "message-avatar";
+        const botImg = document.createElement("img");
+        botImg.src = "/assets/AIScamavatar.jpg";
+        botImg.className = "chatbot-avatar-img";
+        botImg.alt = "SafeGuard AI";
+        avatar.appendChild(botImg);
+        row.appendChild(avatar);
 
-        // Render Thought Accordion ONLY when real tool calls were returned by server
-        const toolCallsMade = (res.tool_calls_made && Array.isArray(res.tool_calls_made)) ? res.tool_calls_made : [];
-        if (toolCallsMade.length > 0) {
-            const latencySec = res.latency_ms ? (res.latency_ms / 1000).toFixed(1) : "0.0";
-            const toolCount = toolCallsMade.length;
+        const content = document.createElement("div");
+        content.className = "message-content";
 
-            html += `
-                <div class="thought-accordion">
-                    <button class="thought-header-btn" type="button">
-                        <span class="thought-header-left">
-                            🧠 <b>Đã suy nghĩ trong ${latencySec}s</b> · Đã thực thi ${toolCount} Agentic Tools
-                        </span>
-                        <span class="thought-toggle-icon">▼</span>
-                    </button>
-                    <div class="thought-details-content">
-            `;
-
-            toolCallsMade.forEach(t => {
-                const toolName = typeof t === "string" ? t : (t.tool || t.name || "agent_tool");
-                const toolDesc = typeof t === "object" && t.desc ? t.desc : `Executed sub-agent [${toolName}]`;
-                html += `
-                    <div class="thought-log-item">
-                        <span class="thought-log-tag">▶ [${escapeHtml(toolName)}]</span>
-                        <span>${escapeHtml(toolDesc)}</span>
-                    </div>
-                `;
-            });
-
-            html += `
-                    </div>
-                </div>
-            `;
+        // U2: Real pipeline_trace instead of fake animation
+        if (res.pipeline_trace && typeof UIRender !== "undefined" && typeof UIRender.renderPipelineTrace === "function") {
+            try {
+                UIRender.renderPipelineTrace(res.pipeline_trace, content);
+            } catch (err) {
+                console.error("Error rendering pipeline_trace:", err);
+            }
         }
 
+        const decision = res.decision || {};
+        const intentType = decision.intent_type || "scam_analysis";
+        const headline = sanitize(decision.headline || "Rủi ro không xác định", 500);
+
         if (intentType === "general_chat" || intentType === "refusal" || intentType === "need_more_info") {
-            html += `<p class="chat-headline-text">${escapeHtml(headline)}</p>`;
-            if (decision.recommendations && decision.recommendations.length > 0) {
-                html += `<ul class="chat-recommendations-list">`;
+            const headlineEl = document.createElement("p");
+            headlineEl.className = "chat-headline-text";
+            headlineEl.textContent = headline;
+            content.appendChild(headlineEl);
+
+            if (decision.recommendations && Array.isArray(decision.recommendations) && decision.recommendations.length > 0) {
+                const recList = document.createElement("ul");
+                recList.className = "chat-recommendations-list";
                 decision.recommendations.forEach(rec => {
-                    html += `<li>${escapeHtml(rec)}</li>`;
+                    if (typeof rec !== "string" && typeof rec !== "number") return;
+                    const li = document.createElement("li");
+                    li.textContent = sanitize(rec, 300);
+                    recList.appendChild(li);
                 });
-                html += `</ul>`;
+                content.appendChild(recList);
             }
         } else {
-            const riskLevel = decision.risk_level || "MEDIUM";
-            const riskScore = res.risk_score ?? 0;
+            const riskLevel = sanitize(decision.risk_level || "MEDIUM", 20);
+            const riskScore = typeof res.risk_score === "number" ? res.risk_score : 0;
             const conf = res.confidence || null;
             const confScoreText = (conf && conf.confidence_score !== undefined && conf.confidence_score !== null)
-                ? `${escapeHtml(String(conf.confidence_score))}%`
+                ? `${sanitize(String(conf.confidence_score), 10)}%`
                 : "—";
             const confLevelText = (conf && conf.confidence_level)
-                ? escapeHtml(String(conf.confidence_level))
+                ? sanitize(String(conf.confidence_level), 20)
                 : "—";
             const latencyText = (res.latency_ms !== undefined && res.latency_ms !== null)
-                ? `${escapeHtml(String(res.latency_ms))}`
+                ? sanitize(String(res.latency_ms), 20)
                 : "—";
             const latencyUnit = (res.latency_ms !== undefined && res.latency_ms !== null) ? "ms" : "";
 
-            const iconMap = { "LOW": "🟢", "MEDIUM": "🟡", "HIGH": "🔴", "CRITICAL": "🚨" };
-            const icon = iconMap[riskLevel] || "⚪";
+            const RISK_LEVEL_WHITELIST = ["low", "medium", "high", "critical"];
+            const rkLower = riskLevel.toLowerCase();
+            const rkCls = RISK_LEVEL_WHITELIST.includes(rkLower) ? rkLower : "unknown";
+            const iconMap = { "low": "🟢", "medium": "🟡", "high": "🔴", "critical": "🚨" };
+            const icon = iconMap[rkCls] || "⚪";
 
-            html += `<div class="risk-header">${icon} ${escapeHtml(riskLevel)} — Risk Score: ${escapeHtml(String(riskScore))}%</div>`;
-            html += `<div class="risk-headline">${escapeHtml(headline)}</div>`;
+            const riskHeaderEl = document.createElement("div");
+            riskHeaderEl.className = `risk-header risk-level-${rkCls}`;
+            riskHeaderEl.textContent = `${icon} ${riskLevel} — Điểm rủi ro: ${riskScore}%`;
+            content.appendChild(riskHeaderEl);
+
+            const riskHeadlineEl = document.createElement("div");
+            riskHeadlineEl.className = "risk-headline";
+            riskHeadlineEl.textContent = headline;
+            content.appendChild(riskHeadlineEl);
 
             if (res.emergency && res.emergency.is_emergency) {
-                html += `<div class="emergency-box">🚨 <b>QUY TRÌNH ỨNG PHÓ KHẨN CẤP:</b><br>`;
+                const emergBox = document.createElement("div");
+                emergBox.className = "emergency-box";
+
+                const emergTitle = document.createElement("div");
+                emergTitle.className = "emergency-title";
+                emergTitle.textContent = "🚨 QUY TRÌNH ỨNG PHÓ KHẨN CẤP:";
+                emergBox.appendChild(emergTitle);
+
                 (res.emergency.protocol_steps || []).forEach(step => {
-                    html += `• ⏱️ <b>${escapeHtml(step.time_window || '')}</b>: ${escapeHtml(step.action || '')}<br>`;
+                    const stepRow = document.createElement("div");
+                    stepRow.className = "emergency-step-row";
+                    const tw = sanitize(step.time_window || "", 50);
+                    const act = sanitize(step.action || "", 300);
+                    stepRow.textContent = `• ⏱️ ${tw}: ${act}`;
+                    emergBox.appendChild(stepRow);
                 });
-                html += `</div>`;
+                content.appendChild(emergBox);
             }
 
-            html += `
-                <div class="metrics-grid">
-                    <div class="metric-card">
-                        <div class="metric-label">Risk Score</div>
-                        <div class="metric-value">${escapeHtml(String(riskScore))}%</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-label">AI Confidence</div>
-                        <div class="metric-value metric-accent">${confScoreText}</div>
-                        <div class="metric-sub">${confLevelText}</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-label">Latency</div>
-                        <div class="metric-value">${latencyText}</div>
-                        <div class="metric-sub">${latencyUnit}</div>
-                    </div>
-                </div>
-            `;
+            // Metrics Grid
+            const metricsGrid = document.createElement("div");
+            metricsGrid.className = "metrics-grid";
 
-            if (res.explainable && res.explainable.reasons && res.explainable.reasons.length > 0) {
-                html += `<div class="breakdown-section"><h4 class="breakdown-title">🔍 Phân tích chi tiết rủi ro:</h4>`;
+            // Card 1: Risk Score
+            const m1 = document.createElement("div");
+            m1.className = "metric-card";
+            const m1Label = document.createElement("div");
+            m1Label.className = "metric-label";
+            m1Label.textContent = "Risk Score";
+            const m1Val = document.createElement("div");
+            m1Val.className = "metric-value";
+            m1Val.textContent = `${riskScore}%`;
+            m1.appendChild(m1Label);
+            m1.appendChild(m1Val);
+            metricsGrid.appendChild(m1);
+
+            // Card 2: AI Confidence
+            const m2 = document.createElement("div");
+            m2.className = "metric-card";
+            const m2Label = document.createElement("div");
+            m2Label.className = "metric-label";
+            m2Label.textContent = "AI Confidence";
+            const m2Val = document.createElement("div");
+            m2Val.className = "metric-value metric-accent";
+            m2Val.textContent = confScoreText;
+            const m2Sub = document.createElement("div");
+            m2Sub.className = "metric-sub";
+            m2Sub.textContent = confLevelText;
+            m2.appendChild(m2Label);
+            m2.appendChild(m2Val);
+            m2.appendChild(m2Sub);
+            metricsGrid.appendChild(m2);
+
+            // Card 3: Latency
+            const m3 = document.createElement("div");
+            m3.className = "metric-card";
+            const m3Label = document.createElement("div");
+            m3Label.className = "metric-label";
+            m3Label.textContent = "Latency";
+            const m3Val = document.createElement("div");
+            m3Val.className = "metric-value";
+            m3Val.textContent = latencyText;
+            const m3Sub = document.createElement("div");
+            m3Sub.className = "metric-sub";
+            m3Sub.textContent = latencyUnit;
+            m3.appendChild(m3Label);
+            m3.appendChild(m3Val);
+            m3.appendChild(m3Sub);
+            metricsGrid.appendChild(m3);
+
+            content.appendChild(metricsGrid);
+
+            // Breakdown Section (Explainable AI)
+            if (res.explainable && Array.isArray(res.explainable.reasons) && res.explainable.reasons.length > 0) {
+                const bdSection = document.createElement("div");
+                bdSection.className = "breakdown-section";
+
+                const bdTitle = document.createElement("h4");
+                bdTitle.className = "breakdown-title";
+                bdTitle.textContent = "🔍 Phân tích chi tiết rủi ro:";
+                bdSection.appendChild(bdTitle);
+
                 res.explainable.reasons.forEach(r => {
-                    const parts = r.split(": +");
+                    const cleanReason = sanitize(r, 200);
+                    const parts = cleanReason.split(": +");
                     const label = parts[0];
                     const pct = parts[1] ? parseInt(parts[1], 10) : 15;
-                    html += `
-                        <div class="breakdown-row" data-pct="${pct}">
-                            <span class="breakdown-label">• ${escapeHtml(label)}</span>
-                            <div class="breakdown-progress">
-                                <div class="breakdown-fill"></div>
-                            </div>
-                            <span class="breakdown-pct">+${pct}%</span>
-                        </div>
-                    `;
+
+                    const rowEl = document.createElement("div");
+                    rowEl.className = "breakdown-row";
+
+                    const labelSpan = document.createElement("span");
+                    labelSpan.className = "breakdown-label";
+                    labelSpan.textContent = `• ${label}`;
+
+                    const progDiv = document.createElement("div");
+                    progDiv.className = "breakdown-progress";
+                    const fillDiv = document.createElement("div");
+                    fillDiv.className = "breakdown-fill";
+                    fillDiv.style.width = `${Math.min(pct, 100)}%`;
+                    progDiv.appendChild(fillDiv);
+
+                    const pctSpan = document.createElement("span");
+                    pctSpan.className = "breakdown-pct";
+                    pctSpan.textContent = `+${pct}%`;
+
+                    rowEl.appendChild(labelSpan);
+                    rowEl.appendChild(progDiv);
+                    rowEl.appendChild(pctSpan);
+                    bdSection.appendChild(rowEl);
                 });
-                html += `</div>`;
+
+                content.appendChild(bdSection);
             }
 
-            if (decision.recommendations && decision.recommendations.length > 0) {
-                html += `<div class="recs-box"><h4 class="recs-title">💡 Khuyến nghị hành động:</h4>`;
+            // U1: Render URL Analysis Cards
+            if (res.url_analysis && typeof UIRender !== "undefined" && typeof UIRender.renderUrlAnalysis === "function") {
+                try {
+                    UIRender.renderUrlAnalysis(res.url_analysis, content);
+                } catch (err) {
+                    console.error("Error rendering url_analysis:", err);
+                }
+            }
+
+            // Render Image Analysis (VietQR / QR)
+            if (res.image_analysis && typeof UIRender !== "undefined" && typeof UIRender.renderImageAnalysis === "function") {
+                try {
+                    UIRender.renderImageAnalysis(res.image_analysis, content);
+                } catch (err) {
+                    console.error("Error rendering image_analysis:", err);
+                }
+            }
+
+            // U3: Render Network Actions (only when key exists in res)
+            if (res.network_actions !== undefined && typeof UIRender !== "undefined" && typeof UIRender.renderNetworkActions === "function") {
+                try {
+                    UIRender.renderNetworkActions(res.network_actions, content);
+                } catch (err) {
+                    console.error("Error rendering network_actions:", err);
+                }
+            }
+
+            // Recommendations
+            if (decision.recommendations && Array.isArray(decision.recommendations) && decision.recommendations.length > 0) {
+                const recsBox = document.createElement("div");
+                recsBox.className = "recs-box";
+
+                const recsTitle = document.createElement("h4");
+                recsTitle.className = "recs-title";
+                recsTitle.textContent = "💡 Khuyến nghị hành động:";
+                recsBox.appendChild(recsTitle);
+
                 decision.recommendations.forEach(rec => {
-                    html += `<p class="rec-item">${escapeHtml(rec)}</p>`;
+                    if (typeof rec !== "string" && typeof rec !== "number") return;
+                    const item = document.createElement("p");
+                    item.className = "rec-item";
+                    item.textContent = sanitize(rec, 300);
+                    recsBox.appendChild(item);
                 });
-                html += `</div>`;
+
+                content.appendChild(recsBox);
             }
 
-            html += `<p class="hitl-footer">${escapeHtml(decision.hitl_disclaimer || "SafeGuard AI — Decision Support System.")}</p>`;
-        }
+            // HITL Footer
+            const hitlP = document.createElement("p");
+            hitlP.className = "hitl-footer";
+            hitlP.textContent = sanitize(decision.hitl_disclaimer || "SafeGuard AI — Decision Support System.", 200);
+            content.appendChild(hitlP);
 
-        html += `</div>`;
-        row.innerHTML = html;
-
-        // Apply CSSOM styles (CSP safe)
-        const headlineEl = row.querySelector(".chat-headline-text");
-        if (headlineEl) {
-            headlineEl.style.fontSize = "15px";
-            headlineEl.style.lineHeight = "1.6";
-        }
-        const recListEl = row.querySelector(".chat-recommendations-list");
-        if (recListEl) {
-            recListEl.style.fontSize = "13px";
-            recListEl.style.lineHeight = "1.6";
-            recListEl.style.margin = "8px 0 0 18px";
-            recListEl.style.color = "var(--text-secondary)";
-        }
-        const metricAccentEl = row.querySelector(".metric-accent");
-        if (metricAccentEl) {
-            metricAccentEl.style.color = "var(--accent)";
-        }
-        row.querySelectorAll(".metric-sub").forEach(el => {
-            el.style.fontSize = "10px";
-            el.style.color = "var(--text-muted)";
-        });
-        const bdTitle = row.querySelector(".breakdown-title");
-        if (bdTitle) {
-            bdTitle.style.fontSize = "13px";
-            bdTitle.style.color = "var(--text-primary)";
-            bdTitle.style.marginBottom = "8px";
-        }
-        row.querySelectorAll(".breakdown-row").forEach(brow => {
-            const pct = parseInt(brow.dataset.pct, 10) || 15;
-            const fillEl = brow.querySelector(".breakdown-fill");
-            if (fillEl) {
-                fillEl.style.width = Math.min(pct, 100) + "%";
+            // U5: LLM & Model Status Indicator (only when model_used or llm_status key exists in res)
+            if ((res.model_used !== undefined || res.llm_status !== undefined) && typeof UIRender !== "undefined" && typeof UIRender.renderLLMStatus === "function") {
+                try {
+                    UIRender.renderLLMStatus(res, content);
+                } catch (err) {
+                    console.error("Error rendering LLM status:", err);
+                }
             }
-            const pctSpan = brow.querySelector(".breakdown-pct");
-            if (pctSpan) {
-                pctSpan.style.fontSize = "12px";
-                pctSpan.style.fontWeight = "600";
-            }
-        });
-        const recsBox = row.querySelector(".recs-box");
-        if (recsBox) {
-            recsBox.style.marginTop = "12px";
-        }
-        const recsTitle = row.querySelector(".recs-title");
-        if (recsTitle) {
-            recsTitle.style.fontSize = "13px";
-            recsTitle.style.color = "var(--text-primary)";
-            recsTitle.style.marginBottom = "6px";
-        }
-        row.querySelectorAll(".rec-item").forEach(el => {
-            el.style.fontSize = "13px";
-            el.style.color = "var(--text-secondary)";
-            el.style.margin = "4px 0";
-        });
-        const hitlFooter = row.querySelector(".hitl-footer");
-        if (hitlFooter) {
-            hitlFooter.style.fontSize = "11px";
-            hitlFooter.style.color = "var(--text-muted)";
-            hitlFooter.style.marginTop = "12px";
-            hitlFooter.style.borderTop = "1px solid var(--border)";
-            hitlFooter.style.paddingTop = "8px";
         }
 
-        // Attach event listener for thought accordion collapse/expand
-        const thoughtBtn = row.querySelector(".thought-header-btn");
-        if (thoughtBtn) {
-            thoughtBtn.addEventListener("click", () => {
-                const acc = thoughtBtn.closest(".thought-accordion");
-                if (acc) acc.classList.toggle("open");
-            });
-        }
-
+        row.appendChild(content);
         messagesContainer.appendChild(row);
         scrollToBottom();
     }
@@ -685,7 +726,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const hasImg = Boolean(item.has_image || item.image_base64);
             const hasBase64 = Boolean(item.image_base64 && String(item.image_base64).trim());
             const showNoStoreNotice = hasImg && !hasBase64;
-            
+
             if (item.user_text || hasImg) {
                 appendUserMessage(item.user_text, item.image_base64, showNoStoreNotice);
             }
@@ -709,15 +750,35 @@ document.addEventListener("DOMContentLoaded", () => {
         row.className = "message-row assistant thinking-row";
         row.id = "thinkingRow";
 
-        row.innerHTML = `
-            <div class="message-avatar"><img src="/assets/AIScamavatar.jpg" class="chatbot-avatar-img" alt="SafeGuard AI"></div>
-            <div class="message-content thinking-bubble">
-                <div class="thinking-header">
-                    <span class="thinking-spinner">🧠</span>
-                    <span class="thinking-title">SafeGuard AI đang phân tích dữ liệu...</span>
-                </div>
-            </div>
-        `;
+        const avatar = document.createElement("div");
+        avatar.className = "message-avatar";
+        const img = document.createElement("img");
+        img.src = "/assets/AIScamavatar.jpg";
+        img.className = "chatbot-avatar-img";
+        img.alt = "SafeGuard AI";
+        avatar.appendChild(img);
+
+        const content = document.createElement("div");
+        content.className = "message-content thinking-bubble";
+
+        const header = document.createElement("div");
+        header.className = "thinking-header";
+
+        const spinner = document.createElement("span");
+        spinner.className = "thinking-spinner";
+        spinner.textContent = "🧠";
+
+        const title = document.createElement("span");
+        title.className = "thinking-title";
+        title.textContent = "SafeGuard AI đang phân tích dữ liệu...";
+
+        header.appendChild(spinner);
+        header.appendChild(title);
+        content.appendChild(header);
+
+        row.appendChild(avatar);
+        row.appendChild(content);
+
         messagesContainer.appendChild(row);
         scrollToBottom();
     }
@@ -731,15 +792,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function scrollToBottom() {
         chatViewport.scrollTop = chatViewport.scrollHeight;
-    }
-
-    function escapeHtml(text) {
-        if (!text) return "";
-        return String(text)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
     }
 });
