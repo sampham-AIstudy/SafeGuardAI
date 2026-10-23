@@ -381,26 +381,40 @@ class TestSpeechActIntegration:
         agent = self._get_agent()
         text = "Cơ quan điều tra đã bắt giữ đối tượng lừa đảo trong vụ án liên quan đến website vphishing123.xyz"
 
-        # Mock url_report với medium signal
-        from unittest.mock import MagicMock
-        mock_url = MagicMock()
-        mock_url.max_url_risk = 55  # medium range
-        mock_url.has_only_official_urls = False
-        mock_finding = MagicMock()
-        mock_finding.is_official = False
-        mock_signal = MagicMock()
-        mock_signal.severity = "medium"
-        mock_signal.weight = 30
-        mock_signal.message_vi = "Tên miền nghi ngờ phishing"
-        mock_finding.signals = [mock_signal]
-        mock_finding.children = []
-        mock_url.findings = [mock_finding]
+        from codebase.url_analysis.models import UrlAnalysisReport, UrlFinding, UrlSignal
 
-        result_with_url = agent.explain(text, url_report=mock_url)
+        signal = UrlSignal(
+            code="PHISHING_DOMAIN",
+            severity="medium",
+            weight=30,
+            message_vi="Tên miền nghi ngờ phishing",
+            evidence="vphishing123.xyz",
+        )
+        finding = UrlFinding(
+            raw="http://vphishing123.xyz",
+            normalized="http://vphishing123.xyz",
+            final_url="http://vphishing123.xyz",
+            display_host="vphishing123.xyz",
+            effective_host="vphishing123.xyz",
+            effective_host_unicode="vphishing123.xyz",
+            registrable_domain="vphishing123.xyz",
+            is_official=False,
+            brand_match=None,
+            source="text",
+            signals=[signal],
+            url_risk_score=55,
+            verdict="suspicious",
+        )
+        real_url_report = UrlAnalysisReport(
+            findings=[finding],
+            max_url_risk=55,
+            has_only_official_urls=False,
+        )
+
+        result_with_url = agent.explain(text, url_report=real_url_report)
         result_no_url = agent.explain(text, url_report=None)
 
-        # Khi có URL medium, điểm phải >= điểm không có URL (không bị giảm thêm do speech act)
-        # Quan trọng: không nên thấp hơn trường hợp không có URL
+        # Khi có URL medium, điểm không bị giảm thêm do speech act
         assert result_with_url["risk_score"] >= result_no_url["risk_score"] - 5, (
             "With URL medium signal, score should not be lower than without URL"
         )
@@ -502,91 +516,122 @@ class TestSpeechActIntegration:
 # (d) Mutation Tests — 8 loại mutation phải thất bại
 # ─────────────────────────────────────────────────────────────────────────────
 
-class TestMutations:
+class TestBehavioralInvariants:
     """
-    Thử 8 mutation thật. Mỗi mutation phải bị diệt (test phải FAIL nếu mutation còn sống).
-    Strategy: với mỗi mutation, tạo trường hợp mà nếu mutation sống → assertion fail.
+    Test hành vi thật — sẽ FAIL nếu logic trong mã nguồn bị đột biến.
+    (Không chỉ assert chuỗi trong code hay cờ evidence).
     """
 
-    def test_mutation_1_no_solicitation_check(self):
-        """
-        M1: Bỏ điều kiện 'không solicitation' → cổng sẽ giảm điểm kẻ gian mạo danh công an.
-        Phát hiện: với text scam có giọng tường thuật nhưng yêu cầu hành động, nếu bỏ check
-        solicitation thì nhãn news_report/warning sẽ vượt qua cổng → điểm giảm sai.
-        Test: verify solicitation flag ngăn cổng.
-        """
-        from codebase.agents.speech_act import classify_speech_act, _RE_SOL_ACTION
-
-        scam_text = (
-            "Tôi là nhân viên Bộ Công An. Yêu cầu anh chuyển tiền vào tài khoản tạm giữ "
-            "của cơ quan điều tra ngay bây giờ để tránh bị bắt giam."
-        )
-        act = classify_speech_act(scam_text)
-        # solicitation phải được phát hiện (không bỏ điều kiện check)
-        assert "solicitation:action" in act.evidence or act.label == "solicitation", (
-            "M1 alive: solicitation:action not detected → check condition removed"
-        )
-
-    def test_mutation_2_no_url_check(self):
-        """
-        M2: Bỏ điều kiện kiểm tra URL signal >= medium.
-        Phát hiện: tin tường thuật có URL độc hại medium+ bị giảm điểm sai.
-        Test: classify_speech_act không nên ảnh hưởng URL signal (đó là trách nhiệm của D2).
-        D2 trong ExplainableAgent phải check _has_url_medium_plus trước khi giảm.
-        """
-        # Verify D2 code contains URL check
-        import inspect
-        import codebase.agents.explainable_agent as ea_module
-        source = inspect.getsource(ea_module.ExplainableAgent.explain)
-        assert "_has_url_medium_plus" in source, (
-            "M2 alive: URL medium+ check removed from D2 gate"
-        )
-
-    def test_mutation_3_no_emergency_check(self):
-        """
-        M3: Bỏ điều kiện emergency → tin khẩn cấp bị giảm điểm sai.
-        Phát hiện: check _is_emergency_context phải tồn tại trong code D2.
-        """
-        import inspect
-        import codebase.agents.explainable_agent as ea_module
-        source = inspect.getsource(ea_module.ExplainableAgent.explain)
-        assert "_is_emergency_context" in source, (
-            "M3 alive: emergency check removed from D2 gate"
-        )
-
-    def test_mutation_4_confidence_threshold_zero(self):
-        """
-        M4: Hạ ngưỡng confidence xuống 0 → 'unknown' sẽ pass cổng.
-        Phát hiện: ngưỡng SPEECH_ACT_CONFIDENCE_THRESHOLD phải > 0 trong code.
-        """
-        import inspect
-        import codebase.agents.explainable_agent as ea_module
-        source = inspect.getsource(ea_module.ExplainableAgent.explain)
-        assert "_SPEECH_ACT_CONFIDENCE_THRESHOLD" in source, (
-            "M4 alive: confidence threshold constant removed"
-        )
-        # Verify threshold value > 0 in speech_act module
-        from codebase.agents.speech_act import SpeechAct
-        # Unknown label should have confidence < threshold (0.55)
-        unknown_act = classify_speech_act("abc xyz")
-        # If label is unknown, should not trigger benign gate regardless of confidence
-        assert unknown_act.label not in {"news_report", "public_warning", "victim_advice", "everyday"} or \
-               unknown_act.confidence >= 0.55, (
-            "M4: unknown/low-confidence act should not pass gate with threshold=0"
-        )
-
-    def test_mutation_5_gate_can_increase_score(self):
-        """
-        M5: Cổng làm tăng điểm (thay min() bằng max() hoặc cộng thêm).
-        Phát hiện: với bất kỳ văn bản nào, điểm khi gate ON <= điểm khi gate OFF.
-        """
+    @pytest.fixture(autouse=True)
+    def setup_env(self, monkeypatch):
+        monkeypatch.setenv("SAFEGUARD_OFFLINE", "1")
+        monkeypatch.setenv("SAFEGUARD_SPEECH_ACT", "on")
         import codebase.config as cfg
+        cfg._SETTINGS_INSTANCE = None
 
+    def _get_agent(self):
         from codebase.agents.explainable_agent import ExplainableAgent
-        agent = ExplainableAgent()
+        return ExplainableAgent()
 
-        # Dùng text lành tính rõ ràng
-        text = "Theo báo Tuổi Trẻ, đối tượng đã bị bắt và khởi tố về tội lừa đảo."
+    def test_explain_returns_speech_act_dict(self):
+        """S1: explain_info trả thêm khóa 'speech_act': {label, confidence, evidence, gate_applied}."""
+        agent = self._get_agent()
+        text = "Cơ quan điều tra đã khởi tố bị can Trần Thị B về tội chiếm đoạt tài sản qua mạng."
+        result = agent.explain(text, url_report=None)
+        assert "speech_act" in result, "Missing 'speech_act' key in explain result"
+        sa = result["speech_act"]
+        assert isinstance(sa, dict), "'speech_act' must be a dict"
+        for key in ["label", "confidence", "evidence", "gate_applied"]:
+            assert key in sa, f"Missing key '{key}' in speech_act dict"
+        assert isinstance(sa["gate_applied"], bool)
+        assert sa["gate_applied"] is True
+
+    def test_inv_1_scam_with_warning_tone_stays_high(self):
+        """M1/M7: Kẻ gian mạo danh công an 'cảnh báo' kèm yêu cầu chuyển tiền -> vẫn HIGH (>=75)."""
+        agent = self._get_agent()
+        text = (
+            "Tôi là cán bộ Bộ Công An cảnh báo tài khoản của bạn bị xâm nhập. "
+            "Yêu cầu bạn chuyển tiền vào tài khoản tạm giữ ngay lập tức để tránh bị bắt giam."
+        )
+        result = agent.explain(text, url_report=None)
+        assert result["risk_score"] >= 75, (
+            f"Scam with warning tone must stay HIGH (>=75), got {result['risk_score']}"
+        )
+        sa = result.get("speech_act", {})
+        assert sa.get("gate_applied") is False
+
+    def test_inv_1b_benign_with_solicitation_signal_not_reduced(self, monkeypatch):
+        """M1: Tin có nhãn benign nhưng chứa solicitation signal -> KHÔNG được giảm điểm."""
+        agent = self._get_agent()
+        text = "Cơ quan điều tra đã khởi tố bị can Trần Thị B về tội chiếm đoạt tài sản qua mạng."
+        monkeypatch.setattr(
+            "codebase.agents.speech_act.classify_speech_act",
+            lambda t: SpeechAct("news_report", confidence=0.8, evidence=["news:narrative", "solicitation:action"])
+        )
+        result = agent.explain(text, url_report=None)
+        sa = result.get("speech_act", {})
+        assert sa.get("gate_applied") is False, "Gate should not be applied when solicitation signal exists!"
+
+    def test_inv_2_news_with_bad_url_not_reduced(self):
+        """M2: Tin tường thuật có URL độc hại (signal medium+) KHÔNG được giảm điểm."""
+        from codebase.url_analysis.models import UrlAnalysisReport, UrlFinding, UrlSignal
+        agent = self._get_agent()
+        text = "Theo thông tin cơ quan điều tra, đối tượng đã lập website lừa đảo chiếm đoạt tài sản."
+        sig = UrlSignal(
+            code="PHISHING_DOMAIN",
+            severity="medium",
+            weight=30,
+            message_vi="Tên miền lừa đảo",
+            evidence="badsite.com",
+        )
+        fnd = UrlFinding(
+            raw="http://badsite.com",
+            normalized="http://badsite.com",
+            final_url="http://badsite.com",
+            display_host="badsite.com",
+            effective_host="badsite.com",
+            effective_host_unicode="badsite.com",
+            registrable_domain="badsite.com",
+            is_official=False,
+            brand_match=None,
+            source="text",
+            signals=[sig],
+            url_risk_score=55,
+            verdict="suspicious",
+        )
+        report = UrlAnalysisReport(findings=[fnd], max_url_risk=55, has_only_official_urls=False)
+        result = agent.explain(text, url_report=report)
+        sa = result.get("speech_act", {})
+        assert sa.get("gate_applied") is False
+        assert result["risk_score"] >= 30
+
+    def test_inv_3_emergency_not_reduced(self):
+        """M3: Emergency (vừa chuyển tiền) không bị giảm điểm qua cổng."""
+        agent = self._get_agent()
+        text = "Tôi vừa bị lừa, vừa chuyển tiền 50 triệu rồi. Cứu tôi với!"
+        result = agent.explain(text, url_report=None)
+        sa = result.get("speech_act", {})
+        assert sa.get("gate_applied") is False
+        assert result["risk_score"] >= 30
+
+    def test_inv_4_confidence_below_cutoff_not_applied(self, monkeypatch):
+        """M4: Tin nhắn có confidence thấp (< 0.55) không áp dụng cổng."""
+        agent = self._get_agent()
+        text = "Cơ quan điều tra đã khởi tố bị can Trần Thị B về tội chiếm đoạt tài sản qua mạng."
+        monkeypatch.setattr(
+            "codebase.agents.speech_act.classify_speech_act",
+            lambda t: SpeechAct("news_report", confidence=0.40, evidence=["news:narrative"])
+        )
+        result = agent.explain(text, url_report=None)
+        sa = result.get("speech_act", {})
+        assert sa.get("gate_applied") is False
+
+    def test_inv_5_gate_never_increases_score(self):
+        """M5: Cổng không bao giờ tăng điểm."""
+        import codebase.config as cfg
+        agent = self._get_agent()
+        # Câu có base score > 25 (30 từ cơ quan điều tra) để kiểm tra cổng giảm hoặc giữ nguyên
+        text = "Cơ quan điều tra đã khởi tố bị can Trần Thị B về tội chiếm đoạt tài sản qua mạng."
 
         os.environ["SAFEGUARD_SPEECH_ACT"] = "on"
         cfg._SETTINGS_INSTANCE = None
@@ -596,66 +641,159 @@ class TestMutations:
         cfg._SETTINGS_INSTANCE = None
         score_off = agent.explain(text, url_report=None)["risk_score"]
 
-        os.environ["SAFEGUARD_SPEECH_ACT"] = "on"
-        cfg._SETTINGS_INSTANCE = None
+        assert score_on <= score_off, f"Gate increased score: on={score_on} > off={score_off}"
 
-        assert score_on <= score_off, (
-            f"M5 alive: gate increased score (on={score_on} > off={score_off})"
-        )
-
-    def test_mutation_6_flag_off_disabled(self):
-        """
-        M6: Bỏ cờ SAFEGUARD_SPEECH_ACT → không thể tắt cổng (ablation bị phá).
-        Phát hiện: khi set SAFEGUARD_SPEECH_ACT=off, cổng phải tắt (= không giảm điểm).
-        """
+    def test_inv_6_flag_off_returns_old_score(self, monkeypatch):
+        """M6: Tắt cờ SAFEGUARD_SPEECH_ACT=off thì cổng hoàn toàn không hoạt động."""
         import codebase.config as cfg
-        import inspect
-        import codebase.agents.explainable_agent as ea_module
-        source = inspect.getsource(ea_module.ExplainableAgent.explain)
-        # Phải có check cờ speech_act_enabled
-        assert "speech_act_enabled" in source, (
-            "M6 alive: SAFEGUARD_SPEECH_ACT flag check removed from gate"
-        )
-        # Verify config parses it
-        os.environ["SAFEGUARD_SPEECH_ACT"] = "off"
-        cfg._SETTINGS_INSTANCE = None
-        s = cfg.get_settings()
-        assert s.speech_act_enabled is False, (
-            "M6 alive: SAFEGUARD_SPEECH_ACT=off not parsed correctly"
-        )
-        os.environ["SAFEGUARD_SPEECH_ACT"] = "on"
-        cfg._SETTINGS_INSTANCE = None
+        agent = self._get_agent()
+        text = "Cơ quan điều tra đã khởi tố bị can Trần Thị B về tội chiếm đoạt tài sản qua mạng."
 
-    def test_mutation_7_solicitation_priority_reversed(self):
-        """
-        M7: Ưu tiên solicitation bị đảo (benign override solicitation).
-        Phát hiện: scam có yêu cầu hành động + có từ "cảnh báo" → PHẢI là solicitation.
-        """
-        text = (
-            "Cảnh báo: tài khoản ngân hàng của anh/chị đang bị xâm nhập. "
-            "Vui lòng đọc mã OTP cho nhân viên để bảo vệ tài khoản ngay bây giờ."
-        )
+        monkeypatch.setenv("SAFEGUARD_SPEECH_ACT", "off")
+        cfg._SETTINGS_INSTANCE = None
+        result = agent.explain(text, url_report=None)
+        sa = result.get("speech_act", {})
+        assert sa.get("gate_applied") is False
+        assert result["risk_score"] == 30
+
+    def test_inv_7_solicitation_priority_over_benign(self):
+        """M7: Tin có yêu cầu hành động rủi ro luôn là solicitation dù có từ cảnh báo."""
+        text = "Cảnh báo khẩn cấp: tài khoản của bạn bị khóa, vui lòng bấm vào link để mở khóa."
         act = classify_speech_act(text)
-        assert act.label == "solicitation", (
-            f"M7 alive: solicitation priority reversed, got {act.label}"
+        assert act.label == "solicitation"
+
+    def test_inv_8_unaccented_scam_not_benign(self):
+        """M8: Bỏ nhận diện không dấu -> text không dấu cần fold sẽ fail."""
+        text = "Bo Cong An khuyen cao nguoi dan nang cao canh giac khi su dung mang."
+        act = classify_speech_act(text)
+        assert act.label == "public_warning", f"Expected public_warning with fold, got {act.label}"
+
+    def test_inv_9_cap_llm_risk_pure_function(self):
+        """S2: Test hàm thuần cap_llm_risk theo tất cả các trường hợp."""
+        from codebase.agents.speech_act import cap_llm_risk, SpeechAct, SPEECH_ACT_LLM_CAP
+
+        # 1. Benign + no hard evidence -> capped at SPEECH_ACT_LLM_CAP (35)
+        benign_act = SpeechAct(label="news_report", confidence=0.8, evidence=["news:narrative"])
+        assert cap_llm_risk(90, benign_act, hard_evidence=False) == SPEECH_ACT_LLM_CAP
+
+        # 2. Benign + hard evidence -> NOT capped (giữ 90)
+        assert cap_llm_risk(90, benign_act, hard_evidence=True) == 90
+
+        # 3. Solicitation + no hard evidence -> NOT capped (giữ 90)
+        sol_act = SpeechAct(label="solicitation", confidence=0.9, evidence=["solicitation:action"])
+        assert cap_llm_risk(90, sol_act, hard_evidence=False) == 90
+
+        # 4. Unknown label -> NOT capped
+        unk_act = SpeechAct(label="unknown", confidence=0.4, evidence=[])
+        assert cap_llm_risk(90, unk_act, hard_evidence=False) == 90
+
+        # 5. Low confidence (<0.55) -> NOT capped
+        low_conf = SpeechAct(label="news_report", confidence=0.45, evidence=["news:past_tense"])
+        assert cap_llm_risk(90, low_conf, hard_evidence=False) == 90
+
+        # 6. Điểm LLM vốn đã thấp hơn cap -> giữ nguyên, không bao giờ tăng điểm
+        assert cap_llm_risk(20, benign_act, hard_evidence=False) == 20
+
+    def test_inv_10_orchestrator_llm_cap_applied_when_benign(self, monkeypatch):
+        """S2: Tích hợp orchestrator: LLM giả trả risk 90 cho tin tường thuật -> final <= 35."""
+        import codebase.config as cfg
+        monkeypatch.setenv("SAFEGUARD_OFFLINE", "1")
+        monkeypatch.setenv("SAFEGUARD_SPEECH_ACT", "on")
+        cfg._SETTINGS_INSTANCE = None
+
+        from codebase.orchestrator import SafeGuardOrchestrator
+        orch = SafeGuardOrchestrator()
+
+        text = "Theo báo Tuổi Trẻ, cơ quan công an đã khởi tố đối tượng lừa đảo chiếm đoạt tài sản."
+
+        fake_llm_result = {
+            "intent_type": "scam_analysis",
+            "risk_score": 90,
+            "conversational_reply": "Cảnh báo nguy hiểm cao",
+            "explanation_breakdown": ["Phát hiện từ khóa lừa đảo"],
+            "recommendations": ["Cảnh giác"],
+        }
+
+        # Monkeypatch single LLM call
+        orch.multi_llm_client.is_active = True
+        orch.multi_llm_client.analyze_scam = lambda *args, **kwargs: fake_llm_result
+        settings = cfg.get_settings()
+        settings.offline = False
+
+        res = orch.process_request(text, session_id="test_cap_1", llm_mode="single", online_check=False)
+
+        # Sau cap, risk_score phải <= SPEECH_ACT_LLM_CAP (35)
+        assert res["risk_score"] <= 35, f"Expected <= 35 after cap, got {res['risk_score']}"
+        # Phải có factor tiếng Việt
+        reasons = res.get("explainable", {}).get("reasons", [])
+        assert any("Ngữ cảnh tường thuật/cảnh báo" in r for r in reasons), (
+            "Missing cap explanation reason in reasons list"
         )
+        # Phải có pipeline_trace stage
+        trace_stages = [t.get("stage") for t in res.get("pipeline_trace", [])]
+        assert "speech_act_llm_cap" in trace_stages, "Missing speech_act_llm_cap in pipeline_trace"
 
-    def test_mutation_8_no_unaccented_detection(self):
-        """
-        M8: Bỏ nhận diện không dấu → scam không dấu không bị bắt.
-        Phát hiện: scam không dấu vẫn phải cho nhãn solicitation hoặc không phải lành tính.
-        """
-        text_no_accent = "Vui long cung cap ma otp cho nhan vien ho tro de xac minh tai khoan."
-        act = classify_speech_act(text_no_accent)
-        # Không được là lành tính rõ ràng
-        assert act.label not in {"news_report", "public_warning", "victim_advice", "everyday"}, (
-            f"M8 alive: unaccented scam labeled as benign ({act.label})"
-        )
+    def test_inv_11_orchestrator_llm_cap_not_applied_on_hard_evidence(self, monkeypatch):
+        """S2: Tích hợp orchestrator: Khi có hard evidence (solicitation), LLM 90 giữ nguyên 90."""
+        import codebase.config as cfg
+        monkeypatch.setenv("SAFEGUARD_OFFLINE", "1")
+        monkeypatch.setenv("SAFEGUARD_SPEECH_ACT", "on")
+        cfg._SETTINGS_INSTANCE = None
 
+        from codebase.orchestrator import SafeGuardOrchestrator
+        orch = SafeGuardOrchestrator()
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Test D3: System prompt blocks có mặt
-# ─────────────────────────────────────────────────────────────────────────────
+        # Tin scam rõ ràng (solicitation)
+        text = "Vui lòng chuyển tiền vào số tài khoản 123456789 ngay hôm nay để kích hoạt gói vay."
+
+        fake_llm_result = {
+            "intent_type": "scam_analysis",
+            "risk_score": 90,
+            "conversational_reply": "Yêu cầu chuyển tiền lừa đảo",
+            "explanation_breakdown": ["Yêu cầu chuyển tiền"],
+            "recommendations": ["Không chuyển tiền"],
+        }
+
+        orch.multi_llm_client.is_active = True
+        orch.multi_llm_client.analyze_scam = lambda *args, **kwargs: fake_llm_result
+        settings = cfg.get_settings()
+        settings.offline = False
+
+        res = orch.process_request(text, session_id="test_cap_2", llm_mode="single", online_check=False)
+
+        # Hard evidence: risk_score giữ >= 90
+        assert res["risk_score"] >= 90, f"Expected >= 90 with hard evidence, got {res['risk_score']}"
+
+    def test_inv_12_orchestrator_llm_cap_off_when_flag_disabled(self, monkeypatch):
+        """S2: Khi SAFEGUARD_SPEECH_ACT=off, LLM risk 90 không bị cap."""
+        import codebase.config as cfg
+        monkeypatch.setenv("SAFEGUARD_OFFLINE", "1")
+        monkeypatch.setenv("SAFEGUARD_SPEECH_ACT", "off")
+        cfg._SETTINGS_INSTANCE = None
+
+        from codebase.orchestrator import SafeGuardOrchestrator
+        orch = SafeGuardOrchestrator()
+
+        text = "Theo báo Tuổi Trẻ, cơ quan công an đã khởi tố đối tượng lừa đảo chiếm đoạt tài sản."
+
+        fake_llm_result = {
+            "intent_type": "scam_analysis",
+            "risk_score": 90,
+            "conversational_reply": "Tin nguy hiểm",
+            "explanation_breakdown": ["Nghi ngờ lừa đảo"],
+            "recommendations": [],
+        }
+
+        orch.multi_llm_client.is_active = True
+        orch.multi_llm_client.analyze_scam = lambda *args, **kwargs: fake_llm_result
+        settings = cfg.get_settings()
+        settings.offline = False
+
+        res = orch.process_request(text, session_id="test_cap_3", llm_mode="single", online_check=False)
+
+        # Cờ off: LLM risk 90 không bị cap
+        assert res["risk_score"] == 90, f"Expected 90 when speech act is off, got {res['risk_score']}"
+
 
 class TestSystemPromptD3:
     """D3: Verify speech-act role block trong system prompts. Không gọi LLM."""

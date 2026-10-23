@@ -32,14 +32,27 @@ class AnalysisDict(dict):
             raise AttributeError(f"'AnalysisDict' has no attribute '{name}'")
 
 
-def _wrap_report_dict(val: Any) -> Any:
-    """Recursively wrap objects and dicts into AnalysisDict for attribute access."""
+_WRAP_MAX_DEPTH = 32
+
+
+def _wrap_report_dict(val: Any, _depth: int = 0) -> Any:
+    """Recursively wrap objects and dicts into AnalysisDict for attribute access.
+
+    Bounded: an object whose to_dict() does not return a dict (e.g. a mock/proxy whose to_dict()
+    returns another object with to_dict()) is returned as-is instead of recursing forever, and
+    nesting deeper than _WRAP_MAX_DEPTH is not walked.
+    """
+    if _depth > _WRAP_MAX_DEPTH:
+        return val
     if hasattr(val, "to_dict") and callable(val.to_dict):
-        return AnalysisDict(_wrap_report_dict(val.to_dict()))
+        as_dict = val.to_dict()
+        if isinstance(as_dict, dict):
+            return AnalysisDict(_wrap_report_dict(as_dict, _depth + 1))
+        return val
     elif isinstance(val, dict):
-        return AnalysisDict({k: _wrap_report_dict(v) for k, v in val.items()})
+        return AnalysisDict({k: _wrap_report_dict(v, _depth + 1) for k, v in val.items()})
     elif isinstance(val, list):
-        return [_wrap_report_dict(item) for item in val]
+        return [_wrap_report_dict(item, _depth + 1) for item in val]
     return val
 
 

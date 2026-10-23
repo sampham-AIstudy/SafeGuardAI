@@ -1118,12 +1118,26 @@ class ExplainableAgent:
         # Trần điểm văn bản sau khi giảm
         _SPEECH_ACT_TEXT_CAP = 25
 
+        _gate_applied = False
+        _speech_act_dict = {
+            "label": "unknown",
+            "confidence": 0.0,
+            "evidence": [],
+            "gate_applied": False,
+        }
+
         _sa_settings = get_settings()
         if getattr(_sa_settings, "speech_act_enabled", True):
             from codebase.agents.speech_act import classify_speech_act
             _BENIGN_LABELS = {"news_report", "public_warning", "victim_advice", "everyday"}
 
             _sa = classify_speech_act(text)
+            _speech_act_dict = {
+                "label": _sa.label,
+                "confidence": _sa.confidence,
+                "evidence": list(_sa.evidence),
+                "gate_applied": False,
+            }
 
             # Điều kiện để áp dụng cổng:
             # 1. Nhãn là lành tính với confidence đủ cao
@@ -1138,7 +1152,8 @@ class ExplainableAgent:
 
             # Kiểm tra solicitation từ speech_act
             _has_solicitation = (
-                "solicitation:action" in _sa.evidence
+                _sa.label == "solicitation"
+                or "solicitation:action" in _sa.evidence
                 or "solicitation:threat_action" in _sa.evidence
                 or "solicitation:lure_fee" in _sa.evidence
             )
@@ -1175,7 +1190,6 @@ class ExplainableAgent:
                 and not _has_url_medium_plus
                 and not _is_emergency_context
                 and not _has_critical_evidence
-                and not has_scam_actions
             ):
                 # Tính lại: phần URL score giữ nguyên, phần text score bị trần
                 if module_enabled:
@@ -1186,14 +1200,19 @@ class ExplainableAgent:
                     _text_score_after = min(_text_score_before, _SPEECH_ACT_TEXT_CAP)
                     if _text_score_after < _text_score_before:
                         # Scale xuống: giữ nguyên factors nhưng hạ final_risk_score
-                        final_risk_score = min(_text_score_after + _url_score, 99)
+                        # Never raise: the factor sum can exceed final_risk_score when earlier discounts/clamps
+                        # (tone, official-URL override...) already lowered it.
+                        final_risk_score = min(final_risk_score, _text_score_after + _url_score, 99)
+                        _gate_applied = True
                 else:
                     _score_before = final_risk_score
                     _score_after = min(final_risk_score, _SPEECH_ACT_TEXT_CAP)
                     if _score_after < _score_before:
                         final_risk_score = _score_after
+                        _gate_applied = True
 
-                if final_risk_score < (sum(f.get("weight", 0) for f in factors)):
+                if _gate_applied:
+                    _speech_act_dict["gate_applied"] = True
                     # Thêm factor giải thích lành tính
                     _label_vi = {
                         "news_report": "tường thuật báo chí",
@@ -1201,16 +1220,19 @@ class ExplainableAgent:
                         "victim_advice": "nạn nhân kể chuyện / hỏi cách xử lý",
                         "everyday": "trao đổi đời thường",
                     }.get(_sa.label, _sa.label)
-                    factors.append({
-                        "factor": f"Ngữ cảnh: {_label_vi} — nội dung mang tính tường thuật/cảnh báo, không yêu cầu bạn hành động",
-                        "weight": 0,
-                    })
+                    # NOT appended to `factors`: orchestrator counts len(risk_breakdown) (>=2 -> floor 50,
+                    # >=3 -> floor 70), so a zero-weight explanatory factor would RAISE the score.
+                    _speech_act_dict["note_vi"] = (
+                        f"Ngữ cảnh: {_label_vi} — nội dung mang tính tường thuật/cảnh báo, không yêu cầu bạn hành động"
+                    )
 
         return {
             "risk_score": final_risk_score,
             "risk_breakdown": factors,
-            "reasons": [f"{item['factor']}: +{item['weight']}%" for item in factors],
-            "url_analysis": _wrap_report_dict(url_report) if (module_enabled and url_report is not None) else None
+            "reasons": [f"{item['factor']}: +{item['weight']}%" for item in factors]
+            + ([_speech_act_dict["note_vi"]] if _speech_act_dict.get("note_vi") else []),
+            "url_analysis": _wrap_report_dict(url_report) if (module_enabled and url_report is not None) else None,
+            "speech_act": _speech_act_dict,
         }
 
 

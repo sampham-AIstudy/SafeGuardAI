@@ -779,6 +779,85 @@ class SafeGuardOrchestrator:
                     llm_status_final = "llm_invalid"
                     llm_res = None
 
+        # Cap LLM contribution if speech-act is benign and no hard evidence (S2)
+        if getattr(settings, "speech_act_enabled", True) and llm_risk > 0:
+            from codebase.agents.speech_act import cap_llm_risk
+
+            # Hard evidence determination:
+            # 1. emergency
+            is_emergency = bool(
+                (emergency_info and emergency_info.get("is_emergency"))
+                or (det_decision and det_decision.get("is_emergency"))
+            )
+            # 2. url max_url_risk >= 40 or signals >= medium or blacklist
+            url_hard = False
+            if url_report is not None:
+                max_u_risk = getattr(url_report, "max_url_risk", 0)
+                if isinstance(url_report, dict):
+                    max_u_risk = url_report.get("max_url_risk", 0)
+                if (max_u_risk or 0) >= 40:
+                    url_hard = True
+
+                findings = getattr(url_report, "findings", [])
+                if isinstance(url_report, dict):
+                    findings = url_report.get("findings", [])
+                for f in findings:
+                    sigs = getattr(f, "signals", []) if not isinstance(f, dict) else f.get("signals", [])
+                    for s in sigs:
+                        sev = getattr(s, "severity", None) if not isinstance(s, dict) else s.get("severity")
+                        code = getattr(s, "code", "") if not isinstance(s, dict) else s.get("code", "")
+                        if sev in ("medium", "high", "critical") or "BLACKLIST" in str(code):
+                            url_hard = True
+                            break
+                    if url_hard:
+                        break
+
+            # 3. critical evidence / codes
+            crit_hard = bool(critical_evidence or extra_crit)
+
+            # 4. threat-intel độc hại
+            ti_hard = False
+            if ti_result and isinstance(ti_result, dict):
+                if (
+                    ti_result.get("is_malicious")
+                    or ti_result.get("found_malicious")
+                    or ti_result.get("malicious")
+                    or ti_result.get("risk_score", 0) >= 70
+                ):
+                    ti_hard = True
+
+            # 5. has_risky_qr
+            qr_hard = bool(has_risky_qr)
+
+            # 6. nhãn solicitation
+            speech_act_info = explain_info.get("speech_act")
+            sol_hard = False
+            if speech_act_info:
+                sa_label = (
+                    speech_act_info.get("label")
+                    if isinstance(speech_act_info, dict)
+                    else getattr(speech_act_info, "label", "")
+                )
+                if sa_label == "solicitation":
+                    sol_hard = True
+
+            hard_evidence = is_emergency or url_hard or crit_hard or ti_hard or qr_hard or sol_hard
+
+            capped_llm = cap_llm_risk(llm_risk, speech_act_info, hard_evidence)
+            if capped_llm < llm_risk:
+                llm_risk = capped_llm
+                cap_reason = "Ngữ cảnh tường thuật/cảnh báo: bỏ qua mức báo động cao của mô hình AI"
+                pipeline_trace.append({
+                    "stage": "speech_act_llm_cap",
+                    "reason": cap_reason,
+                    "capped_llm_risk": llm_risk,
+                })
+                explain_info.setdefault("reasons", []).append(cap_reason)
+                explain_info.setdefault("risk_breakdown", []).append({
+                    "factor": cap_reason,
+                    "weight": 0,
+                })
+
         # Risk merge: max(det_risk, llm_risk); LLM never pulls score below deterministic
         risk_score = max(det_risk, llm_risk)
 
