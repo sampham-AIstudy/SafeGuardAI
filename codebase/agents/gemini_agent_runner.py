@@ -573,7 +573,7 @@ PHÂN BIỆT 3 VAI (QUAN TRỌNG — ẢNH HƯỞNG TRỰC TIẾP ĐẾN ĐIỂM
 • VAI 1 — KẺ LỪA ĐẢO đang yêu cầu / thao túng người nhận hành động (chuyển tiền, nộp phí, cung cấp OTP/CCCD, bấm link, cài app, làm gấp, đe dọa khóa tài khoản, hứa lợi ích): rủi ro CAO (>= HIGH).
   - Kẻ gian có thể MẠO DANH công an/ngân hàng và dùng giọng "cảnh báo" nhưng vẫn yêu cầu hành động rủi ro → VẪN là VAI 1, KHÔNG được hạ điểm.
 • VAI 2 — BẢN TIN / CẢNH BÁO TUYÊN TRUYỀN (ngôi thứ ba, không yêu cầu người nhận hành động): báo chí tường thuật "đối tượng bị bắt", cảnh báo công an/ngân hàng gửi cộng đồng "cảnh giác / không cung cấp OTP", không có link/file yêu cầu bấm: rủi ro THẤP (LOW).
-• VAI 3 — NẠN NHÂN kể chuyện đã/vừa bị lừa, hỏi cách xử lý: rủi ro THẤP nói chung. NGOẠI LỆ: nếu họ nói "đang/vừa chuyển tiền" hoặc "vừa đưa OTP ngay bây giờ" → KHẨN CẤP (CRITICAL).
+• VAI 3 — NẠN NHÂN kể lại chuyện đã xảy ra (đã/vừa bị lừa) và HỎI cách xử lý/lấy lại tiền/báo ở đâu, không có yêu cầu nào hướng tới người nhận: rủi ro THẤP (<= 30). NGOẠI LỆ DUY NHẤT: nếu họ nói ĐANG chuyển tiền hoặc VỪA đưa OTP/mật khẩu ngay lúc này (trong vài phút) → KHẨN CẤP (CRITICAL).
 
 QUY TẮC CỨNG VỀ BẰNG CHỨNG:
 - Khi SYSTEM EVIDENCE có bằng chứng kỹ thuật cứng (blacklist, APK, URL độc hại): LLM KHÔNG ĐƯỢC hạ điểm theo ý kiến văn bản.

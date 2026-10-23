@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SafeGuard AI — Digital Security Assistant</title>
+    <title>SafeGuard AI — Trợ lý an toàn số</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,30 +15,30 @@
 <body>
     <div class="app-layout">
         <!-- ── SIDEBAR ── -->
-        <aside class="sidebar">
-            <div class="sidebar-header">
+        <aside class="sidebar" aria-label="Thanh bên: tạo cuộc trò chuyện mới và lịch sử">
+            <header class="sidebar-header">
                 <div class="logo-box"><img src="/assets/AIScamavatar.jpg" class="brand-avatar-img"
                         alt="SafeGuard AI Logo"></div>
                 <div class="logo-text">
                     <span class="app-title">SafeGuard AI</span>
                     <span class="app-version">v1.0 Enterprise</span>
                 </div>
-            </div>
+            </header>
 
-            <button class="btn-new-chat" id="btnNewChat">
-                <span>＋</span> New Chat
+            <button class="btn-new-chat" id="btnNewChat" type="button" aria-label="Bắt đầu cuộc trò chuyện mới">
+                <span aria-hidden="true">＋</span> Cuộc trò chuyện mới
             </button>
 
             <div class="sidebar-section history-section">
                 <div class="section-label">Gần đây</div>
-                <div class="session-list" id="sessionList">
+                <div class="session-list" id="sessionList" role="group" aria-label="Danh sách cuộc trò chuyện gần đây">
                     <!-- Session items rendered by JS -->
                 </div>
             </div>
 
             <div class="sidebar-footer">
                 <div class="user-profile-card">
-                    <div class="user-avatar-badge">PS</div>
+                    <div class="user-avatar-badge" aria-hidden="true">PS</div>
                     <div class="user-info">
                         <div class="user-name">Pham Sam</div>
                         <div class="user-plan">PRO</div>
@@ -48,7 +48,7 @@
         </aside>
 
         <!-- ── MAIN VIEWPORT ── -->
-        <main class="main-content">
+        <main class="main-content" id="mainContent" aria-label="Khu vực trò chuyện và kết quả phân tích">
 
             <!-- Scrollable Chat Stream Container -->
             <div class="chat-viewport" id="chatViewport">
@@ -65,7 +65,7 @@
                     </div>
 
                     <div class="suggestion-grid">
-                        <div class="suggestion-card"
+                        <div class="suggestion-card" role="button" tabindex="0"
                             data-prompt="Tuyển CTV xem TikTok chốt đơn Shopee thu nhập 500k/ngày. Yêu cầu nạp 500k quỹ đảm bảo vào tài khoản cá nhân Nguyen Van A để kích hoạt tài khoản gấp.">
                             <span class="card-icon">🔍</span>
                             <div class="card-text">
@@ -73,7 +73,7 @@
                                 <p>Phân tích SMS, Zalo, FB tuyển CTV/chốt đơn</p>
                             </div>
                         </div>
-                        <div class="suggestion-card"
+                        <div class="suggestion-card" role="button" tabindex="0"
                             data-prompt="Cán bộ Cục Thuế thông báo: Tài khoản VNeID bị lỗi. Truy cập http://vneid-capnhat.apk để cập nhật.">
                             <span class="card-icon">🌐</span>
                             <div class="card-text">
@@ -81,7 +81,7 @@
                                 <p>Kiểm tra URL nghi vấn malware, phishing</p>
                             </div>
                         </div>
-                        <div class="suggestion-card"
+                        <div class="suggestion-card" role="button" tabindex="0"
                             data-prompt="Gửi ảnh bill VietQR đã chuyển khoản thành công 2 triệu nhưng tài khoản ngân hàng chưa tăng số dư.">
                             <span class="card-icon">💳</span>
                             <div class="card-text">
@@ -89,11 +89,11 @@
                                 <p>Phân tích hoá đơn nghi vấn fake bill chuyển khoản</p>
                             </div>
                         </div>
-                        <div class="suggestion-card"
+                        <div class="suggestion-card" role="button" tabindex="0"
                             data-prompt="Em vừa bị lừa chuyển 5 triệu cho tài khoản lừa đảo tuyển dụng rồi anh ơi, phải làm sao?">
                             <span class="card-icon">🚨</span>
                             <div class="card-text">
-                                <h3>Kích hoạt Emergency Protocol</h3>
+                                <h3>Kích hoạt quy trình khẩn cấp</h3>
                                 <p>Quy trình khẩn cấp 1'-30' khi vừa bị lừa tiền</p>
                             </div>
                         </div>
@@ -101,7 +101,7 @@
                 </div>
 
                 <!-- Chat Stream Messages (rendered by JS) -->
-                <div class="messages-container" id="messagesContainer"></div>
+                <div class="messages-container" id="messagesContainer" role="region" aria-live="polite" aria-label="Kết quả phân tích"></div>
             </div>
 
 
@@ -111,32 +111,32 @@
                 <!-- Online Check Toggle (U3) -->
                 <div class="online-check-container">
                     <label class="online-check-label" for="onlineCheckCheckbox">
-                        <input type="checkbox" id="onlineCheckCheckbox" autocomplete="off">
-                        <span class="online-check-title">Kiểm tra trực tuyến (online_check)</span>
+                        <input type="checkbox" id="onlineCheckCheckbox" autocomplete="off" aria-describedby="onlineCheckHelp">
+                        <span class="online-check-title">Kiểm tra trực tuyến</span>
                     </label>
-                    <div class="online-check-help">Khi bật, hệ thống có thể mở rộng link rút gọn và tra cứu tên miền (chỉ gửi tên miền) qua dịch vụ bên ngoài.</div>
+                    <div class="online-check-help" id="onlineCheckHelp">Khi bật, hệ thống có thể mở rộng link rút gọn và tra cứu tên miền (chỉ gửi tên miền) qua dịch vụ bên ngoài.</div>
                 </div>
 
                 <div class="attached-file-preview hidden" id="filePreview">
                     <span class="file-icon">📎</span>
                     <span class="file-name" id="fileNameText">image.png</span>
-                    <button class="btn-remove-file" id="btnRemoveFile">✕</button>
+                    <button class="btn-remove-file" id="btnRemoveFile" type="button" aria-label="Bỏ ảnh đã chọn">✕</button>
                 </div>
 
                 <div class="input-container" id="inputContainer">
-                    <label class="btn-attach" title="Đính kèm bằng chứng (Ảnh SMS/Bill/Zalo, tệp tài liệu)">
+                    <label class="btn-attach" title="Đính kèm bằng chứng (Ảnh SMS/Bill/Zalo, tệp tài liệu)" aria-label="Đính kèm ảnh bằng chứng (tin nhắn, hóa đơn, ảnh chụp màn hình)">
                         📎
-                        <input type="file" id="fileInput" accept="image/*" hidden>
+                        <input type="file" id="fileInput" accept="image/*" aria-label="Chọn ảnh để tải lên" hidden>
                     </label>
 
                     <textarea id="chatInput" placeholder="Nhập tin nhắn, đường link hoặc tình huống nghi vấn lừa đảo..."
-                        rows="1"></textarea>
+                        rows="1" aria-label="Nhập tin nhắn, đường link hoặc tình huống cần kiểm tra"></textarea>
 
-                    <button class="btn-send" id="btnSend" title="Gửi tin nhắn">
+                    <button class="btn-send" id="btnSend" type="button" title="Gửi tin nhắn" aria-label="Gửi để kiểm tra">
                         ↑
                     </button>
                 </div>
-                <div class="privacy-notice" id="privacyNotice">
+                <div class="privacy-notice" id="privacyNotice" role="note">
                     🔒 Quyền riêng tư: Văn bản và ảnh người dùng vẫn được gửi cho Gemini khi chế độ LLM đang bật (ngoài phạm vi kiểm tra trực tuyến); ảnh không lưu trên server theo mặc định.
                 </div>
                 <div class="disclaimer-text">SafeGuard AI — AI có thể sai sót - vui lòng kiểm tra kĩ</div>
@@ -145,11 +145,11 @@
     </div>
 
     <!-- ── IMAGE LIGHTBOX MODAL ── -->
-    <div class="image-lightbox-modal hidden" id="imageLightboxModal">
+    <div class="image-lightbox-modal hidden" id="imageLightboxModal" role="dialog" aria-modal="true" aria-label="Xem ảnh bằng chứng phóng to">
         <div class="lightbox-backdrop" id="lightboxBackdrop"></div>
         <div class="lightbox-content">
-            <button class="lightbox-close-btn" id="lightboxCloseBtn" title="Đóng (Esc)">✕</button>
-            <img src="" id="lightboxImage" alt="Evidence Preview Large">
+            <button class="lightbox-close-btn" id="lightboxCloseBtn" type="button" title="Đóng (Esc)" aria-label="Đóng ảnh phóng to">✕</button>
+            <img src="" id="lightboxImage" alt="Ảnh bằng chứng phóng to">
             <div class="lightbox-caption" id="lightboxCaption">Bằng chứng hình ảnh</div>
         </div>
     </div>

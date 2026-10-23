@@ -355,7 +355,10 @@
         "backslash": "Dùng dấu gạch chéo ngược để đánh lừa",
         "subdomain_brand": "Tên miền ghép thêm chữ cho giống tên ngân hàng",
         "tld_swap": "Tên miền đổi đuôi khác với đuôi chính thức của thương hiệu",
-        "path_brand": "Chèn tên thương hiệu vào đường dẫn trên trang không chính thức"
+        "path_brand": "Chèn tên thương hiệu vào đường dẫn trên trang không chính thức",
+        "redirect_param": "Link giấu một địa chỉ khác bên trong để chuyển bạn đi",
+        "percent_host": "Địa chỉ bị mã hóa để giấu",
+        "double_encoding": "Đường dẫn bị mã hóa hai lần để qua mặt kiểm tra"
     };
 
     /**
@@ -423,17 +426,29 @@
     function humanizeText(text) {
         if (!text) return "";
         let s = String(text);
+        // Raw technical codes (e.g. COMBOSQUAT_BRAND) are never shown: map to friendly text or drop.
+        s = s.replace(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g, function (m) {
+            return Object.prototype.hasOwnProperty.call(SIGNAL_MAP, m) ? SIGNAL_MAP[m] : "";
+        });
+        s = s.replace(/\b(?:SHORTENER|DEFANGED)\b/g, function (m) {
+            return SIGNAL_MAP[m];
+        });
         // Remove parenthesized jargon
         s = s.replace(/\s*\((?:homoglyph|typosquat|open redirect|open_redirect|redirect|defang|combosquat|obfuscation)\)/gi, "");
-        // Linear replacements of words
-        s = s.replace(/\bdefang(?:ed)?\b/gi, "viết lệch dấu");
-        s = s.replace(/\bcombosquat(?:ting)?\b/gi, "ghép thêm chữ");
-        s = s.replace(/\bhomoglyph\b/gi, "chữ giống hệt");
-        s = s.replace(/\bopen[ _-]?redirect\b/gi, "chuyển hướng");
-        s = s.replace(/\bredirect(?:ion|or|ed)?\b/gi, "chuyển hướng");
-        s = s.replace(/\btyposquat(?:ting)?\b/gi, "gõ sai chính tả");
-        s = s.replace(/\bobfuscat(?:ion|ed)?\b/gi, "che giấu");
-        return s;
+        // Word replacements; skipped when the word is part of a domain / URL (e.g. redirect-evil.com).
+        const L = "(?<![\\w.@/\\-])";
+        const R = "(?![\\w\\-]*(?:\\.\\w|\\[\\.\\]|[/@]))";
+        function wordRe(core) {
+            return new RegExp(L + core + "[a-z]*" + R, "gi");
+        }
+        s = s.replace(wordRe("defang"), "viết lệch dấu");
+        s = s.replace(wordRe("combosquat"), "ghép thêm chữ");
+        s = s.replace(wordRe("homoglyph"), "chữ giống hệt");
+        s = s.replace(wordRe("open[ _-]?redirect"), "chuyển hướng");
+        s = s.replace(wordRe("redirect"), "chuyển hướng");
+        s = s.replace(wordRe("typosquat"), "gõ sai chính tả");
+        s = s.replace(wordRe("obfuscat"), "che giấu");
+        return s.replace(/ {2,}/g, " ").trim();
     }
 
     /**
@@ -575,9 +590,36 @@
     }
 
     /**
+     * U2: Create the single technical-details accordion (CLOSED by default).
+     * All technical content (scores, link cards, pipeline trace, network log, LLM status) goes into `body`.
+     */
+    function createTechnicalDetails(container, doc) {
+        if (!container) return null;
+        const documentRef = doc || (typeof document !== "undefined" ? document : createMockDocument());
+
+        const details = documentRef.createElement("details");
+        details.className = "technical-details";
+
+        const summary = documentRef.createElement("summary");
+        summary.className = "technical-details-summary";
+        summary.setAttribute("aria-label", "Xem chi tiết kỹ thuật: điểm số, phân tích đường link, nhật ký hệ thống");
+        summary.textContent = "🔧 Xem chi tiết kỹ thuật";
+        details.appendChild(summary);
+
+        const body = documentRef.createElement("div");
+        body.className = "technical-details-body";
+        details.appendChild(body);
+
+        container.appendChild(details);
+        return { details: details, body: body };
+    }
+
+    /**
      * U5: Check if the smart "Kiểm tra sâu link này" button should be shown.
-     * Shows when: shortener or redirect chain not expanded, verdict unverified,
-     * or finding has network_used === false / action skipped.
+     * Shows when: a shortener is not expanded yet, the verdict is unverified, the page blocked
+     * automatic checking, or an offline-only finding (network_used === false) is not yet decisive
+     * (suspicious / low / unknown) so a network lookup could change the answer.
+     * Never shown when this very result was already produced with online_check on.
      */
     function shouldShowDeepCheck(res) {
         if (!res) return false;
@@ -588,11 +630,15 @@
         return findings.some(function (f) {
             if (!f || typeof f !== "object") return false;
             if (f.verdict === "unverified") return true;
-            if (f.network_used === false) return true;
-            if (Array.isArray(f.signals) && f.signals.some(function (s) {
-                return s && (s.code === "SHORTENER" || s.code === "REDIRECT_CHAIN" || s.code === "ANTIBOT_CHALLENGE" || s.code === "CLOAKING_SUSPECTED");
-            })) return true;
-            if (Array.isArray(f.redirect_chain) && f.redirect_chain.length > 1) return true;
+            const codes = Array.isArray(f.signals)
+                ? f.signals.filter(function (s) { return s && typeof s === "object"; }).map(function (s) { return s.code; })
+                : [];
+            if (codes.indexOf("ANTIBOT_CHALLENGE") !== -1 || codes.indexOf("CLOAKING_SUSPECTED") !== -1) return true;
+            if (codes.indexOf("SHORTENER") !== -1 && codes.indexOf("SHORTENER_RESOLVED") === -1 && f.network_used !== true) return true;
+            if (f.network_used === false) {
+                const v = String(f.verdict || "").toLowerCase();
+                return v === "suspicious" || v === "low" || v === "";
+            }
             return false;
         });
     }
@@ -806,7 +852,7 @@
         }
 
         // 4. Smart Deep Check Button (U5)
-        if (shouldShowDeepCheck(res)) {
+        if (typeof onDeepCheckClick === "function" && shouldShowDeepCheck(res)) {
             const deepBox = documentRef.createElement("div");
             deepBox.className = "deep-check-box";
 
@@ -815,9 +861,7 @@
             deepBtn.className = "btn-deep-check";
             deepBtn.setAttribute("aria-label", "Kiểm tra sâu link này");
             deepBtn.textContent = "🔍 Kiểm tra sâu link này";
-            if (typeof onDeepCheckClick === "function") {
-                deepBtn.addEventListener("click", onDeepCheckClick);
-            }
+            deepBtn.addEventListener("click", onDeepCheckClick);
             deepBox.appendChild(deepBtn);
 
             const deepDesc = documentRef.createElement("p");
@@ -1118,6 +1162,15 @@
 
                         sigItem.appendChild(sigSev);
                         sigItem.appendChild(sigMsg);
+
+                        // Raw code only as a small caption inside the technical details (never in the simple view)
+                        const rawCode = String(sig.code || "");
+                        if (/^[A-Z][A-Z0-9_]{1,48}$/.test(rawCode)) {
+                            const sigCode = documentRef.createElement("span");
+                            sigCode.className = "signal-code";
+                            sigCode.textContent = " (mã: " + rawCode + ")";
+                            sigItem.appendChild(sigCode);
+                        }
 
                         if (sig.evidence) {
                             const sigEv = documentRef.createElement("span");
@@ -1685,6 +1738,7 @@
         getFriendlyTechnique: getFriendlyTechnique,
         getActionConclusion: getActionConclusion,
         renderActionConclusion: renderActionConclusion,
+        createTechnicalDetails: createTechnicalDetails,
         shouldShowDeepCheck: shouldShowDeepCheck,
         renderCondensedLinkCard: renderCondensedLinkCard,
         renderSimpleMode: renderSimpleMode,

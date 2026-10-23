@@ -352,7 +352,7 @@ PHÂN BIỆT 3 VAI (QUAN TRỌNG — ẢNH HƯỞNG TRỰC TIẾP ĐẾN ĐIỂM
 • VAI 1 — KẺ LỪA ĐẢO đang yêu cầu / thao túng người nhận hành động (chuyển tiền, nộp phí, cung cấp OTP/CCCD, bấm link, cài app, làm gấp, đe dọa khóa tài khoản, hứa lợi ích): rủi ro CAO (>= HIGH).
   - Kẻ gian có thể MẠO DANH công an/ngân hàng và dùng giọng "cảnh báo" nhưng vẫn yêu cầu hành động rủi ro → VẪN là VAI 1, KHÔNG được hạ điểm.
 • VAI 2 — BẢN TIN / CẢNH BÁO TUYÊN TRUYỀN (ngôi thứ ba, không yêu cầu người nhận hành động): báo chí tường thuật "đối tượng bị bắt", cảnh báo công an/ngân hàng gửi cộng đồng "cảnh giác / không cung cấp OTP", không có link/file yêu cầu bấm: rủi ro THẤP (LOW).
-• VAI 3 — NẠN NHÂN kể chuyện đã/vừa bị lừa, hỏi cách xử lý: rủi ro THẤP nói chung. NGOẠI LỆ: nếu họ nói "đang/vừa chuyển tiền" hoặc "vừa đưa OTP ngay bây giờ" → KHẨN CẤP (CRITICAL).
+• VAI 3 — NẠN NHÂN kể lại chuyện đã xảy ra (đã/vừa bị lừa) và HỎI cách xử lý/lấy lại tiền/báo ở đâu, không có yêu cầu nào hướng tới người nhận: rủi ro THẤP (<= 30). NGOẠI LỆ DUY NHẤT: nếu họ nói ĐANG chuyển tiền hoặc VỪA đưa OTP/mật khẩu ngay lúc này (trong vài phút) → KHẨN CẤP (CRITICAL).
 
 QUY TẮC CỨNG VỀ BẰNG CHỨNG:
 - Khi SYSTEM EVIDENCE có bằng chứng kỹ thuật cứng (blacklist, APK, URL độc hại): LLM KHÔNG ĐƯỢC hạ điểm theo ý kiến văn bản.
@@ -363,7 +363,7 @@ QUY TẮC PHÂN LOẠI & TÍNH ĐIỂM RỦI RO:
 2. Nếu là thông báo chính thức từ đơn vị uy tín (Vcb tin nhắn thông báo số dư, Shopee thông báo mã giảm giá trên app, công an gửi giấy mời tới cơ quan, thông báo học phí...) → intent_type = "scam_analysis", risk_score = 0 đến 25 (LOW).
 3. Nếu là tin nhắn mượn tiền từ nick quen, tin nhắn shipper báo COD giao bảo vệ, người chuyển nhầm tiền nhờ chuyển lại (chưa có link lạ/chưa có file .apk) → risk_score = 40 đến 60 (MEDIUM).
 4. Nếu là kịch bản tuyển dụng CTV nạp tiền/quỹ, giả mạo website ngân hàng/cơ quan nhà nước → risk_score = 75 đến 89 (HIGH).
-5. Nếu yêu cầu cài file .apk ngoài CH Play hoặc nạn nhân vừa bị lừa mất tiền → risk_score = 90 đến 99 (CRITICAL).
+5. Nếu yêu cầu cài file .apk ngoài CH Play, hoặc người dùng ĐANG/VỪA (trong vài phút) chuyển tiền hay đưa OTP cho kẻ lừa → risk_score = 90 đến 99 (CRITICAL). Người chỉ kể lại chuyện đã qua và hỏi cách xử lý thì KHÔNG thuộc mức này (xem VAI 3).
 
 THANG ĐIỂM RỦI RO CHUẨN:
 - 0 - 39: LOW (Rủi ro thấp)

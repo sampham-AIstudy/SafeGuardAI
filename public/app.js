@@ -59,6 +59,15 @@ document.addEventListener("DOMContentLoaded", () => {
         return s.slice(0, maxLen);
     }
 
+    // Sanitize + defang free text coming from the server (domains/URLs never shown as live text)
+    function safeText(str, maxLen = 300) {
+        const clean = sanitize(str, maxLen);
+        if (typeof UIRender !== "undefined" && typeof UIRender.defangText === "function") {
+            return UIRender.defangText(clean);
+        }
+        return clean.replace(/\./g, "[.]");
+    }
+
     // State Variables
     let activeSessionId = generateSessionId();
     let attachedFileBase64 = null;
@@ -162,6 +171,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         document.addEventListener("keydown", (e) => {
             if (e.key === "Escape") closeLightbox();
+            // Keyboard access: Enter / Space activates suggestion cards and history items
+            if ((e.key === "Enter" || e.key === " ") && e.target && e.target.classList &&
+                (e.target.classList.contains("suggestion-card") || e.target.classList.contains("session-item"))) {
+                e.preventDefault();
+                e.target.click();
+            }
         });
     }
 
@@ -265,6 +280,9 @@ document.addEventListener("DOMContentLoaded", () => {
             item.className = `session-item ${s.session_id === activeSessionId ? "active" : ""}`;
             const displayTitle = sanitize(s.title || s.session_id, 80);
             item.title = displayTitle;
+            item.setAttribute("role", "button");
+            item.setAttribute("tabindex", "0");
+            item.setAttribute("aria-label", "Mở cuộc trò chuyện: " + displayTitle);
 
             const iconSpan = document.createElement("span");
             iconSpan.className = "session-icon";
@@ -376,7 +394,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (res.ok) {
                 const result = await res.json();
-                appendAssistantMessage(result);
+                appendAssistantMessage(result, {
+                    onlineCheck: isOnlineCheck,
+                    resend: () => resendWithDeepCheck(userText, currentImageBase64, currentFileName)
+                });
                 loadSessions();
             } else {
                 let errorHeadline = `⚠️ Yêu cầu thất bại (${res.status})`;
@@ -437,7 +458,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const img = document.createElement("img");
                 img.src = trimmedImg;
                 img.className = "chat-attached-img";
-                img.alt = "Attached evidence";
+                img.alt = "Ảnh bằng chứng đã đính kèm";
                 content.appendChild(img);
             }
         } else if (showNoStoreNotice) {
@@ -457,8 +478,211 @@ document.addEventListener("DOMContentLoaded", () => {
         scrollToBottom();
     }
 
+    // Run a UIRender function safely (never lets one broken section hide the whole answer)
+    function safeRender(label, fn) {
+        try {
+            fn();
+        } catch (err) {
+            console.error("Error rendering " + label + ":", err);
+        }
+    }
+
+    function hasUI(fnName) {
+        return typeof UIRender !== "undefined" && typeof UIRender[fnName] === "function";
+    }
+
+    // "Kiểm tra sâu link này": resend the SAME message once with online_check=true (box resets to off in sendMessage)
+    function resendWithDeepCheck(text, imageBase64, fileName) {
+        if (isProcessing) return false;
+        chatInput.value = text || "";
+        attachedFileBase64 = imageBase64 || null;
+        attachedFileName = fileName || "";
+        fileReadingPromise = null;
+        if (onlineCheckCheckbox) onlineCheckCheckbox.checked = true;
+        sendMessage();
+        return true;
+    }
+
+    // Build technical content (scores, link cards, trace, network log, LLM status) into `body`
+    function renderTechnicalSection(res, decision, body) {
+        const riskLevel = sanitize(decision.risk_level || "MEDIUM", 20);
+        const riskScore = typeof res.risk_score === "number" ? res.risk_score : 0;
+        const headline = safeText(decision.headline || "Rủi ro không xác định", 500);
+        const conf = res.confidence || null;
+        const confScoreText = (conf && conf.confidence_score !== undefined && conf.confidence_score !== null)
+            ? `${sanitize(String(conf.confidence_score), 10)}%`
+            : "—";
+        const confLevelText = (conf && conf.confidence_level)
+            ? sanitize(String(conf.confidence_level), 20)
+            : "—";
+        const latencyText = (res.latency_ms !== undefined && res.latency_ms !== null)
+            ? sanitize(String(res.latency_ms), 20)
+            : "—";
+        const latencyUnit = (res.latency_ms !== undefined && res.latency_ms !== null) ? "ms" : "";
+
+        const RISK_LEVEL_WHITELIST = ["low", "medium", "high", "critical"];
+        const rkLower = riskLevel.toLowerCase();
+        const rkCls = RISK_LEVEL_WHITELIST.includes(rkLower) ? rkLower : "unknown";
+        const iconMap = { "low": "🟢", "medium": "🟡", "high": "🔴", "critical": "🚨" };
+        const icon = iconMap[rkCls] || "⚪";
+
+        const riskHeaderEl = document.createElement("div");
+        riskHeaderEl.className = `risk-header risk-level-${rkCls}`;
+        riskHeaderEl.textContent = `${icon} ${riskLevel} — Điểm rủi ro: ${riskScore}%`;
+        body.appendChild(riskHeaderEl);
+
+        const riskHeadlineEl = document.createElement("div");
+        riskHeadlineEl.className = "risk-headline";
+        riskHeadlineEl.textContent = headline;
+        body.appendChild(riskHeadlineEl);
+
+        if (res.emergency && res.emergency.is_emergency) {
+            const emergBox = document.createElement("div");
+            emergBox.className = "emergency-box";
+
+            const emergTitle = document.createElement("div");
+            emergTitle.className = "emergency-title";
+            emergTitle.textContent = "🚨 QUY TRÌNH ỨNG PHÓ KHẨN CẤP:";
+            emergBox.appendChild(emergTitle);
+
+            (res.emergency.protocol_steps || []).forEach(step => {
+                const stepRow = document.createElement("div");
+                stepRow.className = "emergency-step-row";
+                const tw = safeText(step.time_window || "", 50);
+                const act = safeText(step.action || "", 300);
+                stepRow.textContent = `• ⏱️ ${tw}: ${act}`;
+                emergBox.appendChild(stepRow);
+            });
+            body.appendChild(emergBox);
+        }
+
+        // Metrics Grid
+        const metricsGrid = document.createElement("div");
+        metricsGrid.className = "metrics-grid";
+
+        function addMetric(labelText, valueText, valueExtraCls, subText) {
+            const card = document.createElement("div");
+            card.className = "metric-card";
+            const label = document.createElement("div");
+            label.className = "metric-label";
+            label.textContent = labelText;
+            const val = document.createElement("div");
+            val.className = valueExtraCls ? `metric-value ${valueExtraCls}` : "metric-value";
+            val.textContent = valueText;
+            card.appendChild(label);
+            card.appendChild(val);
+            if (subText !== null) {
+                const sub = document.createElement("div");
+                sub.className = "metric-sub";
+                sub.textContent = subText;
+                card.appendChild(sub);
+            }
+            metricsGrid.appendChild(card);
+        }
+        addMetric("Điểm rủi ro", `${riskScore}%`, "", null);
+        addMetric("Độ tin cậy của AI", confScoreText, "metric-accent", confLevelText);
+        addMetric("Thời gian xử lý", latencyText, "", latencyUnit);
+        body.appendChild(metricsGrid);
+
+        // Breakdown Section (Explainable AI)
+        if (res.explainable && Array.isArray(res.explainable.reasons) && res.explainable.reasons.length > 0) {
+            const bdSection = document.createElement("div");
+            bdSection.className = "breakdown-section";
+
+            const bdTitle = document.createElement("h4");
+            bdTitle.className = "breakdown-title";
+            bdTitle.textContent = "🔍 Phân tích chi tiết rủi ro:";
+            bdSection.appendChild(bdTitle);
+
+            res.explainable.reasons.forEach(r => {
+                const cleanReason = safeText(r, 200);
+                const parts = cleanReason.split(": +");
+                const label = parts[0];
+                const pct = parts[1] ? parseInt(parts[1], 10) : 15;
+
+                const rowEl = document.createElement("div");
+                rowEl.className = "breakdown-row";
+
+                const labelSpan = document.createElement("span");
+                labelSpan.className = "breakdown-label";
+                labelSpan.textContent = `• ${label}`;
+
+                const progDiv = document.createElement("div");
+                progDiv.className = "breakdown-progress";
+                const fillDiv = document.createElement("div");
+                fillDiv.className = "breakdown-fill";
+                fillDiv.style.width = `${Math.min(pct, 100)}%`;
+                progDiv.appendChild(fillDiv);
+
+                const pctSpan = document.createElement("span");
+                pctSpan.className = "breakdown-pct";
+                pctSpan.textContent = `+${pct}%`;
+
+                rowEl.appendChild(labelSpan);
+                rowEl.appendChild(progDiv);
+                rowEl.appendChild(pctSpan);
+                bdSection.appendChild(rowEl);
+            });
+
+            body.appendChild(bdSection);
+        }
+
+        // U1: Render URL Analysis Cards
+        if (res.url_analysis && hasUI("renderUrlAnalysis")) {
+            safeRender("url_analysis", () => UIRender.renderUrlAnalysis(res.url_analysis, body));
+        }
+
+        // Render Image Analysis (VietQR / QR)
+        if (res.image_analysis && hasUI("renderImageAnalysis")) {
+            safeRender("image_analysis", () => UIRender.renderImageAnalysis(res.image_analysis, body));
+        }
+
+        // U2: Real pipeline_trace instead of fake animation
+        if (res.pipeline_trace && hasUI("renderPipelineTrace")) {
+            safeRender("pipeline_trace", () => UIRender.renderPipelineTrace(res.pipeline_trace, body));
+        }
+
+        // U3: Render Network Actions (only when key exists in res)
+        if (res.network_actions !== undefined && hasUI("renderNetworkActions")) {
+            safeRender("network_actions", () => UIRender.renderNetworkActions(res.network_actions, body));
+        }
+
+        // Full recommendation list
+        if (decision.recommendations && Array.isArray(decision.recommendations) && decision.recommendations.length > 0) {
+            const recsBox = document.createElement("div");
+            recsBox.className = "recs-box";
+
+            const recsTitle = document.createElement("h4");
+            recsTitle.className = "recs-title";
+            recsTitle.textContent = "💡 Khuyến nghị hành động:";
+            recsBox.appendChild(recsTitle);
+
+            decision.recommendations.forEach(rec => {
+                if (typeof rec !== "string" && typeof rec !== "number") return;
+                const item = document.createElement("p");
+                item.className = "rec-item";
+                item.textContent = safeText(rec, 300);
+                recsBox.appendChild(item);
+            });
+
+            body.appendChild(recsBox);
+        }
+
+        // HITL Footer
+        const hitlP = document.createElement("p");
+        hitlP.className = "hitl-footer";
+        hitlP.textContent = safeText(decision.hitl_disclaimer || "SafeGuard AI — Hệ thống hỗ trợ ra quyết định, không thay thế cơ quan chức năng.", 200);
+        body.appendChild(hitlP);
+
+        // U5: LLM & Model Status Indicator (only when model_used or llm_status key exists in res)
+        if ((res.model_used !== undefined || res.llm_status !== undefined) && hasUI("renderLLMStatus")) {
+            safeRender("LLM status", () => UIRender.renderLLMStatus(res, body));
+        }
+    }
+
     // Render Assistant Output (Guaranteed ZERO innerHTML for server data)
-    function appendAssistantMessage(res) {
+    // ctx (optional): { onlineCheck: boolean, resend: function } describing the request that produced `res`
+    function appendAssistantMessage(res, ctx) {
         const row = document.createElement("div");
         row.className = "message-row assistant";
 
@@ -474,20 +698,16 @@ document.addEventListener("DOMContentLoaded", () => {
         const content = document.createElement("div");
         content.className = "message-content";
 
-        // U2: Real pipeline_trace instead of fake animation
-        if (res.pipeline_trace && typeof UIRender !== "undefined" && typeof UIRender.renderPipelineTrace === "function") {
-            try {
-                UIRender.renderPipelineTrace(res.pipeline_trace, content);
-            } catch (err) {
-                console.error("Error rendering pipeline_trace:", err);
-            }
-        }
-
         const decision = res.decision || {};
         const intentType = decision.intent_type || "scam_analysis";
-        const headline = sanitize(decision.headline || "Rủi ro không xác định", 500);
+        const headline = safeText(decision.headline || "Rủi ro không xác định", 500);
 
         if (intentType === "general_chat" || intentType === "refusal" || intentType === "need_more_info") {
+            // Real pipeline_trace for chat-type answers (no scam verdict to summarise)
+            if (res.pipeline_trace && hasUI("renderPipelineTrace")) {
+                safeRender("pipeline_trace", () => UIRender.renderPipelineTrace(res.pipeline_trace, content));
+            }
+
             const headlineEl = document.createElement("p");
             headlineEl.className = "chat-headline-text";
             headlineEl.textContent = headline;
@@ -499,220 +719,43 @@ document.addEventListener("DOMContentLoaded", () => {
                 decision.recommendations.forEach(rec => {
                     if (typeof rec !== "string" && typeof rec !== "number") return;
                     const li = document.createElement("li");
-                    li.textContent = sanitize(rec, 300);
+                    li.textContent = safeText(rec, 300);
                     recList.appendChild(li);
                 });
                 content.appendChild(recList);
             }
         } else {
-            const riskLevel = sanitize(decision.risk_level || "MEDIUM", 20);
-            const riskScore = typeof res.risk_score === "number" ? res.risk_score : 0;
-            const conf = res.confidence || null;
-            const confScoreText = (conf && conf.confidence_score !== undefined && conf.confidence_score !== null)
-                ? `${sanitize(String(conf.confidence_score), 10)}%`
-                : "—";
-            const confLevelText = (conf && conf.confidence_level)
-                ? sanitize(String(conf.confidence_level), 20)
-                : "—";
-            const latencyText = (res.latency_ms !== undefined && res.latency_ms !== null)
-                ? sanitize(String(res.latency_ms), 20)
-                : "—";
-            const latencyUnit = (res.latency_ms !== undefined && res.latency_ms !== null) ? "ms" : "";
+            // This client knows whether the request itself used online_check; the server cannot suppress the button
+            res._checked_online = Boolean(ctx && ctx.onlineCheck === true);
 
-            const RISK_LEVEL_WHITELIST = ["low", "medium", "high", "critical"];
-            const rkLower = riskLevel.toLowerCase();
-            const rkCls = RISK_LEVEL_WHITELIST.includes(rkLower) ? rkLower : "unknown";
-            const iconMap = { "low": "🟢", "medium": "🟡", "high": "🔴", "critical": "🚨" };
-            const icon = iconMap[rkCls] || "⚪";
-
-            const riskHeaderEl = document.createElement("div");
-            riskHeaderEl.className = `risk-header risk-level-${rkCls}`;
-            riskHeaderEl.textContent = `${icon} ${riskLevel} — Điểm rủi ro: ${riskScore}%`;
-            content.appendChild(riskHeaderEl);
-
-            const riskHeadlineEl = document.createElement("div");
-            riskHeadlineEl.className = "risk-headline";
-            riskHeadlineEl.textContent = headline;
-            content.appendChild(riskHeadlineEl);
-
-            if (res.emergency && res.emergency.is_emergency) {
-                const emergBox = document.createElement("div");
-                emergBox.className = "emergency-box";
-
-                const emergTitle = document.createElement("div");
-                emergTitle.className = "emergency-title";
-                emergTitle.textContent = "🚨 QUY TRÌNH ỨNG PHÓ KHẨN CẤP:";
-                emergBox.appendChild(emergTitle);
-
-                (res.emergency.protocol_steps || []).forEach(step => {
-                    const stepRow = document.createElement("div");
-                    stepRow.className = "emergency-step-row";
-                    const tw = sanitize(step.time_window || "", 50);
-                    const act = sanitize(step.action || "", 300);
-                    stepRow.textContent = `• ⏱️ ${tw}: ${act}`;
-                    emergBox.appendChild(stepRow);
-                });
-                content.appendChild(emergBox);
+            // C1: the action conclusion is ALWAYS the first element of a scam analysis result
+            if (hasUI("renderActionConclusion")) {
+                safeRender("action conclusion", () => UIRender.renderActionConclusion(res, content, document));
+            } else {
+                const fallback = document.createElement("h2");
+                fallback.className = "action-conclusion-text";
+                fallback.textContent = "CẨN THẬN — Chưa nên làm theo tin này. Hãy gọi số điện thoại chính thức của nơi gửi để hỏi lại.";
+                content.appendChild(fallback);
             }
 
-            // Metrics Grid
-            const metricsGrid = document.createElement("div");
-            metricsGrid.className = "metrics-grid";
-
-            // Card 1: Risk Score
-            const m1 = document.createElement("div");
-            m1.className = "metric-card";
-            const m1Label = document.createElement("div");
-            m1Label.className = "metric-label";
-            m1Label.textContent = "Risk Score";
-            const m1Val = document.createElement("div");
-            m1Val.className = "metric-value";
-            m1Val.textContent = `${riskScore}%`;
-            m1.appendChild(m1Label);
-            m1.appendChild(m1Val);
-            metricsGrid.appendChild(m1);
-
-            // Card 2: AI Confidence
-            const m2 = document.createElement("div");
-            m2.className = "metric-card";
-            const m2Label = document.createElement("div");
-            m2Label.className = "metric-label";
-            m2Label.textContent = "AI Confidence";
-            const m2Val = document.createElement("div");
-            m2Val.className = "metric-value metric-accent";
-            m2Val.textContent = confScoreText;
-            const m2Sub = document.createElement("div");
-            m2Sub.className = "metric-sub";
-            m2Sub.textContent = confLevelText;
-            m2.appendChild(m2Label);
-            m2.appendChild(m2Val);
-            m2.appendChild(m2Sub);
-            metricsGrid.appendChild(m2);
-
-            // Card 3: Latency
-            const m3 = document.createElement("div");
-            m3.className = "metric-card";
-            const m3Label = document.createElement("div");
-            m3Label.className = "metric-label";
-            m3Label.textContent = "Latency";
-            const m3Val = document.createElement("div");
-            m3Val.className = "metric-value";
-            m3Val.textContent = latencyText;
-            const m3Sub = document.createElement("div");
-            m3Sub.className = "metric-sub";
-            m3Sub.textContent = latencyUnit;
-            m3.appendChild(m3Label);
-            m3.appendChild(m3Val);
-            m3.appendChild(m3Sub);
-            metricsGrid.appendChild(m3);
-
-            content.appendChild(metricsGrid);
-
-            // Breakdown Section (Explainable AI)
-            if (res.explainable && Array.isArray(res.explainable.reasons) && res.explainable.reasons.length > 0) {
-                const bdSection = document.createElement("div");
-                bdSection.className = "breakdown-section";
-
-                const bdTitle = document.createElement("h4");
-                bdTitle.className = "breakdown-title";
-                bdTitle.textContent = "🔍 Phân tích chi tiết rủi ro:";
-                bdSection.appendChild(bdTitle);
-
-                res.explainable.reasons.forEach(r => {
-                    const cleanReason = sanitize(r, 200);
-                    const parts = cleanReason.split(": +");
-                    const label = parts[0];
-                    const pct = parts[1] ? parseInt(parts[1], 10) : 15;
-
-                    const rowEl = document.createElement("div");
-                    rowEl.className = "breakdown-row";
-
-                    const labelSpan = document.createElement("span");
-                    labelSpan.className = "breakdown-label";
-                    labelSpan.textContent = `• ${label}`;
-
-                    const progDiv = document.createElement("div");
-                    progDiv.className = "breakdown-progress";
-                    const fillDiv = document.createElement("div");
-                    fillDiv.className = "breakdown-fill";
-                    fillDiv.style.width = `${Math.min(pct, 100)}%`;
-                    progDiv.appendChild(fillDiv);
-
-                    const pctSpan = document.createElement("span");
-                    pctSpan.className = "breakdown-pct";
-                    pctSpan.textContent = `+${pct}%`;
-
-                    rowEl.appendChild(labelSpan);
-                    rowEl.appendChild(progDiv);
-                    rowEl.appendChild(pctSpan);
-                    bdSection.appendChild(rowEl);
-                });
-
-                content.appendChild(bdSection);
-            }
-
-            // U1: Render URL Analysis Cards
-            if (res.url_analysis && typeof UIRender !== "undefined" && typeof UIRender.renderUrlAnalysis === "function") {
-                try {
-                    UIRender.renderUrlAnalysis(res.url_analysis, content);
-                } catch (err) {
-                    console.error("Error rendering url_analysis:", err);
+            // C2: simple view = "Vì sao" + "Bạn nên làm" (+ short link card, + deep-check button when needed)
+            const deepHandler = (ctx && typeof ctx.resend === "function")
+                ? () => {
+                    if (isProcessing) return;
+                    ctx.resend();
                 }
+                : null;
+            if (hasUI("renderSimpleMode")) {
+                safeRender("simple mode", () => UIRender.renderSimpleMode(res, content, document, deepHandler));
             }
 
-            // Render Image Analysis (VietQR / QR)
-            if (res.image_analysis && typeof UIRender !== "undefined" && typeof UIRender.renderImageAnalysis === "function") {
-                try {
-                    UIRender.renderImageAnalysis(res.image_analysis, content);
-                } catch (err) {
-                    console.error("Error rendering image_analysis:", err);
-                }
+            // C2: everything technical lives in ONE closed <details>
+            let techBody = content;
+            if (hasUI("createTechnicalDetails")) {
+                const tech = UIRender.createTechnicalDetails(content, document);
+                if (tech && tech.body) techBody = tech.body;
             }
-
-            // U3: Render Network Actions (only when key exists in res)
-            if (res.network_actions !== undefined && typeof UIRender !== "undefined" && typeof UIRender.renderNetworkActions === "function") {
-                try {
-                    UIRender.renderNetworkActions(res.network_actions, content);
-                } catch (err) {
-                    console.error("Error rendering network_actions:", err);
-                }
-            }
-
-            // Recommendations
-            if (decision.recommendations && Array.isArray(decision.recommendations) && decision.recommendations.length > 0) {
-                const recsBox = document.createElement("div");
-                recsBox.className = "recs-box";
-
-                const recsTitle = document.createElement("h4");
-                recsTitle.className = "recs-title";
-                recsTitle.textContent = "💡 Khuyến nghị hành động:";
-                recsBox.appendChild(recsTitle);
-
-                decision.recommendations.forEach(rec => {
-                    if (typeof rec !== "string" && typeof rec !== "number") return;
-                    const item = document.createElement("p");
-                    item.className = "rec-item";
-                    item.textContent = sanitize(rec, 300);
-                    recsBox.appendChild(item);
-                });
-
-                content.appendChild(recsBox);
-            }
-
-            // HITL Footer
-            const hitlP = document.createElement("p");
-            hitlP.className = "hitl-footer";
-            hitlP.textContent = sanitize(decision.hitl_disclaimer || "SafeGuard AI — Decision Support System.", 200);
-            content.appendChild(hitlP);
-
-            // U5: LLM & Model Status Indicator (only when model_used or llm_status key exists in res)
-            if ((res.model_used !== undefined || res.llm_status !== undefined) && typeof UIRender !== "undefined" && typeof UIRender.renderLLMStatus === "function") {
-                try {
-                    UIRender.renderLLMStatus(res, content);
-                } catch (err) {
-                    console.error("Error rendering LLM status:", err);
-                }
-            }
+            renderTechnicalSection(res, decision, techBody);
         }
 
         row.appendChild(content);
@@ -749,6 +792,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const row = document.createElement("div");
         row.className = "message-row assistant thinking-row";
         row.id = "thinkingRow";
+        row.setAttribute("role", "status");
 
         const avatar = document.createElement("div");
         avatar.className = "message-avatar";
