@@ -1,6 +1,7 @@
 /**
  * SafeGuard AI — UI Render Module
- * Pure rendering functions for URL analysis, Pipeline Trace, Network Actions, and Sanitization.
+ * Pure rendering functions for Action Conclusions, Simple Mode, URL analysis, Pipeline Trace,
+ * Network Actions, and Sanitization.
  * Compatible with modern browsers and Node.js test environment (CommonJS guard).
  */
 
@@ -17,14 +18,16 @@
      * Minimal DOM mock implementation for Node.js test runners without external dependencies.
      */
     function createMockDocument() {
-        function createMockElement(tagName) {
+        function createMockElement(tagName, id) {
             return {
                 tagName: String(tagName).toUpperCase(),
+                id: id || "",
                 children: [],
                 childNodes: [],
                 attributes: {},
                 _innerHTMLAccessed: false,
                 _innerHTMLAssigned: false,
+                open: false,
                 classList: {
                     _classes: new Set(),
                     add: function () {
@@ -69,7 +72,7 @@
                 },
                 get innerHTML() {
                     this._innerHTMLAccessed = true;
-                    return this._textContent;
+                    return this.textContent;
                 },
                 set innerHTML(val) {
                     this._innerHTMLAssigned = true;
@@ -90,6 +93,15 @@
                 },
                 setAttribute: function (name, val) {
                     this.attributes[String(name)] = String(val);
+                    if (String(name).toLowerCase() === "open") {
+                        this.open = true;
+                    }
+                },
+                removeAttribute: function (name) {
+                    delete this.attributes[String(name)];
+                    if (String(name).toLowerCase() === "open") {
+                        this.open = false;
+                    }
                 },
                 getAttribute: function (name) {
                     return this.attributes[String(name)] || null;
@@ -98,6 +110,15 @@
                     this._listeners = this._listeners || {};
                     this._listeners[evt] = this._listeners[evt] || [];
                     this._listeners[evt].push(fn);
+                },
+                dispatchEvent: function (evt) {
+                    const list = (this._listeners && this._listeners[evt]) || [];
+                    list.forEach(function (fn) {
+                        fn({ preventDefault: function () { } });
+                    });
+                },
+                click: function () {
+                    this.dispatchEvent("click");
                 },
                 querySelector: function (sel) {
                     for (let i = 0; i < this.children.length; i++) {
@@ -124,6 +145,9 @@
                     if (!sel) return false;
                     if (sel.startsWith(".")) {
                         return this.classList.contains(sel.slice(1));
+                    }
+                    if (sel.startsWith("#")) {
+                        return this.id === sel.slice(1);
                     }
                     return this.tagName.toLowerCase() === sel.toLowerCase();
                 }
@@ -306,6 +330,506 @@
     }
 
     /**
+     * U3: Fixed mapping table for techniques -> everyday Vietnamese phrases.
+     */
+    const TECHNIQUE_MAP = {
+        "defanged": "Link bị viết lệch dấu để qua mặt bộ lọc",
+        "homoglyph": "Dùng chữ cái giống hệt (như chữ Nga) để giả tên thật",
+        "IDN": "Dùng chữ cái giống hệt (như chữ Nga) để giả tên thật",
+        "combosquat": "Tên miền ghép thêm chữ cho giống tên ngân hàng",
+        "typosquat": "Tên miền gõ sai một chút cho giống thật",
+        "redirect": "Link tự chuyển bạn sang trang khác",
+        "open_redirect": "Link tự chuyển bạn sang trang khác",
+        "userinfo": "Dùng ký tự @ để giấu địa chỉ thật",
+        "shortener": "Link rút gọn, che địa chỉ thật",
+        "APK_DOWNLOAD": "Link tải ứng dụng cài ngoài cửa hàng chính thức (rất nguy hiểm)",
+        "punycode": "Tên miền mã hóa lạ",
+        "base64": "Địa chỉ bị mã hóa để giấu",
+        "base64_param": "Địa chỉ bị mã hóa trong tham số",
+        "percent": "Địa chỉ bị mã hóa để giấu",
+        "hex_param": "Địa chỉ bị mã hóa trong tham số",
+        "zero_width": "Chèn ký tự tàng hình để đánh lừa bộ lọc",
+        "fullwidth": "Dùng chữ dạng rộng để qua mặt bộ lọc",
+        "odd_dot": "Dùng dấu chấm lạ để qua mặt bộ lọc",
+        "html_entity": "Mã hóa ký tự HTML để giấu địa chỉ",
+        "backslash": "Dùng dấu gạch chéo ngược để đánh lừa",
+        "subdomain_brand": "Tên miền ghép thêm chữ cho giống tên ngân hàng",
+        "tld_swap": "Tên miền đổi đuôi khác với đuôi chính thức của thương hiệu",
+        "path_brand": "Chèn tên thương hiệu vào đường dẫn trên trang không chính thức"
+    };
+
+    /**
+     * U3: Fixed mapping table for signal codes -> everyday Vietnamese sentences.
+     * Covers >= 20 real signal codes from codebase/url_analysis.
+     */
+    const SIGNAL_MAP = {
+        "USERINFO_BRAND_DECOY": "Dùng tên ngân hàng trước ký tự @ để lừa bạn vào trang giả",
+        "USERINFO_PRESENT": "Dùng ký tự @ để giấu địa chỉ thật",
+        "HOMOGLYPH_BRAND": "Dùng chữ cái giống hệt (như chữ Nga) để giả tên ngân hàng",
+        "TYPOSQUAT_BRAND": "Tên miền gõ sai một chút cho giống thương hiệu thật",
+        "BRAND_TLD_SWAP": "Tên miền đổi đuôi khác với đuôi chính thức của thương hiệu",
+        "COMBOSQUAT_BRAND": "Tên miền ghép thêm chữ cho giống tên ngân hàng",
+        "BRAND_IN_PATH": "Chèn tên thương hiệu vào đường dẫn trên trang không chính thức",
+        "BLACKLIST_HIT": "Trang web lừa đảo đã bị hệ thống cảnh báo ghi nhận",
+        "BACKSLASH_CONFUSION": "Dùng dấu gạch chéo ngược (\\) để qua mặt bộ lọc",
+        "APK_DOWNLOAD": "Link tải ứng dụng cài ngoài cửa hàng chính thức (rất nguy hiểm)",
+        "ARCHIVE_DOWNLOAD": "Đường dẫn tải tệp nén hoặc tệp cài đặt tiềm ẩn mã độc",
+        "DATA_OR_JS_URI": "Đường dẫn chứa mã kịch bản có thể tự chạy nguy hiểm",
+        "ANCHOR_MISMATCH": "Chữ hiển thị một đằng nhưng mở ra một trang khác",
+        "IP_HOST": "Dùng địa chỉ IP số thay cho tên miền thương hiệu",
+        "IP_OBFUSCATED": "Dùng dãy số lạ để giấu địa chỉ máy chủ thật",
+        "MIXED_SCRIPT": "Pha trộn các bảng chữ cái khác nhau để giả mạo",
+        "ENCODED_HOST": "Tên miền bị mã hóa ký tự để che giấu",
+        "DOUBLE_ENCODING": "Đường dẫn bị mã hóa hai lần để qua mặt kiểm tra",
+        "BASE64_URL": "Địa chỉ bị mã hóa bằng Base64 để che giấu",
+        "HEX_URL": "Địa chỉ bị mã hóa bằng ký tự Hex để che giấu",
+        "ZERO_WIDTH": "Chèn ký tự tàng hình để đánh lừa bộ lọc",
+        "FULLWIDTH_OR_ODD_DOT": "Dùng dấu chấm lạ hoặc chữ rộng để qua mặt",
+        "SHORTENER": "Link rút gọn, che địa chỉ thật",
+        "SHORTENER_RESOLVED": "Link rút gọn đã được mở rộng để tìm địa chỉ thật",
+        "SUSPICIOUS_TLD": "Đuôi tên miền lạ, thường bị kẻ gian lợi dụng",
+        "FREE_HOSTING": "Trang đặt trên dịch vụ lưu trữ miễn phí, dễ bị kẻ xấu tạo",
+        "LURE_KEYWORD_DOMAIN": "Tên miền chứa từ ngữ mồi nhử lừa đảo",
+        "LURE_KEYWORD_PATH": "Đường dẫn chứa từ ngữ mồi nhử lừa đảo",
+        "INVALID_TLD": "Đuôi tên miền không hợp lệ",
+        "INVALID_IDN": "Tên miền quốc tế hóa bị lỗi hoặc bất thường",
+        "PUNYCODE_HOST": "Tên miền mã hóa lạ",
+        "NON_STANDARD_PORT": "Cổng kết nối mạng bất thường",
+        "DEEP_SUBDOMAIN": "Tên miền chia quá nhiều cấp con để giả mạo",
+        "LONG_URL": "Đường dẫn dài bất thường để che giấu nội dung",
+        "DEFANGED": "Link bị viết lệch dấu để qua mặt bộ lọc",
+        "HTTP_PLAIN": "Trang web không có bảo mật mã hóa (không có ổ khóa)",
+        "OFFICIAL_DOMAIN": "Trang web chính thức đã xác thực của cơ quan, tổ chức",
+        "OPEN_REDIRECT_TRUSTED": "Lợi dụng trang web uy tín để tự chuyển bạn sang trang khác",
+        "EMBEDDED_URL": "Đường dẫn chứa một địa chỉ web khác giấu bên trong",
+        "ANTIBOT_CHALLENGE": "Trang web tìm cách chặn công cụ kiểm tra tự động",
+        "CLOAKING_SUSPECTED": "Trang web có dấu hiệu đổi giao diện khi bị kiểm tra",
+        "DOMAIN_NEW": "Tên miền mới đăng ký gần đây, cần đặc biệt cảnh giác",
+        "CERT_NEW": "Chứng chỉ bảo mật mới được tạo gần đây",
+        "CERT_INVALID": "Chứng chỉ bảo mật không hợp lệ hoặc bị lỗi",
+        "DOMAIN_DEAD": "Tên miền không còn hoạt động hoặc đã bị đóng",
+        "CT_FIRST_SEEN_RECENT": "Tên miền mới xuất hiện trên hệ thống chứng chỉ số",
+        "NETWORK_BLOCKED_PRIVATE": "Địa chỉ mạng nội bộ, bị chặn vì lý do an toàn",
+        "NETWORK_UNREACHABLE": "Không thể kết nối đến máy chủ trang web",
+        "REDIRECT_CHAIN": "Link tự chuyển bạn qua nhiều trang liên tiếp",
+        "URL_FLOOD": "Quá nhiều đường link trong cùng một nội dung",
+        "INVALID_HOST_LENGTH": "Tên miền có độ dài vượt quá tiêu chuẩn mạng"
+    };
+
+    /**
+     * U3: Replace forbidden technical jargon in user-facing text with everyday Vietnamese.
+     * Removes: defang, combosquat, homoglyph, redirect, typosquat, obfuscation.
+     */
+    function humanizeText(text) {
+        if (!text) return "";
+        let s = String(text);
+        // Remove parenthesized jargon
+        s = s.replace(/\s*\((?:homoglyph|typosquat|open redirect|open_redirect|redirect|defang|combosquat|obfuscation)\)/gi, "");
+        // Linear replacements of words
+        s = s.replace(/\bdefang(?:ed)?\b/gi, "viết lệch dấu");
+        s = s.replace(/\bcombosquat(?:ting)?\b/gi, "ghép thêm chữ");
+        s = s.replace(/\bhomoglyph\b/gi, "chữ giống hệt");
+        s = s.replace(/\bopen[ _-]?redirect\b/gi, "chuyển hướng");
+        s = s.replace(/\bredirect(?:ion|or|ed)?\b/gi, "chuyển hướng");
+        s = s.replace(/\btyposquat(?:ting)?\b/gi, "gõ sai chính tả");
+        s = s.replace(/\bobfuscat(?:ion|ed)?\b/gi, "che giấu");
+        return s;
+    }
+
+    /**
+     * U3: Get friendly text for a signal code or fall back to sanitized message_vi.
+     * Never exposes raw code like COMBOSQUAT_BRAND.
+     */
+    function getFriendlySignal(code, messageVi) {
+        const cleanCode = String(code || "").trim();
+        if (cleanCode && SIGNAL_MAP[cleanCode]) {
+            return SIGNAL_MAP[cleanCode];
+        }
+        if (messageVi) {
+            return humanizeText(sanitizeText(messageVi, 300));
+        }
+        return "Dấu hiệu bất thường cần lưu ý";
+    }
+
+    /**
+     * U3: Get friendly text for an obfuscation technique.
+     */
+    function getFriendlyTechnique(tech) {
+        const cleanTech = String(tech || "").trim();
+        if (cleanTech && TECHNIQUE_MAP[cleanTech]) {
+            return TECHNIQUE_MAP[cleanTech];
+        }
+        if (cleanTech && SIGNAL_MAP[cleanTech]) {
+            return SIGNAL_MAP[cleanTech];
+        }
+        return "Thủ thuật che giấu liên kết";
+    }
+
+    /**
+     * U1: Derive the fixed Action Conclusion string, icon, role, and aria-live attribute.
+     * Rules:
+     * - CRITICAL or emergency: 'DỪNG LẠI NGAY — Đừng chuyển thêm tiền. Gọi ngay ngân hàng của bạn hoặc 113.'
+     * - HIGH: 'DỪNG LẠI — KHÔNG chuyển tiền, KHÔNG bấm link, KHÔNG đưa mã OTP.'
+     * - MEDIUM: 'CẨN THẬN — Chưa nên làm theo tin này. Hãy gọi số điện thoại chính thức của nơi gửi để hỏi lại.'
+     * - LOW: 'CHƯA THẤY DẤU HIỆU LỪA ĐẢO — Nhưng vẫn không chia sẻ mã OTP, mật khẩu cho bất kỳ ai.' (Never 'an toàn tuyệt đối')
+     * - link unverified: 'CHƯA KIỂM TRA ĐƯỢC LINK — Đừng coi là an toàn. Đừng bấm vào.' (takes priority over LOW and MEDIUM).
+     */
+    function getActionConclusion(res) {
+        if (!res) res = {};
+        const isEmergency = Boolean(res.emergency && res.emergency.is_emergency);
+        const riskLevel = String((res.decision && res.decision.risk_level) || "").toUpperCase();
+
+        // Check if any link finding has verdict === "unverified"
+        let hasUnverifiedLink = false;
+        if (res.url_analysis && Array.isArray(res.url_analysis.findings)) {
+            hasUnverifiedLink = res.url_analysis.findings.some(function (f) {
+                return f && f.verdict === "unverified";
+            });
+        }
+
+        if (riskLevel === "CRITICAL" || isEmergency) {
+            return {
+                text: "DỪNG LẠI NGAY — Đừng chuyển thêm tiền. Gọi ngay ngân hàng của bạn hoặc 113.",
+                icon: "🚨",
+                level: "CRITICAL",
+                role: "alert",
+                ariaLive: "assertive",
+                cls: "action-conclusion-critical"
+            };
+        }
+        if (riskLevel === "HIGH") {
+            return {
+                text: "DỪNG LẠI — KHÔNG chuyển tiền, KHÔNG bấm link, KHÔNG đưa mã OTP.",
+                icon: "🛑",
+                level: "HIGH",
+                role: "alert",
+                ariaLive: "assertive",
+                cls: "action-conclusion-high"
+            };
+        }
+        // unverified link takes priority over LOW and MEDIUM
+        if (hasUnverifiedLink) {
+            return {
+                text: "CHƯA KIỂM TRA ĐƯỢC LINK — Đừng coi là an toàn. Đừng bấm vào.",
+                icon: "🟡",
+                level: "UNVERIFIED",
+                role: "status",
+                ariaLive: "polite",
+                cls: "action-conclusion-unverified"
+            };
+        }
+        if (riskLevel === "MEDIUM") {
+            return {
+                text: "CẨN THẬN — Chưa nên làm theo tin này. Hãy gọi số điện thoại chính thức của nơi gửi để hỏi lại.",
+                icon: "⚠️",
+                level: "MEDIUM",
+                role: "status",
+                ariaLive: "polite",
+                cls: "action-conclusion-medium"
+            };
+        }
+        // LOW or other (NEVER write 'an toàn tuyệt đối' or 'chắc chắn an toàn')
+        return {
+            text: "CHƯA THẤY DẤU HIỆU LỪA ĐẢO — Nhưng vẫn không chia sẻ mã OTP, mật khẩu cho bất kỳ ai.",
+            icon: "🛡️",
+            level: "LOW",
+            role: "status",
+            ariaLive: "polite",
+            cls: "action-conclusion-low"
+        };
+    }
+
+    /**
+     * U1: Render the Action Conclusion block at the very beginning of the result.
+     * Very large text (>= 28px bold), icon + text + visual styling, role="alert"/aria-live="assertive" for HIGH/CRITICAL.
+     */
+    function renderActionConclusion(res, container, doc) {
+        if (!container) return null;
+        const documentRef = doc || (typeof document !== "undefined" ? document : createMockDocument());
+        const conclusion = getActionConclusion(res);
+
+        const box = documentRef.createElement("div");
+        box.className = "action-conclusion " + conclusion.cls;
+        if (conclusion.role === "alert") {
+            box.setAttribute("role", "alert");
+        }
+        box.setAttribute("aria-live", conclusion.ariaLive);
+
+        const header = documentRef.createElement("div");
+        header.className = "action-conclusion-header";
+
+        const iconSpan = documentRef.createElement("span");
+        iconSpan.className = "action-conclusion-icon";
+        iconSpan.textContent = conclusion.icon;
+
+        const textEl = documentRef.createElement("h2");
+        textEl.className = "action-conclusion-text";
+        textEl.textContent = conclusion.text;
+
+        header.appendChild(iconSpan);
+        header.appendChild(textEl);
+        box.appendChild(header);
+
+        container.appendChild(box);
+        return box;
+    }
+
+    /**
+     * U5: Check if the smart "Kiểm tra sâu link này" button should be shown.
+     * Shows when: shortener or redirect chain not expanded, verdict unverified,
+     * or finding has network_used === false / action skipped.
+     */
+    function shouldShowDeepCheck(res) {
+        if (!res) return false;
+        if (res._checked_online === true) return false;
+        const findings = res.url_analysis && Array.isArray(res.url_analysis.findings) ? res.url_analysis.findings : [];
+        if (findings.length === 0) return false;
+
+        return findings.some(function (f) {
+            if (!f || typeof f !== "object") return false;
+            if (f.verdict === "unverified") return true;
+            if (f.network_used === false) return true;
+            if (Array.isArray(f.signals) && f.signals.some(function (s) {
+                return s && (s.code === "SHORTENER" || s.code === "REDIRECT_CHAIN" || s.code === "ANTIBOT_CHALLENGE" || s.code === "CLOAKING_SUSPECTED");
+            })) return true;
+            if (Array.isArray(f.redirect_chain) && f.redirect_chain.length > 1) return true;
+            return false;
+        });
+    }
+
+    /**
+     * U2: Render Condensed Link Card ("Bạn thấy:" / "Thực tế mở:") for dangerous/suspicious findings.
+     */
+    function renderCondensedLinkCard(finding, container, doc) {
+        if (!finding || !container) return null;
+        const documentRef = doc || (typeof document !== "undefined" ? document : createMockDocument());
+
+        const card = documentRef.createElement("div");
+        card.className = "condensed-link-card";
+
+        const title = documentRef.createElement("div");
+        title.className = "condensed-link-title";
+        title.textContent = "⚠️ Phát hiện đường link đáng ngờ:";
+        card.appendChild(title);
+
+        // Dòng 1: Bạn thấy
+        const rawRow = documentRef.createElement("div");
+        rawRow.className = "link-url-row";
+        const rawLabel = documentRef.createElement("span");
+        rawLabel.className = "link-row-label condensed-link-label";
+        rawLabel.textContent = "Bạn thấy:";
+        const rawVal = documentRef.createElement("span");
+        rawVal.className = "link-row-value link-display-value condensed-link-value";
+        const displayRaw = finding.raw || finding.display_host || "";
+        rawVal.textContent = defangUrl(sanitizeText(displayRaw, 300));
+        rawRow.appendChild(rawLabel);
+        rawRow.appendChild(rawVal);
+        card.appendChild(rawRow);
+
+        // Dòng 2: Thực tế mở
+        const finalRow = documentRef.createElement("div");
+        finalRow.className = "link-url-row";
+        const finalLabel = documentRef.createElement("span");
+        finalLabel.className = "link-row-label condensed-link-label";
+        finalLabel.textContent = "Thực tế mở:";
+        const finalVal = documentRef.createElement("span");
+        finalVal.className = "link-row-value link-actual-value condensed-link-value";
+        const actualUrl = finding.final_url || finding.effective_host_unicode || finding.effective_host || "";
+        finalVal.textContent = defangUrl(sanitizeText(actualUrl, 300));
+        finalRow.appendChild(finalLabel);
+        finalRow.appendChild(finalVal);
+        card.appendChild(finalRow);
+
+        container.appendChild(card);
+        return card;
+    }
+
+    /**
+     * U2: Simple mode rendering:
+     * Directly below conclusion, renders:
+     * - "Vì sao" (<= 3 bullets)
+     * - "Bạn nên làm" (<= 3 items in numbered list, large text)
+     * - Condensed link card if finding is dangerous
+     * - Smart deep check button if link needs network exploration (U5)
+     */
+    function renderSimpleMode(res, container, doc, onDeepCheckClick) {
+        if (!container) return;
+        const documentRef = doc || (typeof document !== "undefined" ? document : createMockDocument());
+        const decision = (res && res.decision) || {};
+
+        // 1. "Vì sao" (<= 3 bullets)
+        const whyBox = documentRef.createElement("div");
+        whyBox.className = "simple-why-box";
+
+        const whyTitle = documentRef.createElement("h3");
+        whyTitle.className = "simple-section-title";
+        whyTitle.textContent = "Vì sao:";
+        whyBox.appendChild(whyTitle);
+
+        const whyList = documentRef.createElement("ul");
+        whyList.className = "simple-why-list";
+
+        const whyItems = [];
+        // Extract from url_analysis.summary_vi
+        if (res && res.url_analysis && Array.isArray(res.url_analysis.summary_vi)) {
+            res.url_analysis.summary_vi.forEach(function (s) {
+                if (s && typeof s === "string") {
+                    const cleaned = defangText(humanizeText(sanitizeText(s, 250)));
+                    if (cleaned && !whyItems.includes(cleaned)) whyItems.push(cleaned);
+                }
+            });
+        }
+        // Extract from top finding signals
+        if (res && res.url_analysis && Array.isArray(res.url_analysis.findings)) {
+            res.url_analysis.findings.forEach(function (f) {
+                if (f && Array.isArray(f.signals)) {
+                    f.signals.forEach(function (sig) {
+                        if (sig && typeof sig === "object") {
+                            const sigText = defangText(getFriendlySignal(sig.code, sig.message_vi));
+                            if (sigText && !whyItems.includes(sigText) && sig.severity !== "info") {
+                                whyItems.push(sigText);
+                            }
+                        }
+                    });
+                }
+            });
+        }
+        // Extract from explainable.reasons
+        if (res && res.explainable && Array.isArray(res.explainable.reasons)) {
+            res.explainable.reasons.forEach(function (r) {
+                if (typeof r === "string") {
+                    const cleanR = defangText(humanizeText(sanitizeText(r.split(":+")[0].split(":")[0], 250)));
+                    if (cleanR && !whyItems.includes(cleanR)) whyItems.push(cleanR);
+                }
+            });
+        }
+        // Fallback default
+        if (whyItems.length === 0) {
+            if (decision.headline) {
+                whyItems.push(defangText(humanizeText(sanitizeText(decision.headline, 250))));
+            } else {
+                const riskLevel = String(decision.risk_level || "LOW").toUpperCase();
+                if (riskLevel === "CRITICAL" || riskLevel === "HIGH") {
+                    whyItems.push("Phát hiện các dấu hiệu lừa đảo mạo danh tinh vi nhằm chiếm đoạt tài sản.");
+                } else if (riskLevel === "MEDIUM") {
+                    whyItems.push("Tin nhắn chứa nội dung chưa xác thực hoặc yêu cầu bất thường.");
+                } else {
+                    whyItems.push("Chưa phát hiện dấu hiệu lừa đảo rõ ràng trong nội dung bạn gửi.");
+                }
+            }
+        }
+
+        whyItems.slice(0, 3).forEach(function (itemText) {
+            const li = documentRef.createElement("li");
+            li.className = "simple-why-item";
+            li.textContent = itemText;
+            whyList.appendChild(li);
+        });
+        whyBox.appendChild(whyList);
+        container.appendChild(whyBox);
+
+        // 2. "Bạn nên làm" (<= 3 actions in numbered list, large text)
+        const actBox = documentRef.createElement("div");
+        actBox.className = "simple-actions-box";
+
+        const actTitle = documentRef.createElement("h3");
+        actTitle.className = "simple-section-title";
+        actTitle.textContent = "Bạn nên làm:";
+        actBox.appendChild(actTitle);
+
+        const actList = documentRef.createElement("ol");
+        actList.className = "simple-actions-list";
+
+        const actionItems = [];
+        if (Array.isArray(decision.recommendations) && decision.recommendations.length > 0) {
+            decision.recommendations.forEach(function (rec) {
+                if (rec && typeof rec === "string") {
+                    const cleanRec = defangText(humanizeText(sanitizeText(rec, 250)));
+                    if (cleanRec && !actionItems.includes(cleanRec)) actionItems.push(cleanRec);
+                }
+            });
+        }
+
+        if (actionItems.length === 0) {
+            const isEmergency = Boolean(res && res.emergency && res.emergency.is_emergency);
+            const riskLevel = String(decision.risk_level || "").toUpperCase();
+            let hasUnverified = false;
+            if (res && res.url_analysis && Array.isArray(res.url_analysis.findings)) {
+                hasUnverified = res.url_analysis.findings.some(function (f) {
+                    return f && f.verdict === "unverified";
+                });
+            }
+
+            if (riskLevel === "CRITICAL" || isEmergency) {
+                actionItems.push("Dừng ngay mọi giao dịch, tuyệt đối không chuyển thêm tiền.");
+                actionItems.push("Gọi ngay cho tổng đài ngân hàng của bạn để yêu cầu khóa tài khoản khẩn cấp.");
+                actionItems.push("Báo cơ quan Công an gần nhất hoặc gọi đường dây nóng 113 để được hỗ trợ.");
+            } else if (riskLevel === "HIGH") {
+                actionItems.push("Tuyệt đối KHÔNG chuyển tiền, KHÔNG bấm vào bất kỳ đường link nào.");
+                actionItems.push("Không cung cấp mã OTP, mật khẩu hay chụp ảnh giấy tờ cá nhân cho người gửi.");
+                actionItems.push("Xóa tin nhắn và chặn số điện thoại/tài khoản này để phòng ngừa lừa đảo.");
+            } else if (hasUnverified) {
+                actionItems.push("Đừng coi là an toàn và tuyệt đối đừng bấm vào link này.");
+                actionItems.push("Chụp màn hình trang đó rồi tải ảnh lên để SafeGuard AI đọc nội dung.");
+                actionItems.push("Chủ động gọi số điện thoại chính thức của đơn vị để xác minh.");
+            } else if (riskLevel === "MEDIUM") {
+                actionItems.push("Cẩn thận — Chưa nên làm theo các yêu cầu hoặc bấm vào link trong tin này.");
+                actionItems.push("Tìm số tổng đài chính thức của cơ quan/doanh nghiệp trên báo chí để gọi lại.");
+                actionItems.push("Hỏi ý kiến người thân hoặc chuyên gia trước khi thực hiện bất kỳ giao dịch nào.");
+            } else {
+                actionItems.push("Không chia sẻ mã OTP, mật khẩu đăng nhập cho bất kỳ ai trong mọi tình huống.");
+                actionItems.push("Chỉ đăng nhập trên ứng dụng chính thức hoặc tên miền đã xác thực.");
+                actionItems.push("Cảnh giác khi nhận được tin nhắn yêu cầu tiền hoặc thông tin khẩn cấp.");
+            }
+        }
+
+        actionItems.slice(0, 3).forEach(function (actText) {
+            const li = documentRef.createElement("li");
+            li.className = "simple-action-item";
+            li.textContent = actText;
+            actList.appendChild(li);
+        });
+        actBox.appendChild(actList);
+        container.appendChild(actBox);
+
+        // 3. Condensed Link Card when finding is dangerous / suspicious
+        if (res && res.url_analysis && Array.isArray(res.url_analysis.findings)) {
+            const dangerousFindings = res.url_analysis.findings.filter(function (f) {
+                if (!f || typeof f !== "object") return false;
+                return f.verdict === "dangerous" || f.verdict === "suspicious" || (typeof f.url_risk_score === "number" && f.url_risk_score >= 40);
+            });
+            if (dangerousFindings.length > 0) {
+                dangerousFindings.slice(0, 3).forEach(function (f) {
+                    renderCondensedLinkCard(f, container, documentRef);
+                });
+            }
+        }
+
+        // 4. Smart Deep Check Button (U5)
+        if (shouldShowDeepCheck(res)) {
+            const deepBox = documentRef.createElement("div");
+            deepBox.className = "deep-check-box";
+
+            const deepBtn = documentRef.createElement("button");
+            deepBtn.type = "button";
+            deepBtn.className = "btn-deep-check";
+            deepBtn.setAttribute("aria-label", "Kiểm tra sâu link này");
+            deepBtn.textContent = "🔍 Kiểm tra sâu link này";
+            if (typeof onDeepCheckClick === "function") {
+                deepBtn.addEventListener("click", onDeepCheckClick);
+            }
+            deepBox.appendChild(deepBtn);
+
+            const deepDesc = documentRef.createElement("p");
+            deepDesc.className = "deep-check-desc";
+            deepDesc.textContent = "Hệ thống sẽ mở rộng link rút gọn và tra tên miền (chỉ gửi tên miền, không gửi nội dung tin).";
+            deepBox.appendChild(deepDesc);
+
+            container.appendChild(deepBox);
+        }
+    }
+
+    /**
      * Severity weights for sorting signals.
      */
     const SEVERITY_ORDER = {
@@ -323,19 +847,19 @@
         const v = String(verdict || "").toLowerCase();
         switch (v) {
             case "dangerous":
-                return { label: "🚨 Nguy hiểm (Dangerous)", cls: "verdict-dangerous" };
+                return { label: "🚨 Nguy hiểm", cls: "verdict-dangerous" };
             case "suspicious":
-                return { label: "⚠️ Nghi vấn (Suspicious)", cls: "verdict-suspicious" };
+                return { label: "⚠️ Nghi vấn", cls: "verdict-suspicious" };
             case "unverified":
-                return { label: "🟡 Chưa xác minh (Unverified)", cls: "verdict-unverified" };
+                return { label: "🟡 Chưa xác minh", cls: "verdict-unverified" };
             case "official":
-                return { label: "🛡️ Chính thức (Official)", cls: "verdict-official" };
+                return { label: "🛡️ Chính thức", cls: "verdict-official" };
             case "benign":
-                return { label: "✅ Lành tính (Benign)", cls: "verdict-benign" };
+                return { label: "✅ Lành tính", cls: "verdict-benign" };
             case "low":
-                return { label: "ℹ️ Rủi ro thấp (Low)", cls: "verdict-low" };
+                return { label: "ℹ️ Rủi ro thấp", cls: "verdict-low" };
             default:
-                return { label: "❓ Không xác định (Unknown)", cls: "verdict-unknown" };
+                return { label: "❓ Không xác định", cls: "verdict-unknown" };
         }
     }
 
@@ -486,7 +1010,7 @@
 
                     const stepTech = documentRef.createElement("span");
                     stepTech.className = "step-tech";
-                    stepTech.textContent = "[" + sanitizeText(step.technique, 80) + "]";
+                    stepTech.textContent = "[" + getFriendlyTechnique(step.technique) + "]";
 
                     const stepDetail = documentRef.createElement("span");
                     stepDetail.className = "step-detail";
@@ -513,7 +1037,7 @@
 
                 const redTitle = documentRef.createElement("div");
                 redTitle.className = "section-subtitle";
-                redTitle.textContent = "↪️ Chuỗi chuyển hướng (Redirect Chain):";
+                redTitle.textContent = "↪️ Chuỗi chuyển hướng sang trang khác:";
                 redBox.appendChild(redTitle);
 
                 const redList = documentRef.createElement("div");
@@ -530,7 +1054,7 @@
 
                     const hopStatus = documentRef.createElement("span");
                     hopStatus.className = "hop-status";
-                    hopStatus.textContent = hop.status ? "(" + sanitizeText(String(hop.status), 30) + ")" : "(redirect)";
+                    hopStatus.textContent = hop.status ? "(" + sanitizeText(String(hop.status), 30) + ")" : "(chuyển hướng)";
 
                     const hopUrl = documentRef.createElement("span");
                     hopUrl.className = "hop-url";
@@ -589,7 +1113,8 @@
 
                         const sigMsg = documentRef.createElement("span");
                         sigMsg.className = "signal-message";
-                        sigMsg.textContent = defangText(sanitizeText(sig.message_vi || sig.code || "", 300));
+                        // U3: Friendly Vietnamese translation without raw code COMBOSQUAT_BRAND
+                        sigMsg.textContent = defangText(getFriendlySignal(sig.code, sig.message_vi));
 
                         sigItem.appendChild(sigSev);
                         sigItem.appendChild(sigMsg);
@@ -624,7 +1149,7 @@
 
                     const childTitle = documentRef.createElement("div");
                     childTitle.className = "section-subtitle";
-                    childTitle.textContent = "🔗 Đường link chuyển tiếp phát hiện bên trong (Open-Redirect Target):";
+                    childTitle.textContent = "🔗 Đường link chuyển tiếp phát hiện bên trong:";
                     childBox.appendChild(childTitle);
 
                     validChildren.forEach(function (child) {
@@ -668,7 +1193,7 @@
 
                 const intelTitle = documentRef.createElement("div");
                 intelTitle.className = "section-subtitle";
-                intelTitle.textContent = "🌐 Thông tin tên miền & Chứng chỉ số (Passive Intel):";
+                intelTitle.textContent = "🌐 Thông tin tên miền & Chứng chỉ số:";
                 intelBox.appendChild(intelTitle);
 
                 const intelList = documentRef.createElement("div");
@@ -819,7 +1344,7 @@
 
         const title = documentRef.createElement("h4");
         title.className = "url-analysis-title";
-        title.textContent = "🌐 Phân tích đường link (URL Analysis):";
+        title.textContent = "🌐 Phân tích chi tiết đường link:";
         section.appendChild(title);
 
         // Summaries if present
@@ -1155,12 +1680,22 @@
         defangHost: defangHost,
         defangUrl: defangUrl,
         defangText: defangText,
+        humanizeText: humanizeText,
+        getFriendlySignal: getFriendlySignal,
+        getFriendlyTechnique: getFriendlyTechnique,
+        getActionConclusion: getActionConclusion,
+        renderActionConclusion: renderActionConclusion,
+        shouldShowDeepCheck: shouldShowDeepCheck,
+        renderCondensedLinkCard: renderCondensedLinkCard,
+        renderSimpleMode: renderSimpleMode,
         buildLinkCard: buildLinkCard,
         renderUrlAnalysis: renderUrlAnalysis,
         renderPipelineTrace: renderPipelineTrace,
         renderNetworkActions: renderNetworkActions,
         renderImageAnalysis: renderImageAnalysis,
         renderLLMStatus: renderLLMStatus,
+        TECHNIQUE_MAP: TECHNIQUE_MAP,
+        SIGNAL_MAP: SIGNAL_MAP,
         SEVERITY_ORDER: SEVERITY_ORDER
     };
 });

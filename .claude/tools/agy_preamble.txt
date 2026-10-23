@@ -1,0 +1,14 @@
+BỐI CẢNH: Repo SafeGuardAI (Windows, venv .venv, Python 3.14; code tương thích Python 3.10+). Hệ thống multi-agent chống lừa đảo cho người Việt: codebase/server.py -> codebase/orchestrator.py (process_request; nhánh agentic GeminiAgentRunner và _run_sequential_fallback) -> codebase/agents/*.py -> knowledge base -> UI public/ (index.html, app.js) -> eval/run_eval.py + golden sets. Trạng thái và baseline: .claude/handoffs/HANDOFF.md (đọc trước). Plan chi tiết: docs/UPGRADE_PLAN.md (chỉ đọc mục được giao, dùng số dòng trong HANDOFF.md).
+QUY TẮC BẮT BUỘC:
+1) TRƯỚC khi sửa hàm/class/method: GitNexus impact upstream (repo 'SafeGuardAI'); ghi callers/risk vào báo cáo. public/ bị loại khỏi index -> grep app.js thủ công. Risk UNKNOWN thì xác minh bằng grep.
+2) KHÔNG git commit/push/branch. KHÔNG đọc/in/sửa .env. KHÔNG xóa/đổi tên file ngoài phạm vi. KHÔNG cài package ngoài danh sách.
+3) Giữ chế độ offline (không cần API key/MySQL/Internet). Mọi lời gọi mạng có timeout và tắt được bằng env. Test không được dùng mạng thật.
+4) Tương thích ngược: không đổi/xóa chữ ký public và key JSON response hiện có — chỉ thêm.
+5) Regex tuyến tính: KHÔNG dùng `.*`/`.*?` hay lượng từ lồng nhau; dùng cửa sổ giới hạn [^.\n]{0,40} và ranh giới từ. Giới hạn độ dài input. Không signal.alarm. Mở file encoding="utf-8". Thông báo cho người dùng bằng tiếng Việt có dấu.
+6) Không hard-code câu của golden set (v1/v2) vào codebase/ (kể cả demo/__main__).
+7) Mỗi sửa lỗi phải kèm test CÓ THỂ FAIL nếu lỗi quay lại (assert thật, không `pass` cho có, không đọc sai khóa JSON rồi duyệt 0 phần tử — luôn assert số phần tử > 0).
+8) File tạm/scratch chỉ đặt trong %TEMP% hoặc /tmp và PHẢI xóa trước khi kết thúc. Không để file rác trong repo (eval/results/ là bản sinh tự động, đã gitignore).
+9) Khi xong CHỈ chạy test của đúng file bạn sửa (pytest tests/<file>.py, foreground, timeout 120). KHÔNG chạy verify.py và KHÔNG chạy pytest toàn bộ - Claude sẽ chạy chúng (shell của bạn tự đưa lệnh >10s vào nền làm bạn treo). Không tuyên bố pass toàn hệ thống.
+10) BÁO CÁO CUỐI NGẮN GỌN (token đắt): chỉ in một khối bắt đầu bằng dòng `## REPORT` dài tối đa 30 dòng gồm: task xong/chưa (1 dòng/task, kèm lý do nếu chưa), output verify.py, kết quả impact tóm tắt (symbol -> risk), giả định/rủi ro còn lại, `git status --short` rút gọn. KHÔNG dán lại code, diff hay bảng dài.
+11) CHỈ sửa file nằm trong danh sách phạm vi của nhiệm vụ. TUYỆT ĐỐI KHÔNG đổi từ khóa/chuỗi logic thật (keyword, nhãn factor, rule) chỉ để một test pass; nếu test mâu thuẫn với code thật thì dừng và ghi vào REPORT mục "XUNG ĐỘT" thay vì tự sửa logic.
+12) Chạy lệnh ở chế độ foreground có timeout (ví dụ `timeout 120 ...`); KHÔNG chạy nền rồi "chờ task" — quá 20 phút im lặng là bị coi như treo và bị kill. Nếu một lệnh chạy >2 phút, hủy nó và báo cáo.

@@ -19,7 +19,8 @@ except ImportError:
 from codebase.url_analysis.normalize import load_url_lists
 
 # Bảng BIN các ngân hàng Việt Nam phổ biến
-# Ghi chú: Bảng BIN các ngân hàng Việt Nam cần xác minh định kỳ theo NAPAS.
+# Ghi chú: 16 BIN đầu đã đối chiếu 2026-10-23 với danh sách ngân hàng công khai của VietQR (https://api.vietqr.io/v2/banks, 76 ngân hàng);
+# khớp 16/16. 4 BIN cuối (SeABank, LPBank, NamABank, PVcomBank) thêm cùng nguồn. Cần xác minh định kỳ theo NAPAS.
 VIETQR_BANKS: dict[str, str] = {
     "970436": "Vietcombank",
     "970418": "BIDV",
@@ -37,6 +38,10 @@ VIETQR_BANKS: dict[str, str] = {
     "970426": "MSB",
     "970448": "OCB",
     "970429": "SCB",
+    "970440": "SeABank",
+    "970449": "LPBank",
+    "970428": "NamABank",
+    "970412": "PVcomBank",
 }
 
 MAX_IMAGE_BYTES = 8_000_000

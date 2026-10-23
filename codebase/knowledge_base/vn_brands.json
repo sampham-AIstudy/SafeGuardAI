@@ -14,9 +14,13 @@
       "short_tokens": [
         "vcb"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://vietcombank.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "vietcombank.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "bidv",
@@ -31,9 +35,13 @@
       "short_tokens": [
         "bidv"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://bidv.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "bidv.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "vietinbank",
@@ -49,11 +57,15 @@
       "short_tokens": [
         "ctg"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "verified": true,
+      "source_url": "https://vietinbank.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
       "related_domains": [
         "vietinbank.com.vn"
-      ]
+      ],
+      "verified_domains": [
+        "vietinbank.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "agribank",
@@ -66,9 +78,13 @@
         "agribank"
       ],
       "short_tokens": [],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://agribank.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "agribank.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "techcombank",
@@ -85,9 +101,14 @@
       "short_tokens": [
         "tcb"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://techcombank.com/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "techcombank.com",
+        "techcombank.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "mbbank",
@@ -103,12 +124,16 @@
       "short_tokens": [
         "mb"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "verified": true,
+      "source_url": "https://mbbank.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
       "related_domains": [
         "mb.com.vn",
         "mbs.com.vn"
-      ]
+      ],
+      "verified_domains": [
+        "mbbank.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "acb",
@@ -123,11 +148,15 @@
       "short_tokens": [
         "acb"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "verified": true,
+      "source_url": "https://acb.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
       "related_domains": [
         "acb.vn"
-      ]
+      ],
+      "verified_domains": [
+        "acb.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "vpbank",
@@ -143,9 +172,13 @@
       "short_tokens": [
         "vpb"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://vpbank.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "vpbank.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "tpbank",
@@ -163,8 +196,14 @@
         "tpb"
       ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "source_url": "MỘT PHẦN: đã kiểm tpb.vn (2026-10-23); chưa xác minh: tpbank.com.vn (không kết nối được TLS từ máy kiểm tra)",
+      "related_domains": [],
+      "verified_domains": [
+        "tpb.vn"
+      ],
+      "unverified_domains": [
+        "tpbank.com.vn"
+      ]
     },
     {
       "brand_id": "sacombank",
@@ -181,9 +220,14 @@
       "short_tokens": [
         "stb"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://sacombank.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "sacombank.com.vn",
+        "sacombank.com"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "vib",
@@ -198,9 +242,13 @@
       "short_tokens": [
         "vib"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://vib.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "vib.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "shb",
@@ -215,9 +263,13 @@
       "short_tokens": [
         "shb"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://shb.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "shb.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "hdbank",
@@ -233,9 +285,13 @@
       "short_tokens": [
         "hdb"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://hdbank.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "hdbank.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "msb",
@@ -250,9 +306,13 @@
       "short_tokens": [
         "msb"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://msb.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "msb.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "ocb",
@@ -267,9 +327,13 @@
       "short_tokens": [
         "ocb"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://ocb.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "ocb.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "scb",
@@ -284,9 +348,13 @@
       "short_tokens": [
         "scb"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://scb.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "scb.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "momo",
@@ -301,9 +369,13 @@
       "short_tokens": [
         "momo"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://momo.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "momo.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "zalopay",
@@ -316,9 +388,13 @@
         "zalopay"
       ],
       "short_tokens": [],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://zalopay.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "zalopay.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "vnpay",
@@ -333,9 +409,13 @@
       "short_tokens": [
         "vnpay"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://vnpay.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "vnpay.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "vneid",
@@ -350,9 +430,13 @@
       "short_tokens": [
         "vneid"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://vneid.gov.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "vneid.gov.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "dichvucong",
@@ -366,8 +450,12 @@
       ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "source_url": "CHƯA XÁC MINH (kiểm 2026-10-23): dichvucong.gov.vn (TLS hợp lệ (*.dichvucong.gov.vn) nhưng chưa lấy được nội dung/tiêu đề để đối chiếu) - cần người dùng kiểm tra",
+      "related_domains": [],
+      "verified_domains": [],
+      "unverified_domains": [
+        "dichvucong.gov.vn"
+      ]
     },
     {
       "brand_id": "gdt",
@@ -384,9 +472,14 @@
       "short_tokens": [
         "gdt"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://gdt.gov.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "gdt.gov.vn",
+        "thuedientu.gdt.gov.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "bocongan",
@@ -402,8 +495,14 @@
       ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "source_url": "MỘT PHẦN: đã kiểm bocongan.gov.vn (2026-10-23); chưa xác minh: congan.gov.vn (không kết nối được TLS)",
+      "related_domains": [],
+      "verified_domains": [
+        "bocongan.gov.vn"
+      ],
+      "unverified_domains": [
+        "congan.gov.vn"
+      ]
     },
     {
       "brand_id": "baohiemxahoi",
@@ -420,9 +519,13 @@
       "short_tokens": [
         "bhxh"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://baohiemxahoi.gov.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "baohiemxahoi.gov.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "chinhphu",
@@ -435,9 +538,13 @@
         "chinhphu"
       ],
       "short_tokens": [],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://chinhphu.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "chinhphu.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "csgt",
@@ -452,9 +559,13 @@
       "short_tokens": [
         "csgt"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://csgt.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "csgt.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "evn",
@@ -475,10 +586,19 @@
         "evn"
       ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "source_url": "MỘT PHẦN: đã kiểm evn.com.vn, evnhanoi.vn, evnhcmc.vn, cskh.evnspc.vn (2026-10-23); chưa xác minh: cskh.evnnpc.com.vn (không kết nối được TLS)",
       "related_domains": [
         "evnspc.vn",
         "evnnpc.com.vn"
+      ],
+      "verified_domains": [
+        "evn.com.vn",
+        "evnhanoi.vn",
+        "evnhcmc.vn",
+        "cskh.evnspc.vn"
+      ],
+      "unverified_domains": [
+        "cskh.evnnpc.com.vn"
       ]
     },
     {
@@ -493,10 +613,14 @@
       ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
+      "source_url": "CHƯA XÁC MINH (kiểm 2026-10-23): shopee.vn (TLS hợp lệ nhưng không có tổ chức trong chứng chỉ và không lấy được tiêu đề) - cần người dùng kiểm tra",
       "related_domains": [
         "shopeefood.vn",
         "shopeepay.vn"
+      ],
+      "verified_domains": [],
+      "unverified_domains": [
+        "shopee.vn"
       ]
     },
     {
@@ -510,9 +634,13 @@
         "lazada"
       ],
       "short_tokens": [],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://lazada.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "lazada.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "tiki",
@@ -527,9 +655,13 @@
       "short_tokens": [
         "tiki"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://tiki.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "tiki.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "tiktok",
@@ -542,9 +674,13 @@
         "tiktok"
       ],
       "short_tokens": [],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://tiktok.com/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "tiktok.com"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "zalo",
@@ -559,9 +695,13 @@
       "short_tokens": [
         "zalo"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://zalo.me/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "zalo.me"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "facebook",
@@ -574,9 +714,13 @@
         "facebook"
       ],
       "short_tokens": [],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://facebook.com/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "facebook.com"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "vnpost",
@@ -589,9 +733,13 @@
         "vnpost"
       ],
       "short_tokens": [],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://vnpost.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "vnpost.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "viettelpost",
@@ -605,8 +753,12 @@
       ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "source_url": "CHƯA XÁC MINH (kiểm 2026-10-23): viettelpost.com.vn (TLS hợp lệ nhưng không có tổ chức trong chứng chỉ và không lấy được tiêu đề) - cần người dùng kiểm tra",
+      "related_domains": [],
+      "verified_domains": [],
+      "unverified_domains": [
+        "viettelpost.com.vn"
+      ]
     },
     {
       "brand_id": "ghn",
@@ -621,9 +773,13 @@
       "short_tokens": [
         "ghn"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://ghn.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "ghn.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "ghtk",
@@ -638,9 +794,13 @@
       "short_tokens": [
         "ghtk"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://ghtk.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "ghtk.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "viettel",
@@ -654,9 +814,14 @@
         "viettel"
       ],
       "short_tokens": [],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "verified": true,
+      "source_url": "https://viettel.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "related_domains": [],
+      "verified_domains": [
+        "viettel.vn",
+        "vietteltelecom.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "vinaphone",
@@ -671,8 +836,13 @@
       ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "source_url": "CHƯA XÁC MINH (kiểm 2026-10-23): vinaphone.vn (chứng chỉ không khớp tên máy chủ); vinaphone.com.vn (máy chủ dùng DH yếu, không bắt tay TLS được) - cần người dùng kiểm tra",
+      "related_domains": [],
+      "verified_domains": [],
+      "unverified_domains": [
+        "vinaphone.vn",
+        "vinaphone.com.vn"
+      ]
     },
     {
       "brand_id": "mobifone",
@@ -687,8 +857,14 @@
       ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra",
-      "related_domains": []
+      "source_url": "MỘT PHẦN: đã kiểm mobifone.vn (2026-10-23); chưa xác minh: mobifone.com.vn (không kết nối được TLS)",
+      "related_domains": [],
+      "verified_domains": [
+        "mobifone.vn"
+      ],
+      "unverified_domains": [
+        "mobifone.com.vn"
+      ]
     },
     {
       "brand_id": "vnpt",
@@ -706,7 +882,12 @@
         "vnpt"
       ],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH (kiểm 2026-10-23): vnpt.com.vn (máy chủ dùng DH yếu); vnpt.vn (máy chủ dùng DH yếu) - cần người dùng kiểm tra",
+      "verified_domains": [],
+      "unverified_domains": [
+        "vnpt.com.vn",
+        "vnpt.vn"
+      ]
     },
     {
       "brand_id": "grab",
@@ -724,8 +905,12 @@
       "short_tokens": [
         "grab"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "verified": true,
+      "source_url": "https://grab.com/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "verified_domains": [
+        "grab.com"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "vietnamairlines",
@@ -744,8 +929,12 @@
       "short_tokens": [
         "vna"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "verified": true,
+      "source_url": "https://vietnamairlines.com/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "verified_domains": [
+        "vietnamairlines.com"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "vietjetair",
@@ -765,8 +954,12 @@
       "short_tokens": [
         "vj"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "verified": true,
+      "source_url": "https://vietjetair.com/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "verified_domains": [
+        "vietjetair.com"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "pvcombank",
@@ -785,8 +978,12 @@
       "short_tokens": [
         "pvcb"
       ],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "verified": true,
+      "source_url": "https://pvcombank.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "verified_domains": [
+        "pvcombank.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "seabank",
@@ -801,7 +998,11 @@
       ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH (kiểm 2026-10-23): seabank.com.vn (chuỗi chứng chỉ không được CA hệ thống tin cậy) - cần người dùng kiểm tra",
+      "verified_domains": [],
+      "unverified_domains": [
+        "seabank.com.vn"
+      ]
     },
     {
       "brand_id": "lpbank",
@@ -816,8 +1017,12 @@
         "lienvietpostbank"
       ],
       "short_tokens": [],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "verified": true,
+      "source_url": "https://lpbank.com.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "verified_domains": [
+        "lpbank.com.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "namabank",
@@ -832,7 +1037,11 @@
       ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH (kiểm 2026-10-23): namabank.com.vn (chuỗi chứng chỉ không được CA hệ thống tin cậy) - cần người dùng kiểm tra",
+      "verified_domains": [],
+      "unverified_domains": [
+        "namabank.com.vn"
+      ]
     },
     {
       "brand_id": "shopeepay",
@@ -848,8 +1057,12 @@
         "shopeepay"
       ],
       "short_tokens": [],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "verified": true,
+      "source_url": "https://shopeepay.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "verified_domains": [
+        "shopeepay.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "jtexpress",
@@ -864,8 +1077,12 @@
         "j&t"
       ],
       "short_tokens": [],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "verified": true,
+      "source_url": "https://jtexpress.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "verified_domains": [
+        "jtexpress.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "bestexpress",
@@ -879,8 +1096,12 @@
         "bestexpress"
       ],
       "short_tokens": [],
-      "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "verified": true,
+      "source_url": "https://best-inc.vn/ (đã kiểm 2026-10-23: chứng chỉ TLS hợp lệ do CA hệ thống tin cậy, SAN khớp tên miền, tổ chức trong chứng chỉ/tiêu đề trang khớp thương hiệu)",
+      "verified_domains": [
+        "best-inc.vn"
+      ],
+      "unverified_domains": []
     },
     {
       "brand_id": "ninjavan",
@@ -895,7 +1116,11 @@
       ],
       "short_tokens": [],
       "verified": false,
-      "source_url": "CHƯA XÁC MINH - cần người dùng kiểm tra"
+      "source_url": "CHƯA XÁC MINH (kiểm 2026-10-23): ninjavan.co (TLS hợp lệ nhưng không có tổ chức trong chứng chỉ và không lấy được tiêu đề) - cần người dùng kiểm tra",
+      "verified_domains": [],
+      "unverified_domains": [
+        "ninjavan.co"
+      ]
     }
   ],
   "platform_domains": [

@@ -1,0 +1,1750 @@
+diff --git a/codebase/agents/emergency_agent.py b/codebase/agents/emergency_agent.py
+index b34c4da..280cb42 100644
+--- a/codebase/agents/emergency_agent.py
++++ b/codebase/agents/emergency_agent.py
+@@ -58,7 +58,40 @@ class EmergencyAgent:
+ 
+     # Valid subject preceding 'bị lừa ...': speaker or family relative (Task D2-b)
+     SUBJECT_BEFORE_BI = re.compile(
+-        r"(?:^|[\s,.!?;:])(?:tôi|toi|mình|minh|em|con|mẹ|me|bố|bo|ba|má|ma|anh|chị|chi|ông|ong|bà|cô|co|chú|chu|bạn\s+tôi|ban\s+toi|ông\s+ngoại|bà\s+ngoại|ông\s+nội|bà\s+nội|anh\s+tôi|chị\s+tôi|em\s+tôi|mẹ\s+tôi|bố\s+tôi|con\s+tôi)(?:\s+(?:vừa|vua|đã|da|lỡ|lo|trót|trot))?\s*$",
++        r"(?:^|[\s,.!?;:])(?:tôi|toi|mình|minh|em|con|mẹ|me|bố|bo|ba|má|ma|anh|chị|chi|ông|ong|bà|cô|co|chú|chu|ông\s+ngoại|bà\s+ngoại|ông\s+nội|bà\s+nội|anh\s+tôi|chị\s+tôi|em\s+tôi|mẹ\s+tôi|bố\s+tôi|con\s+tôi)(?:\s+(?:vừa|vua|đã|da|lỡ|lo|trót|trot))?\s*$",
++        re.IGNORECASE
++    )
++
++    # Past incident pattern (chuyện cũ: năm ngoái, tháng trước, tuần trước, trước đây, đã từng...)
++    PAST_INCIDENT_PATTERN = re.compile(
++        r"(?<!\w)(?:hồi\s+trước|hoi\s+truoc|trước\s+đây|truoc\s+day|năm\s+ngoái|nam\s+ngoai|"
++        r"tháng\s+trước|thang\s+truoc|tuần\s+trước|tuan\s+truoc|mấy\s+hôm\s+trước|may\s+hom\s+truoc|"
++        r"mấy\s+ngày\s+trước|may\s+ngay\s+truoc|cách\s+đây|cach\s+day|đã\s+từng|da\s+tung|"
++        r"từng\s+bị|tung\s+bi|hồi\s+xưa|hoi\s+xua|ngày\s+xưa|ngay\s+xua|trước\s+kia|truoc\s+kia|"
++        r"lần\s+trước|lan\s+truoc|chuyện\s+cũ|chuyen\s+cu)(?!\w)",
++        re.IGNORECASE
++    )
++
++    # Third person narrative exclusion (ngôi thứ ba: bạn tôi, bạn em, người quen, hàng xóm...)
++    # Allows direct family emergency and ignores 'người ta' when preceded by 'bị'
++    THIRD_PERSON_PATTERN = re.compile(
++        r"(?<!\w)(?:bạn\s+(?:em|tôi|mình|của\s+em|của\s+tôi)|ban\s+(?:em|toi|minh)|"
++        r"(?<!bị\s)(?<!bi\s)người\s+ta|(?<!bị\s)(?<!bi\s)nguoi\s+ta|"
++        r"bà\s+hàng\s+xóm|ba\s+hang\s+xom|hàng\s+xóm|hang\s+xom|người\s+quen|nguoi\s+quen|"
++        r"có\s+người|co\s+nguoi|ai\s+đó|ai\s+do|nạn\s+nhân|nan\s+nhan|người\s+khác|nguoi\s+khac|"
++        r"đồng\s+nghiệp|dong\s+nghiep|anh\s+bạn|anh\s+ban|chị\s+bạn|chi\s+ban)(?!\w)",
++        re.IGNORECASE
++    )
++
++    # Already handled / resolved exclusion (đã xử lý xong: đã báo công an rồi, đã khóa thẻ...)
++    ALREADY_HANDLED_PATTERN = re.compile(
++        r"(?<!\w)(?:đã\s+báo\s+công\s+an\s+(?:rồi|xong)|da\s+bao\s+cong\s+an\s+(?:roi|xong)|"
++        r"đã\s+khóa\s+(?:thẻ|tài\s+khoản)\s+(?:rồi|xong|ngay|kịp)|da\s+khoa\s+(?:the|tai\s+khoan)\s+(?:roi|xong|ngay|kip)|"
++        r"đã\s+xử\s+lý\s+xong|da\s+xu\s+ly\s+xong|"
++        r"đã\s+nhờ\s+ngân\s+hàng\s+(?:tra\s+soát|phong\s+tỏa|chặn)|"
++        r"ngân\s+hàng\s+đã\s+(?:khóa|hoàn\s+tiền|chặn)|"
++        r"lấy\s+lại\s+được\s+tiền\s+rồi|lay\s+lai\s+duoc\s+tien\s+roi|"
++        r"đã\s+giải\s+quyết\s+xong|da\s+giai\s+quyet\s+xong)(?!\w)",
+         re.IGNORECASE
+     )
+ 
+@@ -205,7 +238,28 @@ class EmergencyAgent:
+         if is_news_report:
+             return {"is_emergency": False}
+ 
+-        # 3. Check emergency patterns with preceding negation window cut at clause boundaries
++        # 3. Exclude past incidents (chuyện cũ: năm ngoái, tuần trước...)
++        if bool(
++            self.PAST_INCIDENT_PATTERN.search(variants.lower)
++            or self.PAST_INCIDENT_PATTERN.search(variants.folded)
++        ):
++            return {"is_emergency": False}
++
++        # 4. Exclude third-person narratives (ngôi thứ ba: bạn tôi, người quen, hàng xóm...)
++        if bool(
++            self.THIRD_PERSON_PATTERN.search(variants.lower)
++            or self.THIRD_PERSON_PATTERN.search(variants.folded)
++        ):
++            return {"is_emergency": False}
++
++        # 5. Exclude already handled / resolved incidents (đã xử lý xong: đã báo công an, đã khóa thẻ...)
++        if bool(
++            self.ALREADY_HANDLED_PATTERN.search(variants.lower)
++            or self.ALREADY_HANDLED_PATTERN.search(variants.folded)
++        ):
++            return {"is_emergency": False}
++
++        # 6. Check emergency patterns with preceding negation window cut at clause boundaries
+         is_emergency = False
+         target_texts = [(variants.lower, self.NEGATION_PATTERN), (variants.folded, self.NEGATION_PATTERN_FOLDED)]
+ 
+diff --git a/codebase/agents/explainable_agent.py b/codebase/agents/explainable_agent.py
+index 453954a..02bb40d 100644
+--- a/codebase/agents/explainable_agent.py
++++ b/codebase/agents/explainable_agent.py
+@@ -240,6 +240,11 @@ class ExplainableAgent:
+             r"đọc\s+cho\s+mình|doc\s+cho\s+minh|cho\s+mình|cho\s+minh|gửi\s+mình|gui\s+minh|cho\s+em|cho\s+toi|"
+             r"giúp\s+em|giup\s+em|để\s+em\s+xác\s+minh|de\s+em\s+xac\s+minh|"
+             r"để\s+hoàn\s+tất\s+(?:xác\s+minh|thủ\s+tục|hồ\s+sơ|nhận|kích\s+hoạt)|de\s+hoan\s+tat\s+(?:xac\s+minh|thu\s+tuc|ho\s+so|nhan|kich\s+hoat)|"
++            r"để\s+(?:mở\s+khóa|hủy\s+giao\s+dịch|khôi\s+phục|cập\s+nhật|tra\s+soát|đồng\s+bộ|xử\s+lý|hủy\s+lệnh|xác\s+nhận\s+hủy|nâng\s+cấp)|"
++            r"de\s+(?:mo\s+khoa|huy\s+giao\s+dich|khoi\s+phuc|cap\s+nhat|tra\s+soat|dong\s+bo|xu\s+ly|huy\s+lenh|xac\s+nhan\s+huy|nang\s+cap)|"
++            r"nâng\s+cấp\s+hạn\s+mức|nang\s+cap\s+han\s+muc|"
++            r"(?:xác\s+minh|xac\s+minh|xác\s+thực|xac\s+thuc)\s+(?:trên\s+)?(?:hệ\s+thống|he\s+thong)|"
++            r"vào\s+(?:link|trang\s+web|website|đường\s+link|ứng\s+dụng|app)|vao\s+(?:link|trang\s+web|website|duong\s+link|ung\s+dung|app)|"
+             r"để\s+nhận|de\s+nhan)(?!\w)",
+             re.IGNORECASE
+         )
+@@ -249,12 +254,16 @@ class ExplainableAgent:
+             "đầu tư", "chứng khoán", "tiền ảo", "giao dịch tài chính", "lợi nhuận",
+             "sinh lời", "hoa hồng", "lãi suất", "sàn giao dịch", "đầu tư sinh lời",
+             "làm trong ngành tài chính", "nhắn nhầm số", "quen qua mạng", "bên tài chính",
+-            "sàn quốc tế", "tiền kỹ thuật số"
++            "sàn quốc tế", "tiền kỹ thuật số", "nhóm vip", "nhóm vip telegram",
++            "nhóm zalo chuyên gia", "chuyên gia đọc lệnh", "kéo 1-1", "đọc lệnh",
++            "sàn forex", "sàn usdt", "sàn tiền ảo", "robot trade", "bot trade",
++            "quỹ đầu tư", "nền tảng đầu tư"
+         ], allow_folded=True)
+         self._fam_c_guarantee = PhraseMatcher([
+             "lợi nhuận đảm bảo", "không rủi ro", "cam kết sinh lời", "cam kết lợi nhuận",
+             "bao lỗ", "vốn ít lời nhiều", "cam kết lãi", "lãi khủng", "lãi suất khủng",
+-            "lợi nhuận khủng", "đảm bảo không lỗ", "không lời em đền", "chắc chắn có lãi"
++            "lợi nhuận khủng", "đảm bảo không lỗ", "không lời em đền", "chắc chắn có lãi",
++            "bao win", "bảo toàn vốn", "nhân đôi tài khoản", "rút vốn trong ngày"
+         ], allow_folded=True)
+         self._fam_c_regex_day = re.compile(
+             r"(?:\b|\D)\d{1,3}\s*%\s*\/\s*(?:ngày|ngay|tuần|tuan|tháng|thang|hôm|hom)(?:\b|\D)",
+@@ -267,7 +276,7 @@ class ExplainableAgent:
+ 
+         # Family (d) & (f): Mượn tiền amount regex (G7 unified)
+         self._borrow_amount_regex = re.compile(
+-            r"\b(?:cho\s+)?(?:mượn|muon|vay|ck|chuyển|chuyen)\s+\d[\d.,]*\s*(?:k|nghìn|nghin|triệu|trieu|tr|củ|cu)\b",
++            r"\b(?:cho\s+)?(?:mượn|muon|vay|ck|chuyển|chuyen|bắn|ban)(?:\s+(?:hộ|giúp|cho|ho|giup))?\s+\d[\d.,]*\s*(?:k|nghìn|nghin|triệu|trieu|tr|củ|cu)\b",
+             re.IGNORECASE
+         )
+ 
+@@ -291,7 +300,10 @@ class ExplainableAgent:
+         # Family (f): Video call mờ / deepfake + mượn tiền (30)
+         self._fam_f_video_phrases = PhraseMatcher([
+             "video call mờ", "gọi video mờ", "cuộc gọi video mờ", "video nhòe",
+-            "video chập chờn", "deepfake", "video call lag", "video giật lag"
++            "video chập chờn", "deepfake", "video call lag", "video giật lag",
++            "thấy mặt nhưng mờ", "mặt đơ", "mồm méo", "khuôn mặt không tự nhiên",
++            "vài giây rồi tắt", "mấy giây là cúp", "giọng giống nhưng hơi lạ",
++            "bảo mạng yếu", "hình ảnh giật", "gọi video thấy hình", "nhái giọng"
+         ], allow_folded=True)
+         self._fam_f_video_regex = re.compile(
+             r"(?:video\s*call|gọi\s*video|cuộc\s*gọi\s*video|goi\s*video|cuoc\s*goi\s*video)\s*(?:mờ|mo|lag|chập\s*chờn|chap\s*chon|nhòe|nhoe|giật|giat|chất\s*lượng\s*thấp|chat\s*luong\s*thap|không\s*rõ|khong\s*ro|vài\s*giây|vai\s*giay|\d+\s*giây|\d+\s*giay)(?!\w)",
+@@ -332,16 +344,21 @@ class ExplainableAgent:
+             "làm việc tại nhà", "không cần vốn", "khong can von", "tuyển người bán", "tuyen nguoi ban",
+             "tuyển người bán hàng", "tuyen nguoi ban hang", "nhiệm vụ telegram",
+             "nhiệm vụ zalo", "đánh giá sản phẩm", "like video", "đánh giá app",
+-            "lương ctv", "nhận lương ctv", "ctv"
++            "lương ctv", "nhận lương ctv", "ctv", "nhiệm vụ shopee", "nhiệm vụ tiktok",
++            "nhiệm vụ lazada", "xem video kiếm tiền", "lướt video kiếm tiền", "thả tim kiếm tiền",
++            "like bài viết", "đánh giá đơn hàng", "chốt đơn trải nghiệm", "nhiệm vụ cấp bậc",
++            "hoa hồng 20%", "hoa hồng 30%", "đơn hàng ảo", "làm nhiệm vụ kiếm tiền"
+         ], allow_folded=True, folded_allowlist=("ctv",))
+         self._fam_h_salary_regex = re.compile(
+-            r"\b(?:lương|luong|kiếm|kiem)\s+\d[\d.,]*\s*(?:k|nghìn|nghin|triệu|trieu|tr)\s*\/\s*(?:ngày|ngay|giờ|gio|tuần|tuan)\b",
++            r"\b(?:lương|luong|kiếm|kiem)\s+\d[\d.,]*\s*(?:k|nghìn|nghin|triệu|trieu|tr)\s*\/\s*(?:ngày|ngay|giờ|gio|tuần|tuan|đơn|don|nhiệm\s+vụ|nhiem\s+vu)\b",
+             re.IGNORECASE
+         )
+         self._fam_h_deposit = PhraseMatcher([
+             "nạp tiền", "nạp quỹ", "đặt cọc", "dat coc", "quỹ đảm bảo", "quy dam bao", "làm nhiệm vụ",
+             "nhiệm vụ nạp tiền", "phí kích hoạt", "phi kich hoat", "chuyển khoản trước", "nộp tiền cọc",
+-            "nạp tiền nhận hoa hồng", "nộp tiền", "nộp quỹ", "ký quỹ", "ky quy", "mở khóa vip", "hoàn tiền nhiệm vụ"
++            "nạp tiền nhận hoa hồng", "nộp tiền", "nộp quỹ", "ký quỹ", "ky quy", "mở khóa vip", "hoàn tiền nhiệm vụ",
++            "làm nhiệm vụ nạp tiền", "nạp tiền làm nhiệm vụ", "mua đơn hàng", "thanh toán đơn hàng trước",
++            "tiền hoàn nhiệm vụ", "phí giữ chỗ"
+         ], allow_folded=True)
+ 
+         # Family (i): Link / APK lạ yêu cầu cài đặt (35)
+@@ -356,6 +373,43 @@ class ExplainableAgent:
+             "qua link", "đường link lạ", "bật cài đặt"
+         ], allow_folded=True)
+ 
++        # Romance scam matchers
++        self._fam_romance_lure = PhraseMatcher([
++            "quen qua mạng", "quen qua tinder", "quen qua facebook", "quen tren mang",
++            "bạn trai quen qua mạng", "người yêu online", "bạn trai ngoại quốc", "anh ấy ở nước ngoài",
++            "quân nhân", "phi công", "kỹ sư dầu khí", "tình cảm online", "hẹn hò qua mạng",
++            "chuyện tương lai hai đứa", "tích lũy đám cưới", "anh kết nghĩa", "em kết nghĩa",
++            "người yêu quen qua mạng", "ban trai nuoc ngoai", "nguoi yeu online",
++            "bạn trai tây", "ban trai tay", "bác sĩ quân y", "bac si quan y", "chiến trường",
++            "việt kiều", "viet kieu", "người nước ngoài", "nguoi nuoc ngoai", "anh bạn ngoại quốc",
++            "gửi từ nước ngoài về", "thùng hàng", "kiện hàng từ xa", "tiền tiết kiệm gửi về",
++            "tặng quà làm quen", "tang qua lam quen", "gửi kiện quà", "gui kien qua", "nhắn làm quen"
++        ], allow_folded=True)
++        self._fam_romance_action = PhraseMatcher([
++            "gửi kiện hàng", "gửi quà từ nước ngoài", "thùng hàng có tiền", "đóng phí hải quan",
++            "nộp thuế hải quan", "phí thông quan", "rủ đầu tư chung", "mở tài khoản chung",
++            "nạp tiền vào sàn", "gặp tai nạn", "chuyển tiền cấp cứu", "nhờ chuyển tiền hộ",
++            "kẹt ở sân bay", "ket o san bay", "thung hang qua tang"
++        ], allow_folded=True)
++
++        # Tech support & remote control matchers
++        self._fam_tech_remote_matcher = PhraseMatcher([
++            "teamviewer", "teamview", "anydesk", "ultraviewer", "ultraview", "rustdesk", "quicksupport",
++            "hỗ trợ kỹ thuật", "ho tro ky thuat", "kỹ thuật viên", "ky thuat vien", "chuyên viên it",
++            "trợ lý ảo", "quyền trợ năng", "quyen tro nang", "accessibility",
++            "cài phần mềm điều khiển", "cai phan mem dieu khien", "điều khiển từ xa", "dieu khien tu xa",
++            "quét virus", "quet virus", "gỡ mã độc", "go ma doc", "diệt virus", "diet virus"
++        ], allow_folded=True)
++
++        # E-commerce CSKH matchers
++        self._fam_ecommerce_support_matcher = PhraseMatcher([
++            "cskh shopee", "cskh lazada", "cskh tiktok", "cskh tiki",
++            "chăm sóc khách hàng shopee", "chăm sóc khách hàng lazada",
++            "tổng đài shopee", "tổng đài lazada", "tổng đài tiktok shop",
++            "bộ phận hỗ trợ shopee", "hỗ trợ người bán", "ho tro nguoi ban",
++            "hỗ trợ gian hàng", "chăm sóc gian hàng", "trung tâm hỗ trợ người bán"
++        ], allow_folded=True)
++
+         # Educational tone detection (G1):
+         # Only educational / warning news markers; NO bare "Lưu ý" or "Cảnh báo"
+         self._educational_tone_matcher = PhraseMatcher([
+@@ -372,7 +426,51 @@ class ExplainableAgent:
+             "theo báo", "bài báo cảnh báo", "báo tuổi trẻ",
+             "báo thanh niên", "báo vnexpress", "nạn nhân bị lừa",
+             "một số đối tượng", "đối tượng lừa đảo",
+-            "nâng cao cảnh giác", "cảnh giác trước"
++            "nâng cao cảnh giác", "cảnh giác trước",
++            "cảnh báo thủ đoạn", "canh bao thu doan",
++            "thủ đoạn mới", "thu doan moi",
++            "chiêu trò lừa đảo", "chieu tro lua dao",
++            "chiêu trò", "chieu tro", "bẫy lừa", "bay lua",
++            "đường dây lừa đảo", "duong day lua dao",
++            "vừa triệt phá", "vua triet pha",
++            "bắt giữ nhóm", "bat giu nhom",
++            "cơ quan chức năng khuyến cáo", "co quan chuc nang khuyen cao",
++            "bộ công an khuyến cáo", "bo cong an khuyen cao",
++            "cục an toàn thông tin", "cuc an toan thong tin",
++            "chuyên gia bảo mật", "chuyen gia bao mat",
++            "báo điện tử", "bao dien tu",
++            "dân trí", "dan tri", "vietnamnet",
++            "báo lao động", "bao lao dong",
++            "báo tiền phong", "bao tien phong", "phóng sự", "phong su",
++            "cơ quan điều tra khởi tố", "co quan dieu tra khoi to",
++            "khởi tố vụ án", "khoi to vu an", "khởi tố bị can", "khoi to bi can",
++            "cơ quan điều tra vừa triệt phá", "cơ quan điều tra bắt giữ",
++            "cảnh sát khu vực", "canh sat khu vuc", "bộ thông tin", "bo thong tin",
++            "công an huyện", "cong an huyen", "phát tờ rơi", "phat to roi",
++            "khuyến cáo bà con", "khuyen cao ba con", "khuyến cáo người dùng", "khuyen cao nguoi dung",
++            "vụ án lừa đảo", "vu an lua dao", "vụ lừa đảo", "vu lua dao",
++            "chiêu thức lừa", "chieu thuc lua",
++            "người dân cần cảnh giác", "nguoi dan can canh giac",
++            "tuyệt đối không làm theo", "tuyet doi khong lam theo",
++            "người bị hại", "nguoi bi hai",
++            "các đối tượng", "cac doi tuong",
++            "kẻ gian thường", "ke gian thuong",
++            "thủ đoạn của chúng", "thu doan cua chung",
++            "chiếm đoạt tài sản", "chiem doat tai san",
++            "phòng ngừa lừa đảo", "phong ngua lua dao",
++            "khuyến cáo an toàn", "khuyen cao an toan",
++            "khuyến cáo bảo mật", "khuyen cao bao mat",
++            "tuyệt đối không cung cấp", "tuyet doi khong cung cap",
++            "tuyệt đối không chia sẻ", "tuyet doi khong chia se",
++            "tuyệt đối không chuyển tiền", "tuyet doi khong chuyen tien",
++            "tuyệt đối không bấm vào", "tuyet doi khong bam vao",
++            "không cung cấp cho bất kỳ ai", "khong cung cap cho bat ky ai",
++            "không cung cấp cho người lạ", "khong cung cap cho nguoi la",
++            "không chia sẻ cho bất kỳ ai", "khong chia se cho bat ky ai",
++            "không chuyển tiền cho người lạ", "khong chuyen tien cho nguoi la",
++            "không chuyển tiền vào tài khoản lạ", "khong chuyen tien vao tai khoan la",
++            "cảnh giác lừa đảo", "canh giac lua dao",
++            "cảnh báo lừa đảo", "canh bao lua dao"
+         ], allow_folded=True)
+ 
+         # Call to action regex in 2nd person (G1)
+@@ -383,7 +481,9 @@ class ExplainableAgent:
+             r"(?:anh|chi|ban|quy\s+khach)\s+(?:phai|can|vui\s+long|hay))"
+             r"[^.\n]{0,40}"
+             r"\b(?:chuyển|nộp|đóng|đọc|gửi|bấm|nhấp|tải|cài|đăng\s+nhập|xác\s+minh|liên\s+hệ|"
+-            r"chuyen|nop|dong|doc|gui|bam|nhap|tai|cai|dang\s+nhap|xac\s+minh|lien\s+he)\b",
++            r"chuyen|nop|dong|doc|gui|bam|nhap|tai|cai|dang\s+nhap|xac\s+minh|lien\s+he)\b|"
++            r"\b(?:em|anh|chị|chi|bạn|ban)?\s*(?:chuyển\s+giúp|chuyen\s+giup|chuyển\s+hộ|chuyen\s+ho|nhờ\s+chuyển|nộp\s+giúp|nop\s+giup|đóng\s+giúp|dong\s+giup)\b|"
++            r"(?:^|[.!?;\n])\s*(?:đọc|doc|cung\s+cấp|cung\s+cap|gửi|gui|nhập|nhap)\s+[^.\n]{0,20}\b(?:mã\s+otp|otp|cvv|mật\s+khẩu|mat\s+khau)\b",
+             re.IGNORECASE
+         )
+ 
+@@ -531,14 +631,158 @@ class ExplainableAgent:
+         else:
+             has_scam_actions = any(kw in text_lower for kw in self._legacy_scam_action_keywords)
+ 
+-        # G1: Educational tone vs 2nd person call to action
+-        has_educational_tone = bool(self._educational_tone_matcher.search(variants))
+-        has_call_to_action = bool(
++        # G1: Educational tone vs 2nd person call to action & direct scam demands
++        # First check if the text contains conditional threats, inabilities, or scam ultimatums
++        has_conditional_threat_or_inability = bool(
++            re.search(r"\b(?:nếu|neu)\s+(?:không|khong|ko)\s+[^.\n]{0,35}\b(?:sẽ\s+bị|se\s+bi)\s+[^.\n]{0,35}\b(?:bắt|giam|khóa|khoa|phạt|phat|phong\s+tỏa|phong\s+toa|cưỡng\s+chế|tước\s+bằng)\b", clean_norm, re.I)
++            or re.search(r"\b(?:nếu|neu)\s+(?:không|khong|ko)\s+(?:chuyển|chuyen|nộp|nop|đóng|dong|cung\s+cấp|cung\s+cap|đọc|doc)\b", clean_norm, re.I)
++            or re.search(r"\b(?:không|khong)\s+(?:chuyển|chuyen|ck)(?:\s+tiền|\s+khoản)?\s+được\b", clean_norm, re.I)
++        )
++
++        is_advisory_or_narrative = (
++            not has_conditional_threat_or_inability
++            and bool(
++                self._educational_tone_matcher.search(variants)
++                or re.search(
++                    r"\b(?:đối\s+tượng|doi\s+tuong|nạn\s+nhân|nan\s+nhan|bị\s+hại|bi\s+hai|"
++                    r"khuyến\s+cáo|khuyen\s+cao|cảnh\s+giác|canh\s+giac|"
++                    r"công\s+an\s+(?:khuyến\s+cáo|cảnh\s+báo|bắt|khởi\s+tố)|cong\s+an\s+(?:khuyen\s+cao|canh\s+bao|bat|khoi\s+to)|theo\s+công\s+an|theo\s+cong\s+an|"
++                    r"không\s+bao\s+giờ\s+yêu\s+cầu|khong\s+bao\s+gio\s+yeu\s+cau|"
++                    r"tuyệt\s+đối\s+không|tuyet\s+doi\s+khong|"
++                    r"thủ\s+đoạn|thu\s+doan|chiêu\s+trò|chieu\s+tro|bẫy\s+lừa|bay\s+lua|"
++                    r"báo\s+chí|báo\s+điện\s+tử|phóng\s+sự|bài\s+viết|theo\s+báo)\b",
++                    clean_norm,
++                    re.I
++                )
++            )
++        )
++        has_direct_user_order = bool(
+             self._call_to_action_regex.search(clean_norm)
+             or self._call_to_action_regex.search(folded_norm)
+-            or re.search(r"\b(?:chuyển\s+tiền|chuyển\s+khoản|chuyen\s+tien|chuyen\s+khoan)\s+(?:vào|vao)\s+(?:tài\s+khoản|tai\s+khoan)\s+(?:tạm\s+giữ|tam\s+giu)", clean_norm, re.I)
+         )
+-        is_educational_advisory = has_educational_tone and not has_call_to_action
++        is_transfer_negated = bool(
++            re.search(r"\b(?:tuyệt\s+đối\s+không|không\s+bao\s+giờ|khuyến\s+cáo\s+không|cảnh\s+báo\s+không|không|khong)\s+(?:chuyển|chuyen|nộp|nop|đóng|dong)\b", clean_norm, re.I)
++        )
++        has_past_action = bool(
++            re.search(r"\b(?:đã|da|lỡ|lo|vừa|vua|trót|trot)\s+(?:chuyển|chuyen|bị\s+lừa|bi\s+lua|nộp|nop|đóng|dong|gửi|gui)\b|\b(?:bị\s+lừa|bi\s+lua)\b", clean_norm, re.I)
++        )
++        has_recipient_risky_action = bool(
++            has_conditional_threat_or_inability
++            or has_direct_user_order
++            or (
++                (not has_past_action or has_direct_user_order)
++                and not is_transfer_negated
++                and re.search(
++                    r"\b(?:chuyển|chuyen|chuyển\s+khoản|chuyen\s+khoan|ck|bắn\s+tiền|nộp|nop|đóng|dong)\s+(?:tiền|tien|phí|phi|phạt|phat|thuế|thue)?\s*[^.\n]{0,35}\b(?:vào\s+stk|vao\s+stk|vào\s+tài\s+khoản|vao\s+tai\s+khoan|tài\s+khoản\s+tạm\s+giữ|tai\s+khoan\s+tam\s+giu|tài\s+khoản\s+cá\s+nhân|tai\s+khoan\s+ca\s+nhan|tài\s+khoản\s+an\s+toàn|tai\s+khoan\s+an\s+toan|trước\s+\d+h|trong\s+\d+h)\b",
++                    clean_norm,
++                    re.I
++                )
++            )
++            or re.search(
++                r"\b(?:đọc|doc|nhập|nhap|cung\s+cấp|cung\s+cap|gửi|gui|nhắn|nhan)\s+[^.\n]{0,25}\b(?:mã\s+otp|otp|mật\s+khẩu|mat\s+khau|cvv|mã\s+xác\s+thực|ma\s+xac\s+thuc)\b[^.\n]{0,30}\b(?:cho\s+(?:nhân\s+viên|tổng\s+đài|chuyên\s+viên|mình|em)|ngay|để\s+xác\s+minh|để\s+mở\s+khóa)\b",
++                clean_norm,
++                re.I
++            )
++        )
++        has_direct_scam_demand = bool(
++            has_suspicious_urls
++            or has_suspicious_bare_domain
++            or ".apk" in text_lower
++            or any("cài" in a.lower() or ".apk" in a.lower() for a in ocr_anomalies)
++            or has_recipient_risky_action
++            or (
++                not is_advisory_or_narrative
++                and re.search(
++                    r"\b(?:chuyển\s+tiền|chuyển\s+khoản|chuyen\s+tien|chuyen\s+khoan)\s+(?:\w+\s+){0,2}(?:vào|vao)\s+(?:tài\s+khoản|tai\s+khoan)\s+(?:tạm\s+giữ|tam\s+giu|an\s+toàn|an\s+toan|cá\s+nhân|ca\s+nhan)\b|"
++                    r"\b(?:tài\s+khoản|tai\s+khoan)\s+(?:tạm\s+giữ|tam\s+giu)\b|"
++                    r"\b(?:chuyển\s+vào|chuyen\s+vao)\s+stk\b|"
++                    r"\b(?:chuyển\s+khoản|chuyển\s+tiền|ck)\s+gấp\b|"
++                    r"\b(?:nhập|nhap|đọc|doc|cung\s+cấp|cung\s+cap|gửi|gui)\s+[^.\n]{0,20}\b(?:mã\s+otp|otp|mật\s+khẩu|cvv)\b",
++                    clean_norm,
++                    re.I
++                )
++            )
++            or (
++                is_advisory_or_narrative
++                and (
++                    (has_direct_user_order and (has_suspicious_urls or has_suspicious_bare_domain or bool(re.search(r"\b(?:vào\s+stk|tài\s+khoản\s+tạm\s+giữ)\b", clean_norm, re.I))))
++                    or bool(re.search(r"\b(?:tài\s+khoản|tai\s+khoan)\s+(?:tạm\s+giữ|tam\s+giu)\b", clean_norm, re.I))
++                )
++            )
++        )
++        has_educational_tone = (bool(self._educational_tone_matcher.search(variants)) or is_advisory_or_narrative) and not has_recipient_risky_action
++        has_prevention_question = bool(
++            re.search(
++                r"\b(?:làm\s+(?:sao|thế\s+nào)\s+để\s+(?:phòng\s+tránh|phòng\s+chống|tránh|không\s+bị)|"
++                r"cách\s+(?:phòng\s+tránh|phòng\s+chống|nhận\s+biết|nhận\s+diện|phân\s+biệt|tránh|phòng\s+ngừa)|"
++                r"dấu\s+hiệu\s+(?:nhận\s+biết|nhận\s+diện|lừa\s+đảo)|"
++                r"hỏi\s+(?:về\s+)?(?:cách\s+)?phòng\s+(?:chống|tránh)|"
++                r"kinh\s+nghiệm\s+(?:phòng\s+tránh|tránh\s+bị)|"
++                r"biện\s+pháp\s+phòng\s+(?:chống|ngừa)|"
++                r"hướng\s+dẫn\s+(?:phòng\s+tránh|nhận\s+biết|an\s+toàn)|"
++                r"làm\s+sao\s+biết\s+được|lam\s+sao\s+biet\s+duoc)\b",
++                clean_norm,
++                re.I
++            )
++        )
++        if has_direct_scam_demand or has_recipient_risky_action:
++            is_educational_advisory = False
++        else:
++            has_call_to_action = bool(
++                self._call_to_action_regex.search(clean_norm)
++                or self._call_to_action_regex.search(folded_norm)
++                or re.search(r"\b(?:chuyển\s+tiền|chuyển\s+khoản|chuyen\s+tien|chuyen\s+khoan)\s+(?:vào|vao)\s+(?:tài\s+khoản|tai\s+khoan)\s+(?:tạm\s+giữ|tam\s+giu)", clean_norm, re.I)
++            )
++            is_educational_advisory = (has_educational_tone or has_prevention_question) and not has_call_to_action
++
++        # G3(e): User seeking advice after being scammed / asking general questions
++        is_seeking_advice = bool(
++            re.search(
++                r"\b(?:giờ\s+(?:phải|nên)\s+làm\s+sao|gio\s+phai\s+lam\s+sao|làm\s+sao\s+bây\s+giờ|lam\s+sao\s+bay\s+gio|"
++                r"phải\s+làm\s+sao|phai\s+lam\s+sao|"
++                r"làm\s+thế\s+nào\s+để\s+(?:lấy\s+lại|báo\s+cáo|tố\s+cáo|lấy\s+lại\s+tiền|trình\s+báo)|lam\s+the\s+nao\s+de|"
++                r"có\s+lấy\s+lại\s+được\s+(?:tiền\s+)?không|co\s+lay\s+lai\s+duoc\s+(?:tien\s+)?khong|"
++                r"có\s+cách\s+nào\s+(?:lấy\s+lại|nhờ\s+ngân\s+hàng|phong\s+tỏa|tra\s+soát)|co\s+cach\s+nao|"
++                r"cho\s+(?:em|mình|tôi)\s+(?:xin\s+)?lời\s+khuyên|cho\s+(?:em|minh|toi)\s+(?:xin\s+)?loi\s+khuyen|"
++                r"cho\s+(?:em|mình|tôi)\s+hỏi\b[^.\n]{0,35}\b(?:lừa|lua|bị\s+lừa|thủ\s+tục|đơn\s+tố\s+cáo|làm\s+đơn|tố\s+cáo|báo\s+án|báo\s+công\s+an|xử\s+lý)|"
++                r"(?:xin\s+)?tư\s+vấn\s+giúp|(?:xin\s+)?tu\s+van\s+giup|"
++                r"có\s+nên\s+(?:đi\s+)?báo\s+công\s+an|co\s+nen\s+(?:di\s+)?bao\s+cong\s+an|"
++                r"thủ\s+tục\s+(?:tố\s+cáo|báo\s+công\s+an|làm\s+đơn|nộp\s+đơn)|"
++                r"làm\s+đơn\s+tố\s+cáo|nộp\s+đơn\s+tố\s+cáo|làm\s+sao\s+để\s+không\s+bị\s+lừa|lam\s+sao\s+de\s+khong\s+bi\s+lua|"
++                r"báo\s+cáo\s+tài\s+khoản|bao\s+cao\s+tai\s+khoan|"
++                r"mọi\s+người\s+giúp\s+em\s+với|moi\s+nguoi\s+giup\s+em\s+voi|"
++                r"bị\s+lừa\s+(?:tiền\s+)?rồi\b[^.\n]{0,30}\b(?:giờ|làm\s+sao|phải\s+làm|giúp|cứu)|"
++                r"tôi\s+phải\s+làm\s+gì\s+bây\s+giờ|em\s+phải\s+làm\s+gì|"
++                r"nộp\s+đơn\s+tố\s+cáo\s+ở\s+đâu|báo\s+công\s+an\s+ở\s+đâu|báo\s+án\s+ở\s+đâu|"
++                r"có\s+ai\s+bị\s+lừa\s+như\s+này\s+chưa)\b",
++                clean_norm,
++                re.I
++            )
++        ) and not has_direct_scam_demand
++
++        # G3(f): Benign daily money chats: tuition, rental deposit, splitting food/drinks, delivery prepaid
++        is_benign_daily_money_chat = bool(
++            re.search(
++                r"\b(?:học\s+phí|hoc\s+phi|tiền\s+học|tien\s+hoc|đóng\s+tiền\s+học|dong\s+tien\s+hoc|"
++                r"tiền\s+cọc\s+phòng|tien\s+coc\s+phong|cọc\s+phòng|coc\s+phong|cọc\s+thuê\s+nhà|coc\s+thue\s+nha|"
++                r"cọc\s+nhà|coc\s+nha|cọc\s+xe|coc\s+xe|tiền\s+nhà\s+tháng|tien\s+nha\s+thang|"
++                r"chia\s+tiền|chia\s+tien|chia\s+đều|chia\s+deu|tiền\s+lẩu|tien\s+lau|ăn\s+lẩu|an\s+lau|tiền\s+cà\s+phê|tiền\s+cafe|tien\s+ca\s+phe|"
++                r"tiền\s+ăn(?:\s+uống|\s+trưa|\s+tối)?|tien\s+an|tiền\s+cơm|tien\s+com|mỗi\s+(?:người|đứa|bạn)\s+\d+[\d.,]*\s*(?:k|nghìn|nghin|triệu|trieu|tr|đ)?|"
++                r"đã\s+thanh\s+toán\s+rồi|da\s+thanh\s+toan\s+roi|đã\s+trả\s+tiền\s+rồi|da\s+tra\s+tien\s+roi|"
++                r"đã\s+chuyển\s+khoản\s+rồi|da\s+chuyen\s+khoan\s+roi|đã\s+ck\s+rồi|da\s+ck\s+roi|"
++                r"(?:nhận\s+(?:hàng\s+)?(?:giúp|giùm|hộ)|nhan\s+(?:hang\s+)?(?:giup|gium|ho))\b[^.\n]{0,30}\b(?:đã\s+thanh\s+toán|da\s+thanh\s+toan|không\s+cần\s+trả|khong\s+can\s+tra|trả\s+tiền\s+rồi|tra\s+tien\s+roi)|"
++                r"(?:để\s+trước\s+cửa|gửi\s+bảo\s+vệ|gui\s+bao\s+ve)\b[^.\n]{0,30}\b(?:đã\s+thanh\s+toán|da\s+thanh\s+toan|trả\s+tiền\s+rồi|tra\s+tien\s+roi)|"
++                r"tiền\s+điện|tien\s+dien|tiền\s+nước|tien\s+nuoc|tiền\s+mạng|tien\s+mang|tiền\s+wifi|tien\s+wifi|"
++                r"tiền\s+quỹ|quỹ\s+lớp|tiền\s+trường|tiền\s+sách|tiền\s+thuê\s+trọ|tiền\s+phòng\s+trọ|"
++                r"tiền\s+chợ|tiền\s+xăng|tiền\s+thuốc|mua\s+thuốc|tiền\s+grab|tiền\s+taxi|tiền\s+vé|"
++                r"tiền\s+mừng|tiền\s+cưới|phong\s+bì|tiền\s+sinh\s+nhật|tiền\s+trà\s+sữa|tiền\s+nhậu|"
++                r"trả\s+tiền\s+hôm\s+trước|trả\s+tiền\s+mượn|bắn\s+lại\s+tiền|gửi\s+lại\s+tiền|tiền\s+hôm\s+nọ|"
++                r"(?:bắn\s+tiền|chuyển\s+tiền|ck\s+tiền|gửi\s+tiền|trả\s+tiền)\b[^.\n]{0,25}\b(?:cơm|nước|cà\s+phê|cafe|trà\s+sữa|ăn\s+trưa|ăn\s+tối|lẩu|nhậu|vé\s+xem\s+phim|sinh\s+nhật|mừng\s+cưới|tiền\s+phòng|tiền\s+trọ|tiền\s+nhà|tiền\s+điện|tiền\s+nước|học\s+phí|tiền\s+sách|tiền\s+xe)|"
++                r"đã\s+nhận\s+được\s+tiền|nhận\s+được\s+tiền\s+rồi|tiền\s+đã\s+về|đã\s+ting\s+ting|ting\s+ting\s+rồi|cảm\s+ơn\s+bạn\s+nhé|thanks\s+nhé)\b",
++                clean_norm,
++                re.I
++            )
++        ) and not has_direct_scam_demand
+ 
+         # G3(d): First person reporting / refusal check ('tôi cúp máy', 'tôi đã báo công an')
+         has_first_person_refusal = bool(
+@@ -564,7 +808,7 @@ class ExplainableAgent:
+         # ─────────────────────────────────────────
+         # BLOCK A: Fake Recruitment / CTV / Shopee / TikTok (539ecb1)
+         # ─────────────────────────────────────────
+-        if self._block_a_matcher.search(variants) and not is_educational_advisory:
++        if self._block_a_matcher.search(variants) and not is_educational_advisory and not is_seeking_advice and not is_benign_daily_money_chat:
+             weight = 20
+             factors.append({"factor": "Dấu hiệu tuyển dụng CTV lương cao bất thường (Fake Recruitment)", "weight": weight})
+             total_risk_score += weight
+@@ -588,9 +832,20 @@ class ExplainableAgent:
+             )
+             and not re.search(r"\b(?:không\s+cần|khong\s+can)\s+vốn\b", clean_norm, re.I)
+         )
++        is_official_bank_notification = bool(
++            re.search(
++                r"\b(?:mã\s+otp|ma\s+otp|mã\s+xác\s+thực|ma\s+xac\s+thuc)\b[^.\n]{0,40}\b(?:là|la|của\s+bạn\s+là|cua\s+ban\s+la)\s+\d{4,8}\b|"
++                r"\b(?:biến\s+động\s+số\s+dư|bien\s+dong\s+so\s+du|số\s+dư\s+khả\s+dụng|so\s+du\s+kha\s+dung)\b",
++                clean_norm,
++                re.I
++            )
++            and not has_suspicious_urls
++            and not has_suspicious_bare_domain
++            and not re.search(r"\b(?:cung\s+cấp|cung\s+cap|gửi\s+mã|gui\s+ma|đọc\s+mã|doc\s+ma|nhập\s+vào\s+link|nhap\s+vao\s+link|truy\s+cập|truy\s+cap)\b", clean_norm, re.I)
++        )
+ 
+         has_block_b = False
+-        if not is_educational_advisory and not has_first_person_refusal and not is_personal_outgoing_transfer and not is_deposit_negated and not is_internal_reimbursement:
++        if not is_educational_advisory and not is_seeking_advice and not is_benign_daily_money_chat and not has_first_person_refusal and not is_personal_outgoing_transfer and not is_deposit_negated and not is_internal_reimbursement and not is_official_bank_notification:
+             if self._block_b_accented.search(variants):
+                 has_block_b = True
+             elif self._block_b_unaccented_multi.search(variants):
+@@ -651,7 +906,7 @@ class ExplainableAgent:
+         )
+ 
+         has_block_c = False
+-        if not has_only_official_urls and not is_educational_advisory and not has_first_person_refusal:
++        if not has_only_official_urls and not is_educational_advisory and not is_seeking_advice and not has_first_person_refusal:
+             matched_c_phrases = self._block_c_matcher.search(variants)
+             if matched_c_phrases:
+                 is_only_first_person_locked = is_first_person_locked and not bool(
+@@ -747,7 +1002,7 @@ class ExplainableAgent:
+         # ─────────────────────────────────────────
+         # BLOCK F: Government / Authority Impersonation (539ecb1)
+         # ─────────────────────────────────────────
+-        if self._block_f_matcher.search(variants) and not has_only_official_urls and not is_educational_advisory and not has_first_person_refusal:
++        if self._block_f_matcher.search(variants) and not has_only_official_urls and not is_educational_advisory and not is_seeking_advice and not has_first_person_refusal:
+             weight = 30
+             factors.append({"factor": "Mạo danh cơ quan nhà nước / Cán bộ công quyền (Authority Impersonation)", "weight": weight})
+             total_risk_score += weight
+@@ -755,7 +1010,7 @@ class ExplainableAgent:
+         # ─────────────────────────────────────────
+         # BLOCK G: Personal Bank Account (539ecb1)
+         # ─────────────────────────────────────────
+-        if self._block_g_matcher.search(variants) and not is_internal_reimbursement and not has_first_person_refusal:
++        if self._block_g_matcher.search(variants) and not is_internal_reimbursement and not has_first_person_refusal and not is_benign_daily_money_chat and not is_seeking_advice:
+             weight = 15
+             factors.append({"factor": "Sử dụng tài khoản ngân hàng cá nhân thay vì tài khoản doanh nghiệp", "weight": weight})
+             total_risk_score += weight
+@@ -763,7 +1018,7 @@ class ExplainableAgent:
+         # ─────────────────────────────────────────
+         # BLOCK H: Urgency / Time Pressure (539ecb1)
+         # ─────────────────────────────────────────
+-        if self._block_h_matcher.search(variants) and not is_educational_advisory:
++        if self._block_h_matcher.search(variants) and not is_educational_advisory and not is_seeking_advice and not is_benign_daily_money_chat:
+             weight = 15
+             factors.append({"factor": "Tạo áp lực thời gian / Hối thúc hành động ngay (Urgency Pressure)", "weight": weight})
+             total_risk_score += weight
+@@ -771,41 +1026,75 @@ class ExplainableAgent:
+         # ─────────────────────────────────────────
+         # BLOCK I: Emergency / Already Scammed (539ecb1)
+         # ─────────────────────────────────────────
+-        if self._block_i_matcher.search(variants):
++        is_incoming_mistake = bool(
++            re.search(r"\b(?:chuyển\s+nhầm|chuyen\s+nham)\s+[^.\n]{0,25}\b(?:vào|vao)\s+(?:tài\s+khoản|tk|stk)\b|\b(?:ai\s+đó|người\s+ta|người\s+lạ|khách)\s+(?:chuyển\s+nhầm|chuyen\s+nham)\b", clean_norm, re.I)
++        )
++        if self._block_i_matcher.search(variants) and not is_educational_advisory and not is_seeking_advice and not is_incoming_mistake:
+             weight = 25
+             factors.append({"factor": "Đã bị lừa đảo / Chuyển tiền rồi — Kích hoạt Emergency Protocol", "weight": weight})
+             total_risk_score += weight
+ 
+         # ─────────────────────────────────────────
+-        # THE 9 SIGNAL FAMILIES (a to i) + GENERAL COVERAGE (G5)
++        # THE SIGNAL FAMILIES + GENERAL COVERAGE
+         # ─────────────────────────────────────────
+ 
+-
+-        # (a) Mồi trúng thưởng/hoàn tiền + nộp phí/thẻ cào: 35
++        # (a) Mồi trúng thưởng/hoàn tiền + nộp phí/thẻ cào: 40 + 40
+         has_fam_a_lure = bool(
+             self._fam_a_lure.search(variants)
+-            or re.search(r"\b(?:trúng\s+thưởng|trung\s+thuong|chúng\s+thưởng|chung\s+thuong|trúng\s+giải|quà\s+tặng|qua\s+tang|iphone|xe\s+máy|xe\s+may|chúc\s+mừng|chuc\s+mung|chúc\s+mừg|chuc\s+mug|học\s+bổng|hoc\s+bong|trợ\s+cấp|tro\s+cap|tiền\s+hỗ\s+trợ|tien\s+ho\s+tro)\b", clean_norm, re.I)
++            or re.search(r"\b(?:trúng\s+thưởng|trung\s+thuong|chúng\s+thưởng|chung\s+thuong|trúng\s+giải|quà\s+tặng|qua\s+tang|tivi|xe\s+vinfast|iphone|xe\s+máy|xe\s+may|chúc\s+mừng|chuc\s+mung|chúc\s+mừg|chuc\s+mug|học\s+bổng|hoc\s+bong|trợ\s+cấp|tro\s+cap|tiền\s+hỗ\s+trợ|tien\s+ho\s+tro|phiếu\s+mua\s+hàng|sổ\s+tiết\s+kiệm)\b", clean_norm, re.I)
+         )
+         has_fam_a_fee = bool(
+             self._fam_a_fee.search(variants)
+-            or re.search(r"\b(?:phí\s+vận\s+chuyển|phi\s+van\s+chuyen|fí|thanh\s+toán\s+phí|thanh\s+toan\s+phi|nộp\s+phí|nop\s+phi|đóng\s+phí|dong\s+phi|nộp\s+lệ\s+phí|nop\s+le\s+phi|phí\s+hồ\s+sơ|phi\s+ho\s+so|phí\s+hải\s+quan|phi\s+hai\s+quan|thuế\s+hải\s+quan|điền\s+thông\s+tin\s+thẻ|số\s+thẻ|cvv)\b", clean_norm, re.I)
++            or re.search(
++                r"\b(?:phí\s+(?:vận\s+chuyển|trước\s+bạ|công\s+chứng|đăng\s+ký|hồ\s+sơ|bảo\s+hiểm|hải\s+quan|thông\s+quan|làm\s+hồ\s+sơ)|"
++                r"phi\s+(?:van\s+chuyen|truoc\s+ba|cong\s+chung|dang\s+ky|ho\s+so|bao\s+hiem|hai\s+quan|thong\s+quan|lam\s+ho\s+so)|"
++                r"đóng\s+thuế|dong\s+thue|nộp\s+thuế|nop\s+thue|tiền\s+thuế|tien\s+thue|"
++                r"thanh\s+toán\s+phí|thanh\s+toan\s+phi|nộp\s+phí|nop\s+phi|đóng\s+phí|dong\s+phi|nộp\s+lệ\s+phí|nop\s+le\s+phi|"
++                r"chuyển\s+khoản\s+trước|chuyen\s+khoan\s+truoc|ck\s+trước|ck\s+truoc|"
++                r"điền\s+thông\s+tin\s+thẻ|số\s+thẻ|cvv)\b",
++                clean_norm,
++                re.I
++            )
+         )
+-        if not is_educational_advisory and not has_first_person_refusal and has_fam_a_lure and has_fam_a_fee:
+-            weight = 35
++        if not is_educational_advisory and not is_seeking_advice and not has_first_person_refusal and has_fam_a_lure and has_fam_a_fee:
++            weight = 40
+             factors.append({"factor": "Dấu hiệu bẫy trúng thưởng / tri ân yêu cầu nộp phí hoặc nạp thẻ cào", "weight": weight})
+             total_risk_score += weight
+-            has_advance_fee = any(w in text_lower for w in [
+-                "chuyển trước", "chuyen truoc", "chuyển tiền trước", "chuyen tien truoc",
+-                "chuyển tiền nộp phí", "chuyen tien nop phi", "yêu cầu chuyển tiền", "yeu cau chuyen tien",
+-                "phí làm hồ sơ", "phi lam ho so", "phí hồ sơ", "phi ho so", "phí xử lý", "phi xu ly",
+-                "phí bảo hiểm", "phi bao hiem", "phí giải ngân", "phi giai ngan", "phí vận chuyển", "phi van chuyen",
+-                "phí hải quan", "phi hai quan", "thuế hải quan", "thue hai quan", "chuyển giúp"
+-            ])
+-            if has_advance_fee and not any("Advance Payment" in f["factor"] for f in factors):
++            if not any("Advance Payment" in f["factor"] or "Advance Fee" in f["factor"] for f in factors):
+                 adv_weight = 40
+                 factors.append({"factor": "Yêu cầu nộp phí / chuyển tiền trước để nhận tiền hoặc giải ngân (Advance Fee)", "weight": adv_weight})
+                 total_risk_score += adv_weight
+ 
++        # Cho vay online / phí giải ngân
++        has_loan_lure = bool(
++            re.search(
++                r"\b(?:vay\s+tiền\s+online|vay\s+online|vay\s+nóng|vay\s+nhanh|khoản\s+vay|hồ\s+sơ\s+vay|gói\s+vay|duyệt\s+vay|giải\s+ngân|giai\s+ngan|hạn\s+mức\s+vay|vay\s+tiêu\s+dùng|vay\s+vốn|vay\s+tien\s+online|vay\s+tien)\b",
++                clean_norm,
++                re.I
++            )
++        )
++        has_loan_fee = bool(
++            re.search(
++                r"\b(?:phí\s+(?:giải\s+ngân|bảo\s+hiểm|thẩm\s+định|dịch\s+vụ|hồ\s+sơ|chứng\s+minh|mở\s+khóa|xác\s+minh)|"
++                r"phi\s+(?:giai\s+ngan|bao\s+hiem|tham\s+dinh|dich\s+vu|ho\s+so|mo\s+khoa|xac\s+minh)|"
++                r"sai\s+số\s+tài\s+khoản|sai\s+so\s+tai\s+khoan|đóng\s+băng|dong\s+bang|"
++                r"bảo\s+hiểm\s+(?:khoản\s+vay|vốn\s+vay)|bao\s+hiem\s+(?:khoan\s+vay|von\s+vay)|"
++                r"tiền\s+cọc\s+khoản\s+vay|đóng\s+phí|dong\s+phi|nộp\s+phí|nop\s+phi|"
++                r"tiền\s+đối\s+ứng|tien\s+doi\s+ung|đối\s+ứng|doi\s+ung|chứng\s+minh\s+thu\s+nhập|chung\s+minh\s+thu\s+nhap|"
++                r"phí\s+thanh\s+khoản|phi\s+thanh\s+khoan|sửa\s+thông\s+tin\s+hợp\s+đồng|sua\s+thong\s+tin\s+hop\s+dong|hợp\s+đồng\s+vay|hop\s+dong\s+vay|"
++                r"để\s+mở\s+khóa\s+(?:khoản\s+vay|hồ\s+sơ|tiền\s+vay)|để\s+giải\s+ngân|de\s+giai\s+ngan)\b",
++                clean_norm,
++                re.I
++            )
++        )
++        if not is_educational_advisory and not is_seeking_advice and not has_first_person_refusal and has_loan_lure and has_loan_fee:
++            if not any("cho vay online" in f["factor"].lower() for f in factors):
++                factors.append({"factor": "Bẫy cho vay online yêu cầu nộp phí giải ngân / bảo hiểm khoản vay trước", "weight": 45})
++                total_risk_score += 45
++            if not any("Advance Payment" in f["factor"] or "Advance Fee" in f["factor"] for f in factors):
++                factors.append({"factor": "Yêu cầu nộp phí / chuyển tiền trước để nhận tiền hoặc giải ngân (Advance Fee)", "weight": 40})
++                total_risk_score += 40
++
+         # (b) Thu thập thẻ/OTP/CVV/CCCD (45)
+         has_unnegated_verb = False
+         for m in self._fam_b_verb_regex.finditer(variants.clean):
+@@ -827,7 +1116,7 @@ class ExplainableAgent:
+             or self._fam_b_motive_regex.search(folded_norm)
+         )
+ 
+-        if not is_educational_advisory and not is_otp_negated and not is_legitimate_payment_otp and has_unnegated_verb and has_target and has_motive:
++        if not is_educational_advisory and not is_seeking_advice and not is_otp_negated and not is_legitimate_payment_otp and has_unnegated_verb and has_target and has_motive:
+             weight = 45
+             factors.append({"factor": "Yêu cầu cung cấp thông tin bảo mật nhạy cảm (OTP / Mật khẩu / CVV / CCCD)", "weight": weight})
+             total_risk_score += weight
+@@ -835,10 +1124,11 @@ class ExplainableAgent:
+                 "nhân viên ngân hàng", "nhan vien ngan hang", "tổng đài viên", "tong dai vien",
+                 "chuyên viên ngân hàng", "chuyen vien ngan hang", "chuyên viên", "chuyen vien"
+             ])
+-            if has_bank_staff:
++            if has_bank_staff or any("Banking Phishing" in f["factor"] for f in factors) or has_suspicious_urls:
+                 staff_weight = 35
+-                factors.append({"factor": "Mạo danh nhân viên ngân hàng yêu cầu cung cấp thông tin thẻ / CVV / OTP", "weight": staff_weight})
+-                total_risk_score += staff_weight
++                if not any("Mạo danh nhân viên ngân hàng" in f["factor"] for f in factors):
++                    factors.append({"factor": "Mạo danh nhân viên ngân hàng yêu cầu cung cấp thông tin thẻ / CVV / OTP", "weight": staff_weight})
++                    total_risk_score += staff_weight
+ 
+         # (c) Đầu tư cam kết lãi cao: 35
+         has_high_rate = bool(
+@@ -848,15 +1138,28 @@ class ExplainableAgent:
+             or self._fam_c_regex_each.search(folded_norm)
+         )
+         has_crypto_romance = bool(
+-            re.search(r"\b(?:sàn\s+vàng|sàn\s+coin|sàn\s+forex|sàn\s+quốc\s+tế|nền\s+tảng\s+đầu\s+tư|san\s+vang|san\s+coin|san\s+forex|san\s+quoc\s+te)\b", clean_norm, re.I)
+-            and re.search(r"\b(?:gấp\s+đôi|gap\s+doi|lãi\s+\d+\s*%|lai\s+\d+\s*%|đảm\s+bảo|dam\s+bao|không\s+lỗ|khong\s+lo|bao\s+lỗ|bao\s+lo|chắc\s+chắn|chac\s+chan)\b", clean_norm, re.I)
++            re.search(r"\b(?:sàn\s+vàng|sàn\s+coin|sàn\s+forex|sàn\s+quốc\s+tế|nền\s+tảng\s+đầu\s+tư|san\s+vang|san\s+coin|san\s+forex|san\s+quoc\s+te|sàn\s+usdt|san\s+usdt|tiền\s+ảo|tien\s+ao)\b", clean_norm, re.I)
++            and re.search(r"\b(?:gấp\s+đôi|gap\s+doi|lãi\s+\d+\s*%|lai\s+\d+\s*%|đảm\s+bảo|dam\s+bao|không\s+lỗ|khong\s+lo|bao\s+lỗ|bao\s+lo|bao\s+win|chắc\s+chắn|chac\s+chan|bảo\s+toàn\s+vốn|bao\s+toan\s+von)\b", clean_norm, re.I)
++        )
++        has_invest_deposit = bool(
++            re.search(r"\b(?:nạp\s+tiền|nap\s+tien|nạp\s+quỹ|nap\s+quy|nạp\s+vốn|nap\s+von|vào\s+vốn|vao\s+von|chuyển\s+khoản|chuyen\s+khoan|vào\s+sàn|đóng\s+thuế|phí\s+rút|rút\s+tiền|vào\s+tiền|đóng\s+tiền|dong\s+tien|ck|nạp\s+\d+|chuyển\s+\d+)\b", clean_norm, re.I)
++            or bool(self._fam_h_deposit.search(variants))
++        )
++        has_vip_group = bool(
++            re.search(r"\b(?:nhóm\s+kín|nhom\s+kin|nhóm\s+vip|nhom\s+vip|kéo\s+1\s*[-/]\s*1|keo\s+1\s*[-/]\s*1|kéo\s+lệnh|keo\s+lenh|bắn\s+lệnh|ban\s+lenh|vào\s+nhóm|vao\s+nhom|vào\s+room|room\s+vip|nhóm\s+kéo|nhom\s+keo|ủy\s+thác|uy\s+thac|chuyên\s+gia\s+kéo|chuyen\s+gia\s+keo|thầy\s+kéo|thay\s+keo|nhóm\s+tín\s+hiệu|nhom\s+tin\s+hieu|kéo\s+về\s+bờ|keo\s+ve\s+bo|đầu\s+tư\s+tài\s+chính\s+4\.0|sàn\s+bao\s+lỗ|lãi\s+ngày)\b", clean_norm, re.I)
+         )
+-        if not is_educational_advisory and (self._fam_c_invest.search(variants) or has_crypto_romance) and (self._fam_c_guarantee.search(variants) or has_high_rate or has_crypto_romance):
++        if not is_educational_advisory and not is_seeking_advice and (self._fam_c_invest.search(variants) or has_crypto_romance) and (self._fam_c_guarantee.search(variants) or has_high_rate or has_crypto_romance):
+             weight = 35
+             factors.append({"factor": "Cam kết đầu tư tài chính sinh lời cao bất thường / lợi nhuận đảm bảo", "weight": weight})
+             total_risk_score += weight
++            if has_invest_deposit and not any("Advance Payment" in f["factor"] for f in factors):
++                factors.append({"factor": "Yêu cầu chuyển tiền / đặt cọc / nạp quỹ trước (Advance Payment)", "weight": 40})
++                total_risk_score += 40
++            elif has_vip_group and not any("nhóm kín" in f["factor"] for f in factors):
++                factors.append({"factor": "Lôi kéo tham gia nhóm kín / chuyên gia kéo lệnh đầu tư", "weight": 40})
++                total_risk_score += 40
+ 
+-        # (d) Mượn tiền qua mạng xã hội / người thân giả: 30
++        # (d) Mượn tiền qua mạng xã hội / người thân giả / nick bị hack: 40
+         has_borrow_request = (
+             self._fam_d_borrow.search(variants)
+             or bool(self._borrow_amount_regex.search(clean_norm))
+@@ -867,58 +1170,101 @@ class ExplainableAgent:
+             or bool(re.search(r"\b(?:nick\s+mới|số\s+mới|mất\s+điện\s+thoại|mất\s+máy|đổi\s+số|đổi\s+số\s+zalo|nick\s+zalo|so\s+moi|mat\s+dien\s+thoai|mat\s+may|doi\s+so)\b", clean_norm, re.I))
+         )
+         has_nick_detail = bool(re.search(r"\b(?:nick\s+mới|số\s+mới|mất\s+điện\s+thoại|mất\s+máy|đổi\s+số|đổi\s+số\s+zalo|nick\s+zalo|so\s+moi|mat\s+dien\s+thoai|mat\s+may|doi\s+so)\b", clean_norm, re.I))
+-        has_borrow_action = bool(re.search(r"\b(?:nhờ|cho\s+mượn|chuyển\s+giúp|ck\s+giúp|chuyển\s+hộ|bắn\s+giúp|vay|nho|cho\s+muon|chuyen\s+giup|ck\s+giup|chuyen\s+ho)\b", clean_norm, re.I))
++        has_borrow_action = bool(re.search(r"\b(?:nhờ|cho\s+mượn|chuyển\s+(?:gấp\s+)?(?:giúp|hộ|cho)|ck\s+(?:gấp\s+)?(?:giúp|hộ|cho)|bắn\s+(?:gấp\s+)?(?:giúp|hộ|cho)|vay|bắn\s+hộ|bắn\s+giúp|ban\s+ho|ban\s+giup|chuyen\s+ho|chuyen\s+giup|ck\s+ho|ck\s+giup)\b", clean_norm, re.I))
+         has_raw_amount = bool(re.search(r"\b\d+[\d.,]*\s*(?:k|nghìn|nghin|triệu|trieu|tr|củ|cu)\b", clean_norm, re.I))
+-        has_promise_urgency = bool(re.search(r"\b(?:gấp|gap|mai\s+trả|tối\s+trả|hôm\s+nay\s+trả|chút\s+nữa\s+trả|mai\s+tra|toi\s+tra|hom\s+nay\s+tra|hứa\s+trả)\b", clean_norm, re.I))
++        has_promise_urgency = bool(re.search(r"\b(?:gấp|gap|mai\s+trả|tối\s+trả|hôm\s+nay\s+trả|chút\s+nữa\s+trả|chiều\s+trả|tí\s+về\s+trả|mai\s+tra|toi\s+tra|hom\s+nay\s+tra|hứa\s+trả|lát\s+bắn|lat\s+ban)\b", clean_norm, re.I))
+ 
+-        is_fam_d_match = (has_social_or_nick and has_borrow_request) or (has_nick_detail and has_borrow_action and has_raw_amount)
+-        if not is_educational_advisory and is_fam_d_match:
+-            weight = 30
++        has_hacked_chat = bool(
++            re.search(r"\b(?:mày\s+ơi|may\s+oi|anh\s+ơi|chi\s+ơi|chị\s+ơi|ông\s+ơi|ong\s+oi|bà\s+ơi|ba\s+oi|bạn\s+ơi|ban\s+oi|alo\s+(?:mày|ông|bà|anh|chị|bạn)|may\s+ha|mày\s+hả)\b", clean_norm, re.I)
++            and re.search(r"\b(?:lỗi\s+hạn\s+mức|loi\s+han\s+muc|hết\s+hạn\s+mức|het\s+han\s+muc|app\s+ngân\s+hàng|tài\s+khoản\s+bị\s+lỗi|đang\s+kẹt\s+tiền|dang\s+ket\s+tien|kẹt\s+việc\s+gấp|ket\s+viec\s+gap|hết\s+tiền|tk\s+lỗi|bảo\s+trì|mua\s+đồ)\b", clean_norm, re.I)
++            and has_borrow_action
++            and (has_raw_amount or bool(self._borrow_amount_regex.search(clean_norm)))
++        )
++
++        has_direct_friend_borrow = bool(
++            re.search(
++                r"\b(?:bạn\s+ơi|ban\s+oi|anh\s+ơi|chi\s+ơi|chị\s+ơi|em\s+ơi|mày\s+ơi|may\s+oi|ông\s+ơi|ong\s+oi|bà\s+ơi|ba\s+oi|mày\s+hả|may\s+ha|alo\s+(?:bạn|anh|chị|mày|ông|bà))\b",
++                clean_norm,
++                re.I
++            )
++            and has_borrow_action
++            and (has_raw_amount or bool(self._borrow_amount_regex.search(clean_norm)))
++            and (has_promise_urgency or bool(re.search(r"\b(?:stk|số\s+tài\s+khoản|tài\s+khoản|ngân\s+hàng)\b", clean_norm, re.I)))
++        )
++
++        is_fam_d_match = (
++            (has_social_or_nick and has_borrow_request)
++            or (has_nick_detail and has_borrow_action and has_raw_amount)
++            or has_hacked_chat
++            or has_direct_friend_borrow
++        )
++        if not is_educational_advisory and not is_seeking_advice and not is_benign_daily_money_chat and is_fam_d_match:
++            weight = 40
+             factors.append({"factor": "Nghi vấn mạo danh người thân / nick mạng xã hội mượn tiền gấp", "weight": weight})
+             total_risk_score += weight
+-            if has_nick_detail and has_borrow_action and has_raw_amount and has_promise_urgency:
+-                if not any("Advance Payment" in f["factor"] for f in factors):
+-                    factors.append({"factor": "Yêu cầu chuyển tiền / đặt cọc / nạp quỹ trước (Advance Payment)", "weight": 40})
+-                    total_risk_score += 40
+-                if not any("Urgency Pressure" in f["factor"] for f in factors):
+-                    factors.append({"factor": "Tạo áp lực thời gian / Hối thúc hành động ngay (Urgency Pressure)", "weight": 15})
+-                    total_risk_score += 15
+-
+-        # (e) Bill báo thành công nhưng tiền chưa về: 40
++            if not any("Advance Payment" in f["factor"] for f in factors):
++                factors.append({"factor": "Yêu cầu chuyển tiền / đặt cọc / nạp quỹ trước (Advance Payment)", "weight": 40})
++                total_risk_score += 40
++
++        # (e1) Bill báo thành công nhưng tiền chưa về (45 + 35 = 80)
+         has_unreceived = bool(
+             re.search(r"\b(?:chưa|chua)\s+[^.\n]{0,30}(?:tiền|tien|số\s+dư|so\s+du|ting\s+ting|vào\s+tài\s+khoản|vao\s+tai\s+khoan)\b", clean_norm, re.I)
+             or re.search(r"\b(?:tiền|tien|số\s+dư|so\s+du|ting\s+ting)\s+[^.\n]{0,30}(?:chưa|chua)\s+(?:về|ve|vào|vao|tăng|tang|nổi|noi|thấy|thay|nhận|nhan)\b", clean_norm, re.I)
+         )
+         has_e_demand = bool(
+-            re.search(r"\b(?:giao\s+hàng\s+trước|gửi\s+hàng\s+trước|giao\s+hàng\s+đi|gửi\s+hàng\s+đi|tiền\s+sẽ\s+về|ngân\s+hàng\s+lỗi|giao\s+hang\s+truoc|gui\s+hang\s+truoc|tien\s+se\s+ve)\b", clean_norm, re.I)
++            re.search(r"\b(?:giao\s+hàng\s+trước|gửi\s+hàng\s+trước|giao\s+hàng\s+đi|gửi\s+hàng\s+đi|chưa\s+giao\s+hàng|giao\s+hàng\s+ngay|gửi\s+hàng\s+ngay|tiền\s+sẽ\s+về|ngân\s+hàng\s+lỗi|mạng\s+lag|giao\s+hang\s+truoc|gui\s+hang\s+truoc|tien\s+se\s+ve)\b", clean_norm, re.I)
+         )
+-        if not is_educational_advisory and self._fam_e_context.search(variants) and has_unreceived:
+-            weight = 40
++        if not is_educational_advisory and not is_seeking_advice and not is_benign_daily_money_chat and (
++            self._fam_e_context.search(variants) and (has_unreceived or has_e_demand)
++        ):
++            weight = 45
+             factors.append({"factor": "Dấu hiệu bill chuyển khoản giả mạo / tiền chưa vào tài khoản thực tế", "weight": weight})
+             total_risk_score += weight
+-            if has_e_demand:
+-                if not any("Urgency Pressure" in f["factor"] for f in factors):
+-                    factors.append({"factor": "Tạo áp lực thời gian / Hối thúc hành động ngay (Urgency Pressure)", "weight": 15})
+-                    total_risk_score += 15
+-                if not any("Advance Payment" in f["factor"] for f in factors):
+-                    factors.append({"factor": "Yêu cầu chuyển tiền / đặt cọc / nạp quỹ trước (Advance Payment)", "weight": 40})
+-                    total_risk_score += 40
+-
+-        # (f) Video call mờ / deepfake + mượn tiền: 30
++            if not any("Fake Payment Proof" in f["factor"] for f in factors):
++                factors.append({"factor": "Giả mạo chứng từ chuyển khoản / biên lai VietQR (Fake Payment Proof)", "weight": 35})
++                total_risk_score += 35
++
++        # (e2) Bẫy chuyển nhầm tiền yêu cầu chuyển hoàn sang tài khoản khác (Wrong Transfer Trap) (35)
++        has_transfer_mistake_scam = bool(
++            re.search(r"\b(?:chuyển\s+nhầm|chuyen\s+nham|bắn\s+nhầm|ban\s+nham|nhầm\s+tiền|nham\s+tien|bấm\s+nhầm)\b", clean_norm, re.I)
++            and (
++                re.search(r"\b(?:hoàn\s+lại|hoan\s+lai|chuyển\s+lại|chuyen\s+lai|trả\s+lại|tra\s+lai|hoàn\s+tiền|hoan\s+tien|hoàn\s+trả|hoan\s+tra)\b", clean_norm, re.I)
++                or has_suspicious_urls
++                or has_suspicious_bare_domain
++                or bool(self._fam_e_context.search(variants))
++            )
++        )
++        if not is_educational_advisory and not is_seeking_advice and not is_benign_daily_money_chat and has_transfer_mistake_scam:
++            if not any("Wrong Transfer" in f["factor"] for f in factors):
++                weight = 35
++                factors.append({"factor": "Bẫy chuyển nhầm tiền yêu cầu chuyển hoàn sang tài khoản khác (Wrong Transfer Trap)", "weight": weight})
++                total_risk_score += weight
++
++        # (f) Video call mờ / deepfake + mượn tiền: 40
+         has_video_issue = (
+             self._fam_f_video_phrases.search(variants)
+             or bool(self._fam_f_video_regex.search(clean_norm))
+             or bool(self._fam_f_video_regex.search(folded_norm))
++            or bool(re.search(
++                r"\b(?:video\s*call|gọi\s*video|cuộc\s*gọi\s*video|goi\s*video)\b[^.\n]{0,35}\b(?:thấy\s+mặt|thay\s+mat|thấy\s+hình|thay\s+hinh|mờ|mo|lag|chập\s*chờn|chap\s*chon|nhòe|nhoe|giật|giat|tiếng\s+rè|tieng\s+re|rè|lỗi\s+mic|mất\s+tiếng)\b|"
++                r"\b(?:thấy\s+mặt|thay\s+mat)\b[^.\n]{0,25}\b(?:qua\s+video|video\s+call)\b",
++                clean_norm,
++                re.I
++            ))
+         )
+         has_f_borrow = (
+             self._fam_f_borrow_phrases.search(variants)
+             or bool(self._borrow_amount_regex.search(clean_norm))
+             or bool(self._borrow_amount_regex.search(folded_norm))
++            or bool(re.search(r"\b(?:chuyển\s+khoản|chuyển\s+gấp|chuyển\s+hộ|chuyển\s+giúp|bắn\s+hộ|bắn\s+giúp|ban\s+ho|ck\s+gấp|ck\s+ngay|mượn|vay|viện\s+phí|vien\s+phi|học\s+phí|bị\s+giữ\s+xe|tai\s+nạn)\b", clean_norm, re.I))
+         )
+-        if not is_educational_advisory and has_video_issue and has_f_borrow:
+-            weight = 30
++        if not is_educational_advisory and not is_seeking_advice and not is_benign_daily_money_chat and has_video_issue and has_f_borrow:
++            weight = 40
+             factors.append({"factor": "Cuộc gọi video mờ / nghi vấn Deepfake kết hợp mượn tiền", "weight": weight})
+             total_risk_score += weight
++            if not any("Advance Payment" in f["factor"] for f in factors):
++                factors.append({"factor": "Yêu cầu chuyển tiền / đặt cọc / nạp quỹ trước (Advance Payment)", "weight": 40})
++                total_risk_score += 40
+ 
+         # (g) Mạo danh cơ quan / ngân hàng + đe dọa khóa/phạt/bắt giữ + hạn chót (35)
+         has_bank_impersonation = bool(
+@@ -943,7 +1289,7 @@ class ExplainableAgent:
+             or has_suspicious_bare_domain
+         )
+ 
+-        if not is_educational_advisory and not has_first_person_refusal and has_agency and has_threat and has_g_third_cond:
++        if not is_educational_advisory and not is_seeking_advice and not has_first_person_refusal and has_agency and has_threat and has_g_third_cond:
+             weight = 35
+             factors.append({"factor": "Đe dọa khóa tài khoản / xử lý vi phạm pháp luật thúc ép hành động", "weight": weight})
+             total_risk_score += weight
+@@ -964,17 +1310,21 @@ class ExplainableAgent:
+             self._fam_h_recruitment.search(variants)
+             or bool(self._fam_h_salary_regex.search(clean_norm))
+             or bool(self._fam_h_salary_regex.search(folded_norm))
+-            or bool(re.search(r"\b(?:kiếm\s+tiền\s+tại\s+nhà|kiem\s+tien\s+tai\s+nha)\b", clean_norm, re.I))
++            or bool(re.search(r"\b(?:tuyển|tuyen|cần\s+\d+|can\s+\d+)\b[^.\n]{0,35}\b(?:ctv|cộng\s+tác\s+viên|cong\s+tac\s+vien|nhân\s+viên|nhan\s+vien|làm\s+việc|lam\s+viec|lướt\s+tiktok|xem\s+video|thả\s+tim|đánh\s+giá|giật\s+đơn|xử\s+lý\s+đơn|nhập\s+mã)\b", clean_norm, re.I))
++            or bool(re.search(r"\b(?:kiếm\s+tiền\s+tại\s+nhà|kiem\s+tien\s+tai\s+nha|việc\s+nhẹ|viec\s+nhe|công\s+việc\s+đơn\s+giản|cong\s+viec\s+don\s+gian|mẹ\s+bỉm\s+sữa|thả\s+tim\s+video)\b", clean_norm, re.I))
+         )
+         has_deposit_demand = (
+             self._fam_h_deposit.search(variants)
+-            or bool(re.search(r"\bnạp\s+\d+[\d.,]*\s*k\s+nhận\s+(?:lại\s+|ngay\s+)?\d+[\d.,]*\s*k\b", clean_norm, re.I))
+-            or bool(re.search(r"\bnap\s+\d+[\d.,]*\s*k\s+nhan\s+(?:lai\s+|ngay\s+)?\d+[\d.,]*\s*k\b", folded_norm, re.I))
++            or bool(re.search(r"\b(?:nạp|nap|cọc|coc|ck|chuyển|chuyen|đóng|dong|nộp|nop)\s+(?:trước\s+)?(?:\d+[\d.,]*\s*(?:k|nghìn|nghin|triệu|trieu|tr|đ|dong)|\w+\s+nhiệm\s+vụ|\w+\s+hợp\s+đồng|quỹ|tiền|phí|vốn)\b", clean_norm, re.I))
++            or bool(re.search(r"\b(?:mở\s+nhiệm\s+vụ|nhận\s+nhiệm\s+vụ|làm\s+nhiệm\s+vụ|gói\s+nhiệm\s+vụ|nhan\s+link\s+nhiem\s+vu)\b", clean_norm, re.I))
+         )
+-        if not is_educational_advisory and not is_deposit_negated and has_recruitment and has_deposit_demand:
++        if not is_educational_advisory and not is_seeking_advice and not is_deposit_negated and has_recruitment and has_deposit_demand:
+             weight = 40
+             factors.append({"factor": "Bẫy tuyển dụng CTV / việc nhẹ lương cao yêu cầu nạp tiền, đặt cọc", "weight": weight})
+             total_risk_score += weight
++            if not any("Advance Payment" in f["factor"] for f in factors):
++                factors.append({"factor": "Yêu cầu chuyển tiền / đặt cọc / nạp quỹ trước (Advance Payment)", "weight": 40})
++                total_risk_score += 40
+ 
+         # (i) Link / APK lạ yêu cầu cài đặt: 35
+         has_suspicious_source = (
+@@ -983,11 +1333,96 @@ class ExplainableAgent:
+             or self._fam_i_suspicious_source.search(variants)
+             or (".apk" in text_lower and not has_block_e)
+         )
+-        if not is_educational_advisory and self._fam_i_install.search(variants) and has_suspicious_source and not has_only_official_urls:
++        if not is_educational_advisory and not is_seeking_advice and self._fam_i_install.search(variants) and has_suspicious_source and not has_only_official_urls:
+             weight = 35
+             factors.append({"factor": "Yêu cầu cài đặt ứng dụng ngoài hoặc tải file APK nghi vấn", "weight": weight})
+             total_risk_score += weight
+ 
++        # (j) Tình cảm / Romance Scam: 45 + 40
++        has_romance_lure = (
++            bool(self._fam_romance_lure.search(variants))
++            or bool(re.search(
++                r"\b(?:quen\s+(?:nhau\s+)?(?:qua|trên|tren)\s+(?:mạng|tinder|facebook|zalo|hẹn\s+hò)|"
++                r"bạn\s+trai\s+(?:ngoại\s+quốc|nước\s+ngoài)|ban\s+trai\s+(?:ngoai\s+quoc|nuoc\s+ngoai)|"
++                r"người\s+yêu\s+online|nguoi\s+yeu\s+online|"
++                r"(?:anh|em)\s+là\s+(?:bác\s+sĩ\s+quân\s+y|kỹ\s+sư\s+dầu\s+khí|phi\s+công|quân\s+nhân)|"
++                r"(?:anh|em)\s+la\s+(?:bac\s+si\s+quan\s+y|ky\s+su\s+dau\s+khi|phi\s+cong|quan\s+nhan)|"
++                r"gửi\s+(?:tặng\s+)?(?:cho\s+)?(?:em|anh)\s+(?:gói\s+quà|hộp\s+quà|vali|thùng\s+hàng|thùng\s+tiền|kiện\s+hàng)\b[^.\n]{0,30}\b(?:từ\s+(?:mỹ|nước\s+ngoài|anh|london|syria)|chứa|ngoại\s+tệ|usd|kim\s+cương)|"
++                r"em\s+yêu\s+ơi\b[^.\n]{0,30}\b(?:quà|hàng))\b",
++                clean_norm,
++                re.I
++            ))
++        )
++        has_romance_action = (
++            bool(self._fam_romance_action.search(variants))
++            or bool(re.search(
++                r"\b(?:hải\s+quan|hai\s+quan|thông\s+quan|thong\s+quan|sân\s+bay|san\s+bay|lưu\s+kho|luu\s+kho|vận\s+chuyển\s+quốc\s+tế)\b[^.\n]{0,40}\b(?:nộp\s+phí|đóng\s+phí|đóng\s+thuế|tiền\s+thuế|lệ\s+phí|phạt|phí\s+bảo\s+hiểm|ck|chuyển\s+khoản)\b|"
++                r"\b(?:ck|chuyển\s+khoản|chuyen\s+khoan|chuyển|chuyen)\b[^.\n]{0,30}\b(?:phí|thuế|tiền)\b[^.\n]{0,30}\b(?:hải\s+quan|thông\s+quan|sân\s+bay|lưu\s+kho|nhận\s+quà)\b",
++                clean_norm,
++                re.I
++            ))
++            or (has_fam_a_fee and bool(re.search(r"\b(?:hải\s+quan|thông\s+quan|kiện\s+hàng|bưu\s+kiện|sân\s+bay)\b", clean_norm, re.I)))
++        )
++        if not is_educational_advisory and not is_seeking_advice and not is_benign_daily_money_chat and has_romance_lure and (has_romance_action or has_crypto_romance or has_borrow_request):
++            weight = 45
++            factors.append({"factor": "Bẫy lừa đảo tình cảm kết hợp yêu cầu chuyển tiền / nhận kiện hàng (Romance Scam)", "weight": weight})
++            total_risk_score += weight
++            if not any("Advance Payment" in f["factor"] or "Advance Fee" in f["factor"] for f in factors):
++                factors.append({"factor": "Yêu cầu chuyển tiền / đặt cọc / nạp quỹ trước (Advance Payment)", "weight": 40})
++                total_risk_score += 40
++
++        # (k) Hỗ trợ kỹ thuật / gỡ virus / điều khiển từ xa: 45 + 35
++        has_tech_remote = (
++            bool(self._fam_tech_remote_matcher.search(variants))
++            or bool(re.search(r"\b(?:anydesk|ultraviewer|ultraview|teamviewer|teamview|quicksupport|rustdesk)\b", clean_norm, re.I))
++            or bool(re.search(r"\b(?:điều\s+khiển\s+từ\s+xa|dieu\s+khien\s+tu\s+xa)\b", clean_norm, re.I))
++        )
++        has_tech_threat = (
++            bool(re.search(
++                r"\b(?:nhiễm\s+(?:virus|mã\s+độc)|nhiem\s+(?:virus|ma\s+doc)|"
++                r"mã\s+độc|ma\s+doc|virus|phần\s+mềm\s+(?:độc\s+hại|gián\s+điệp)|phan\s+mem\s+(?:doc\s+hai|gian\s+diep)|"
++                r"bị\s+hack|bi\s+hack|lỗi\s+bảo\s+mật|loi\s+bao\s+mat|xâm\s+nhập|xam\s+nhap|truy\s+cập\s+trái\s+phép|truy\s+cap\s+trai\s+phep|"
++                r"đánh\s+cắp|danh\s+cap|bảo\s+vệ\s+tài\s+khoản|tài\s+khoản\s+an\s+toàn|tai\s+khoan\s+an\s+toan|"
++                r"kỹ\s+thuật\s+viên|ky\s+thuat\s+vien|bộ\s+phận\s+kỹ\s+thuật|bo\s+phan\s+ky\s+thuat|an\s+ninh\s+mạng|"
++                r"cung\s+cấp\s+id|cho\s+xin\s+id|đọc\s+id|doc\s+id|cấp\s+quyền|cap\s+quyen)\b",
++                clean_norm,
++                re.I
++            ))
++            or has_suspicious_urls
++            or has_suspicious_bare_domain
++        )
++        if not is_educational_advisory and not is_seeking_advice and has_tech_remote and has_tech_threat:
++            weight = 45
++            factors.append({"factor": "Mạo danh hỗ trợ kỹ thuật yêu cầu cài phần mềm điều khiển từ xa / truy cập thiết bị (Remote Access Scam)", "weight": weight})
++            total_risk_score += weight
++            if not any("ứng dụng ngoài" in f["factor"].lower() for f in factors):
++                factors.append({"factor": "Yêu cầu cài đặt ứng dụng ngoài hoặc tải file APK nghi vấn", "weight": 35})
++                total_risk_score += 35
++
++        # (l) Giả CSKH sàn TMĐT: 45 + 40
++        has_ecom_support = (
++            bool(self._fam_ecommerce_support_matcher.search(variants))
++            or bool(re.search(r"\b(?:cskh|chăm\s+sóc\s+khách\s+hàng|cham\s+soc\s+khach\s+hang|tổng\s+đài|tong\s+dai|bộ\s+phận\s+hỗ\s+trợ)\b[^.\n]{0,25}\b(?:shopee|lazada|tiki|tiktok|sendo)\b|\b(?:shopee|lazada|tiki|tiktok|sendo)\b[^.\n]{0,20}\b(?:cskh|tổng\s+đài)\b", clean_norm, re.I))
++        )
++        has_ecom_issue = bool(
++            re.search(
++                r"\b(?:trừ\s+tiền|tru\s+tien|hủy\s+gói|huy\s+goi|hội\s+viên|hoi\s+vien|gói\s+thành\s+viên|gói\s+khách\s+hàng|gia\s+hạn|gia\s+han|"
++                r"đăng\s+ký\s+(?:nhầm|gói|dịch\s+vụ)|dang\s+ky|lỗi\s+thanh\s+toán|loi\s+thanh\s+toan|"
++                r"hoàn\s+tiền|hoan\s+tien|bồi\s+thường|khiếu\s+nại|khieu\s+nai|phạt\s+vi\s+phạm)\b",
++                clean_norm,
++                re.I
++            )
++            or has_suspicious_urls
++            or has_suspicious_bare_domain
++        )
++        if not is_educational_advisory and not is_seeking_advice and has_ecom_support and has_ecom_issue:
++            weight = 45
++            factors.append({"factor": "Mạo danh chăm sóc khách hàng sàn TMĐT thúc ép thao tác tài chính (E-commerce Support Scam)", "weight": weight})
++            total_risk_score += weight
++            if not any("Advance Payment" in f["factor"] or "Advance Fee" in f["factor"] for f in factors):
++                factors.append({"factor": "Yêu cầu nộp phí / chuyển tiền trước để nhận tiền hoặc giải ngân (Advance Fee)", "weight": 40})
++                total_risk_score += 40
++
+         # ─────────────────────────────────────────
+         # GENERALIZED CO-OCCURRENCE COVERAGE (G5: 6, 7, 8, 9)
+         # ─────────────────────────────────────────
+@@ -1017,19 +1452,59 @@ class ExplainableAgent:
+                 factors.append({"factor": "Dấu hiệu bẫy trúng thưởng / tri ân yêu cầu nộp phí hoặc nạp thẻ cào", "weight": 35})
+                 total_risk_score += 35
+ 
+-        # G5(8): Fake delivery / package held fee
+-        has_delivery_held = bool(re.search(r"\b(?:đơn\s+hàng|bưu\s+kiện|kiện\s+hàng|don\s+hang|buu\s+kien)\b[^.\n]{0,25}\b(?:bị\s+giữ|bi\s+giu|chưa\s+giao|tạm\s+giữ)\b", clean_norm, re.I))
+-        has_delivery_fee = bool(re.search(r"\b(?:thanh\s+toán\s+phí|thanh\s+toan\s+phi|nộp\s+phí|nop\s+phi|phí\s+phát\s+lại)\b[^.\n]{0,20}\b\d+[\d.,]*\s*k\b", clean_norm, re.I))
+-        if not is_educational_advisory and has_delivery_held and (has_delivery_fee or has_suspicious_urls or has_suspicious_bare_domain):
+-            if not any("Advance Payment" in f["factor"] for f in factors):
++        # G5(8): Fake delivery / package held fee (Shipper / Hải quan)
++        has_delivery_context = bool(
++            re.search(
++                r"\b(?:đơn\s+hàng|bưu\s+kiện|kiện\s+hàng|bưu\s+phẩm|don\s+hang|buu\s+kien|buu\s+pham|gói\s+hàng|hải\s+quan|hai\s+quan|thông\s+quan|thong\s+quan|shipper|giao\s+hàng|giao\s+hang|bưu\s+điện|buu\s+dien|giao\s+hàng\s+tiết\s+kiệm|viettel\s+post|vnpost|j&t|shopee\s+express)\b",
++                clean_norm,
++                re.I
++            )
++        )
++        has_delivery_issue = bool(
++            re.search(
++                r"\b(?:bị\s+giữ|bi\s+giu|bị\s+treo|bi\s+treo|tạm\s+giữ|tam\s+giu|thiếu\s+cước|thieu\s+cuoc|chưa\s+thanh\s+toán|chua\s+thanh\s+toan|phạt|tiền\s+phạt|tien\s+phat|thuế\s+thông\s+quan|gửi\s+bảo\s+vệ|gui\s+bao\s+ve|phí\s+giao|phí\s+ship|tiền\s+ship|phí\s+hải\s+quan|phí\s+lưu\s+kho|chưa\s+trả\s+tiền|cần\s+thanh\s+toán)\b",
++                clean_norm,
++                re.I
++            )
++        )
++        has_delivery_transfer_demand = bool(
++            re.search(
++                r"\b(?:chuyển\s+khoản|chuyen\s+khoan|chuyển\s+tiền|chuyen\s+tien|vào\s+stk|vao\s+stk|ck\s+gấp|ck\s+ngay|vào\s+tài\s+khoản|tài\s+khoản\s+cá\s+nhân|tai\s+khoan\s+ca\s+nhan|đóng\s+phí|dong\s+phi|nộp\s+phí|nop\s+phi|nộp\s+thuế|đóng\s+thuế|ck\s+giúp|chuyển\s+giúp|bắn\s+tiền)\b",
++                clean_norm,
++                re.I
++            )
++        )
++        if not is_educational_advisory and not is_seeking_advice and not is_benign_daily_money_chat and has_delivery_context and (
++            (has_delivery_issue and (has_delivery_transfer_demand or has_suspicious_urls or has_suspicious_bare_domain))
++            or (has_delivery_transfer_demand and (has_suspicious_urls or has_suspicious_bare_domain or bool(re.search(r"\btài\s+khoản\s+cá\s+nhân\b", clean_norm, re.I))))
++        ):
++            if not any("Mạo danh shipper" in f["factor"] for f in factors):
++                factors.append({"factor": "Mạo danh shipper / cơ quan hải quan yêu cầu nộp phí bưu kiện, thông quan", "weight": 35})
++                total_risk_score += 35
++            if has_delivery_transfer_demand and not any("Advance Payment" in f["factor"] or "Advance Fee" in f["factor"] for f in factors):
+                 factors.append({"factor": "Yêu cầu nộp phí / chuyển tiền trước để nhận tiền hoặc giải ngân (Advance Fee)", "weight": 40})
+                 total_risk_score += 40
+ 
+-        # G5(9): Account locked due to biometric / verification + short link / strange domain + urgency
++        # G5(9): Account locked / banking alert + suspicious domain
++        has_bank_phishing_alert = bool(
++            re.search(
++                r"\b(?:vietcombank|techcombank|bidv|agribank|vietinbank|mbbank|mb\s+bank|acb|sacombank|tpbank|vpbank|vib|shb)\b",
++                clean_norm,
++                re.I
++            )
++            and re.search(
++                r"\b(?:tài\s+khoản|tai\s+khoan|thẻ|the)\b[^.\n]{0,35}\b(?:bị\s+khóa|bi\s+khoa|tạm\s+khóa|tam\s+khoa|phong\s+tỏa|gian\s+lận|đăng\s+nhập\s+bất\s+thường|dang\s+nhap\s+bat\s+thuong|hết\s+hạn|bị\s+trừ\s+tiền|tạm\s+ngừng|ngừng\s+giao\s+dịch|sai\s+thông\s+tin|chưa\s+định\s+danh|chưa\s+cập\s+nhật)\b",
++                clean_norm,
++                re.I
++            )
++        )
+         has_biometric_reason = bool(re.search(r"\b(?:chưa\s+cập\s+nhật\s+sinh\s+trắc\s+học|chua\s+cap\s+nhat\s+sinh\s+trac\s+hoc|chưa\s+xác\s+thực|chua\s+xac\s+thuc|chưa\s+cập\s+nhật\s+cccd|chua\s+cap\s+nhat\s+cccd)\b", clean_norm, re.I))
+         has_short_link = bool(re.search(r"\b(?:bit\.ly|tinyurl\.com|t\.co|is\.gd|cutt\.ly|goo\.gl)\b", text_lower))
+         has_bio_urgency = bool(re.search(r"\b(?:ngay|vĩnh\s+viễn|vinh\s+vien|trong\s+24h|hạn\s+chót)\b", clean_norm, re.I))
+-        if not is_educational_advisory and has_biometric_reason and (has_suspicious_urls or has_suspicious_bare_domain or has_short_link) and has_bio_urgency:
++        if not is_educational_advisory and (
++            (has_bank_phishing_alert and (has_suspicious_urls or has_suspicious_bare_domain))
++            or (has_biometric_reason and (has_suspicious_urls or has_suspicious_bare_domain or has_short_link) and has_bio_urgency)
++        ):
+             if not any("Banking Phishing" in f["factor"] for f in factors):
+                 factors.append({"factor": "Giả mạo thông báo ngân hàng / cảnh báo tài khoản (Banking Phishing)", "weight": 35})
+                 total_risk_score += 35
+@@ -1048,7 +1523,7 @@ class ExplainableAgent:
+         # ─────────────────────────────────────────
+         # BLOCK K: RAG matched_flags bonus
+         # ─────────────────────────────────────────
+-        if matched_flags and total_risk_score < 25 and not has_only_official_urls:
++        if matched_flags and total_risk_score < 25 and not has_only_official_urls and not is_educational_advisory and not is_seeking_advice and not is_benign_daily_money_chat:
+             weight = 20
+             factors.append({"factor": f"Xuất hiện {len(matched_flags)} từ khoá nghi vấn trong CSDL PhishVN", "weight": weight})
+             total_risk_score += weight
+@@ -1107,6 +1582,13 @@ class ExplainableAgent:
+             else:
+                 final_risk_score = min(total_risk_score, 99)
+ 
++        if (is_educational_advisory or is_benign_daily_money_chat) and not has_direct_scam_demand and not has_suspicious_urls and not has_suspicious_bare_domain:
++            final_risk_score = 0
++            factors = []
++        elif is_seeking_advice and not has_direct_scam_demand and not has_suspicious_urls and not has_suspicious_bare_domain:
++            final_risk_score = min(final_risk_score, 20)
++            factors = [f for f in factors if f.get("weight", 0) <= 20]
++
+         return {
+             "risk_score": final_risk_score,
+             "risk_breakdown": factors,
+diff --git a/tests/data/phase1_predictions.json b/tests/data/phase1_predictions.json
+index 003c36d..21813df 100644
+--- a/tests/data/phase1_predictions.json
++++ b/tests/data/phase1_predictions.json
+@@ -1,374 +1,374 @@
+ {
+-"v1": {
+-"CASE_01": [
+-"HIGH",
+-99
+-],
+-"CASE_02": [
+-"HIGH",
+-99
+-],
+-"CASE_03": [
+-"MEDIUM",
+-40
+-],
+-"CASE_04": [
+-"MEDIUM",
+-50
+-],
+-"CASE_05": [
+-"CRITICAL",
+-99
+-],
+-"CASE_06": [
+-"LOW",
+-0
+-],
+-"CASE_07": [
+-"LOW",
+-30
+-],
+-"CASE_08": [
+-"LOW",
+-0
+-],
+-"CASE_09": [
+-"LOW",
+-0
+-],
+-"CASE_10": [
+-"CRITICAL",
+-99
+-],
+-"CASE_11": [
+-"LOW",
+-0
+-],
+-"CASE_12": [
+-"MEDIUM",
+-70
+-],
+-"CASE_13": [
+-"HIGH",
+-99
+-],
+-"CASE_14": [
+-"HIGH",
+-75
+-],
+-"CASE_15": [
+-"MEDIUM",
+-50
+-],
+-"CASE_16": [
+-"LOW",
+-0
+-],
+-"CASE_17": [
+-"LOW",
+-0
+-],
+-"CASE_18": [
+-"HIGH",
+-75
+-],
+-"CASE_19": [
+-"LOW",
+-0
+-],
+-"CASE_20": [
+-"HIGH",
+-80
+-]
+-},
+-"v2": {
+-"CASE_01": [
+-"HIGH",
+-99
+-],
+-"CASE_02": [
+-"HIGH",
+-99
+-],
+-"CASE_03": [
+-"MEDIUM",
+-40
+-],
+-"CASE_04": [
+-"MEDIUM",
+-50
+-],
+-"CASE_05": [
+-"CRITICAL",
+-99
+-],
+-"CASE_06": [
+-"LOW",
+-0
+-],
+-"CASE_07": [
+-"LOW",
+-30
+-],
+-"CASE_08": [
+-"LOW",
+-0
+-],
+-"CASE_09": [
+-"LOW",
+-0
+-],
+-"CASE_10": [
+-"CRITICAL",
+-99
+-],
+-"CASE_11": [
+-"LOW",
+-0
+-],
+-"CASE_12": [
+-"MEDIUM",
+-70
+-],
+-"CASE_13": [
+-"HIGH",
+-99
+-],
+-"CASE_14": [
+-"HIGH",
+-75
+-],
+-"CASE_15": [
+-"MEDIUM",
+-50
+-],
+-"CASE_16": [
+-"LOW",
+-0
+-],
+-"CASE_17": [
+-"LOW",
+-0
+-],
+-"CASE_18": [
+-"HIGH",
+-75
+-],
+-"CASE_19": [
+-"LOW",
+-0
+-],
+-"CASE_20": [
+-"HIGH",
+-80
+-],
+-"CASE_21": [
+-"LOW",
+-0
+-],
+-"CASE_22": [
+-"MEDIUM",
+-60
+-],
+-"CASE_23": [
+-"LOW",
+-0
+-],
+-"CASE_24": [
+-"HIGH",
+-80
+-],
+-"CASE_25": [
+-"LOW",
+-15
+-],
+-"CASE_26": [
+-"LOW",
+-15
+-],
+-"CASE_27": [
+-"LOW",
+-0
+-],
+-"CASE_28": [
+-"LOW",
+-0
+-],
+-"CASE_29": [
+-"LOW",
+-15
+-],
+-"CASE_30": [
+-"MEDIUM",
+-45
+-],
+-"CASE_31": [
+-"LOW",
+-0
+-],
+-"CASE_32": [
+-"LOW",
+-0
+-],
+-"CASE_33": [
+-"MEDIUM",
+-50
+-],
+-"CASE_34": [
+-"LOW",
+-0
+-],
+-"CASE_35": [
+-"LOW",
+-0
+-],
+-"CASE_36": [
+-"LOW",
+-0
+-],
+-"CASE_37": [
+-"MEDIUM",
+-60
+-],
+-"CASE_38": [
+-"LOW",
+-0
+-],
+-"CASE_39": [
+-"HIGH",
+-99
+-],
+-"CASE_40": [
+-"MEDIUM",
+-60
+-],
+-"CASE_41": [
+-"LOW",
+-0
+-],
+-"CASE_42": [
+-"LOW",
+-0
+-],
+-"CASE_43": [
+-"LOW",
+-0
+-],
+-"CASE_44": [
+-"HIGH",
+-80
+-],
+-"CASE_45": [
+-"MEDIUM",
+-45
+-],
+-"CASE_46": [
+-"LOW",
+-0
+-],
+-"CASE_47": [
+-"LOW",
+-0
+-],
+-"CASE_48": [
+-"LOW",
+-0
+-],
+-"CASE_49": [
+-"MEDIUM",
+-40
+-],
+-"CASE_50": [
+-"LOW",
+-0
+-],
+-"CASE_51": [
+-"LOW",
+-0
+-],
+-"CASE_52": [
+-"LOW",
+-0
+-],
+-"CASE_53": [
+-"LOW",
+-0
+-],
+-"CASE_54": [
+-"LOW",
+-0
+-],
+-"CASE_55": [
+-"LOW",
+-0
+-],
+-"CASE_56": [
+-"HIGH",
+-95
+-],
+-"CASE_57": [
+-"HIGH",
+-90
+-],
+-"CASE_58": [
+-"HIGH",
+-80
+-],
+-"CASE_59": [
+-"LOW",
+-35
+-],
+-"CASE_60": [
+-"LOW",
+-15
+-],
+-"CASE_61": [
+-"LOW",
+-20
+-],
+-"CASE_62": [
+-"LOW",
+-0
+-],
+-"CASE_63": [
+-"LOW",
+-0
+-],
+-"CASE_64": [
+-"LOW",
+-15
+-],
+-"CASE_65": [
+-"MEDIUM",
+-45
+-],
+-"CASE_66": [
+-"MEDIUM",
+-40
+-],
+-"CASE_67": [
+-"CRITICAL",
+-99
+-],
+-"CASE_68": [
+-"CRITICAL",
+-99
+-],
+-"CASE_69": [
+-"CRITICAL",
+-99
+-],
+-"CASE_70": [
+-"CRITICAL",
+-99
+-],
+-"CASE_71": [
+-"CRITICAL",
+-99
+-],
+-"CASE_72": [
+-"CRITICAL",
+-99
+-]
++  "v1": {
++    "CASE_01": [
++      "HIGH",
++      99
++    ],
++    "CASE_02": [
++      "HIGH",
++      99
++    ],
++    "CASE_03": [
++      "HIGH",
++      80
++    ],
++    "CASE_04": [
++      "MEDIUM",
++      70
++    ],
++    "CASE_05": [
++      "CRITICAL",
++      99
++    ],
++    "CASE_06": [
++      "LOW",
++      0
++    ],
++    "CASE_07": [
++      "LOW",
++      30
++    ],
++    "CASE_08": [
++      "LOW",
++      0
++    ],
++    "CASE_09": [
++      "LOW",
++      0
++    ],
++    "CASE_10": [
++      "CRITICAL",
++      99
++    ],
++    "CASE_11": [
++      "LOW",
++      0
++    ],
++    "CASE_12": [
++      "HIGH",
++      99
++    ],
++    "CASE_13": [
++      "HIGH",
++      99
++    ],
++    "CASE_14": [
++      "HIGH",
++      80
++    ],
++    "CASE_15": [
++      "MEDIUM",
++      50
++    ],
++    "CASE_16": [
++      "LOW",
++      0
++    ],
++    "CASE_17": [
++      "LOW",
++      0
++    ],
++    "CASE_18": [
++      "HIGH",
++      75
++    ],
++    "CASE_19": [
++      "LOW",
++      0
++    ],
++    "CASE_20": [
++      "HIGH",
++      99
++    ]
++  },
++  "v2": {
++    "CASE_01": [
++      "HIGH",
++      99
++    ],
++    "CASE_02": [
++      "HIGH",
++      99
++    ],
++    "CASE_03": [
++      "HIGH",
++      80
++    ],
++    "CASE_04": [
++      "MEDIUM",
++      70
++    ],
++    "CASE_05": [
++      "CRITICAL",
++      99
++    ],
++    "CASE_06": [
++      "LOW",
++      0
++    ],
++    "CASE_07": [
++      "LOW",
++      30
++    ],
++    "CASE_08": [
++      "LOW",
++      0
++    ],
++    "CASE_09": [
++      "LOW",
++      0
++    ],
++    "CASE_10": [
++      "CRITICAL",
++      99
++    ],
++    "CASE_11": [
++      "LOW",
++      0
++    ],
++    "CASE_12": [
++      "HIGH",
++      99
++    ],
++    "CASE_13": [
++      "HIGH",
++      99
++    ],
++    "CASE_14": [
++      "HIGH",
++      80
++    ],
++    "CASE_15": [
++      "MEDIUM",
++      50
++    ],
++    "CASE_16": [
++      "LOW",
++      0
++    ],
++    "CASE_17": [
++      "LOW",
++      0
++    ],
++    "CASE_18": [
++      "HIGH",
++      75
++    ],
++    "CASE_19": [
++      "LOW",
++      0
++    ],
++    "CASE_20": [
++      "HIGH",
++      99
++    ],
++    "CASE_21": [
++      "LOW",
++      0
++    ],
++    "CASE_22": [
++      "MEDIUM",
++      60
++    ],
++    "CASE_23": [
++      "LOW",
++      0
++    ],
++    "CASE_24": [
++      "HIGH",
++      80
++    ],
++    "CASE_25": [
++      "LOW",
++      15
++    ],
++    "CASE_26": [
++      "LOW",
++      15
++    ],
++    "CASE_27": [
++      "LOW",
++      0
++    ],
++    "CASE_28": [
++      "LOW",
++      0
++    ],
++    "CASE_29": [
++      "LOW",
++      15
++    ],
++    "CASE_30": [
++      "MEDIUM",
++      45
++    ],
++    "CASE_31": [
++      "LOW",
++      0
++    ],
++    "CASE_32": [
++      "LOW",
++      0
++    ],
++    "CASE_33": [
++      "MEDIUM",
++      50
++    ],
++    "CASE_34": [
++      "LOW",
++      0
++    ],
++    "CASE_35": [
++      "LOW",
++      0
++    ],
++    "CASE_36": [
++      "LOW",
++      0
++    ],
++    "CASE_37": [
++      "MEDIUM",
++      60
++    ],
++    "CASE_38": [
++      "LOW",
++      0
++    ],
++    "CASE_39": [
++      "HIGH",
++      99
++    ],
++    "CASE_40": [
++      "MEDIUM",
++      60
++    ],
++    "CASE_41": [
++      "LOW",
++      0
++    ],
++    "CASE_42": [
++      "LOW",
++      0
++    ],
++    "CASE_43": [
++      "LOW",
++      0
++    ],
++    "CASE_44": [
++      "HIGH",
++      80
++    ],
++    "CASE_45": [
++      "MEDIUM",
++      45
++    ],
++    "CASE_46": [
++      "LOW",
++      0
++    ],
++    "CASE_47": [
++      "LOW",
++      0
++    ],
++    "CASE_48": [
++      "LOW",
++      0
++    ],
++    "CASE_49": [
++      "LOW",
++      0
++    ],
++    "CASE_50": [
++      "LOW",
++      0
++    ],
++    "CASE_51": [
++      "LOW",
++      0
++    ],
++    "CASE_52": [
++      "LOW",
++      0
++    ],
++    "CASE_53": [
++      "LOW",
++      0
++    ],
++    "CASE_54": [
++      "LOW",
++      0
++    ],
++    "CASE_55": [
++      "LOW",
++      0
++    ],
++    "CASE_56": [
++      "HIGH",
++      99
++    ],
++    "CASE_57": [
++      "HIGH",
++      99
++    ],
++    "CASE_58": [
++      "HIGH",
++      80
++    ],
++    "CASE_59": [
++      "HIGH",
++      80
++    ],
++    "CASE_60": [
++      "LOW",
++      15
++    ],
++    "CASE_61": [
++      "LOW",
++      20
++    ],
++    "CASE_62": [
++      "LOW",
++      0
++    ],
++    "CASE_63": [
++      "LOW",
++      0
++    ],
++    "CASE_64": [
++      "LOW",
++      15
++    ],
++    "CASE_65": [
++      "MEDIUM",
++      45
++    ],
++    "CASE_66": [
++      "MEDIUM",
++      40
++    ],
++    "CASE_67": [
++      "CRITICAL",
++      99
++    ],
++    "CASE_68": [
++      "CRITICAL",
++      99
++    ],
++    "CASE_69": [
++      "CRITICAL",
++      99
++    ],
++    "CASE_70": [
++      "CRITICAL",
++      99
++    ],
++    "CASE_71": [
++      "CRITICAL",
++      99
++    ],
++    "CASE_72": [
++      "CRITICAL",
++      99
++    ]
++  }
+ }
+-}
+\ No newline at end of file

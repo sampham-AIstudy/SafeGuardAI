@@ -1107,6 +1107,105 @@ class ExplainableAgent:
             else:
                 final_risk_score = min(total_risk_score, 99)
 
+        # ─────────────────────────────────────────────────────────────────────
+        # D2: Speech-Act / Intent Gate (giảm FP lành tính)
+        # Hằng số ngưỡng confidence — đặt tên để dễ giải thích và ablation.
+        # Cổng chỉ GIẢM điểm văn bản (text score), KHÔNG đụng điểm URL.
+        # Không bao giờ tăng điểm.
+        # ─────────────────────────────────────────────────────────────────────
+        # Ngưỡng confidence tối thiểu để áp dụng giảm điểm lành tính
+        _SPEECH_ACT_CONFIDENCE_THRESHOLD = 0.55
+        # Trần điểm văn bản sau khi giảm
+        _SPEECH_ACT_TEXT_CAP = 25
+
+        _sa_settings = get_settings()
+        if getattr(_sa_settings, "speech_act_enabled", True):
+            from codebase.agents.speech_act import classify_speech_act
+            _BENIGN_LABELS = {"news_report", "public_warning", "victim_advice", "everyday"}
+
+            _sa = classify_speech_act(text)
+
+            # Điều kiện để áp dụng cổng:
+            # 1. Nhãn là lành tính với confidence đủ cao
+            # 2. Không có tín hiệu solicitation từ speech_act
+            # 3. URL report không có tín hiệu >= medium
+            # 4. Không phải tình huống khẩn cấp (emergency)
+
+            _is_benign_label = (
+                _sa.label in _BENIGN_LABELS
+                and _sa.confidence >= _SPEECH_ACT_CONFIDENCE_THRESHOLD
+            )
+
+            # Kiểm tra solicitation từ speech_act
+            _has_solicitation = (
+                "solicitation:action" in _sa.evidence
+                or "solicitation:threat_action" in _sa.evidence
+                or "solicitation:lure_fee" in _sa.evidence
+            )
+
+            # Kiểm tra URL signal >= medium (dùng all_signals đã thu thập)
+            _has_url_medium_plus = any(
+                (getattr(s, "severity", None) if not isinstance(s, dict) else s.get("severity"))
+                in ("medium", "high", "critical")
+                for s in all_signals
+            ) if all_signals else False
+
+            # Kiểm tra emergency: nếu escalation_info hoặc scam_actions rất mạnh
+            _is_emergency_context = bool(
+                (escalation_info and escalation_info.get("is_emergency"))
+                or any(w in text_lower for w in [
+                    "vừa bị lừa", "vua bi lua", "đang bị lừa", "dang bi lua",
+                    "vừa chuyển tiền", "vua chuyen tien", "đã chuyển tiền rồi", "da chuyen tien roi",
+                    "đang chuyển tiền", "dang chuyen tien",
+                    "vừa đưa otp", "vua dua otp",
+                ])
+            )
+
+            # Kiểm tra critical_evidence (blacklist, APK, URL kỹ thuật cứng)
+            _has_critical_evidence = bool(
+                module_enabled and url_report is not None and any(
+                    (getattr(s, "severity", None) if not isinstance(s, dict) else s.get("severity")) == "critical"
+                    for s in all_signals
+                )
+            )
+
+            if (
+                _is_benign_label
+                and not _has_solicitation
+                and not _has_url_medium_plus
+                and not _is_emergency_context
+                and not _has_critical_evidence
+                and not has_scam_actions
+            ):
+                # Tính lại: phần URL score giữ nguyên, phần text score bị trần
+                if module_enabled:
+                    _url_factors = [f for f in factors if _is_url_factor(f)]
+                    _text_factors = [f for f in factors if not _is_url_factor(f)]
+                    _url_score = sum(f.get("weight", 0) for f in _url_factors)
+                    _text_score_before = sum(f.get("weight", 0) for f in _text_factors)
+                    _text_score_after = min(_text_score_before, _SPEECH_ACT_TEXT_CAP)
+                    if _text_score_after < _text_score_before:
+                        # Scale xuống: giữ nguyên factors nhưng hạ final_risk_score
+                        final_risk_score = min(_text_score_after + _url_score, 99)
+                else:
+                    _score_before = final_risk_score
+                    _score_after = min(final_risk_score, _SPEECH_ACT_TEXT_CAP)
+                    if _score_after < _score_before:
+                        final_risk_score = _score_after
+
+                if final_risk_score < (sum(f.get("weight", 0) for f in factors)):
+                    # Thêm factor giải thích lành tính
+                    _label_vi = {
+                        "news_report": "tường thuật báo chí",
+                        "public_warning": "cảnh báo cộng đồng từ cơ quan chức năng",
+                        "victim_advice": "nạn nhân kể chuyện / hỏi cách xử lý",
+                        "everyday": "trao đổi đời thường",
+                    }.get(_sa.label, _sa.label)
+                    factors.append({
+                        "factor": f"Ngữ cảnh: {_label_vi} — nội dung mang tính tường thuật/cảnh báo, không yêu cầu bạn hành động",
+                        "weight": 0,
+                    })
+
         return {
             "risk_score": final_risk_score,
             "risk_breakdown": factors,

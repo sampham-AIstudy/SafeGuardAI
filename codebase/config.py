@@ -30,6 +30,7 @@ class Settings:
     max_connections_per_ip: int = 32
     max_memory_chars: int = 8_000_000
     db_path: str = "data/safeguard.db"
+    speech_act_enabled: bool = True  # SAFEGUARD_SPEECH_ACT=off để tắt cổng ngữ cảnh (ablation)
 
 
 _SETTINGS_INSTANCE: Settings | None = None
@@ -188,6 +189,8 @@ def get_settings(refresh: bool = False) -> Settings:
 
     db_path = os.environ.get("SAFEGUARD_DB_PATH", "data/safeguard.db").strip() or "data/safeguard.db"
 
+    speech_act_enabled = _parse_bool(os.environ.get("SAFEGUARD_SPEECH_ACT"), True)
+
     _SETTINGS_INSTANCE = Settings(
         offline=offline,
         llm_mode=llm_mode,
@@ -215,5 +218,6 @@ def get_settings(refresh: bool = False) -> Settings:
         max_connections_per_ip=max_connections_per_ip,
         max_memory_chars=max_memory_chars,
         db_path=db_path,
+        speech_act_enabled=speech_act_enabled,
     )
     return _SETTINGS_INSTANCE
