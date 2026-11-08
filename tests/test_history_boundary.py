@@ -8,7 +8,7 @@ from copy import deepcopy
 import unittest
 from unittest.mock import patch
 
-from engine.history import build_observed_history
+from safeguard.engine.history import build_observed_history
 
 
 def toy_history():

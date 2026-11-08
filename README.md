@@ -14,32 +14,82 @@
 
 ## Scope
 
-The application boundary is:
+Observe a conversation as messages arrive, assess scam risk in an engine, and let a separate
+policy decide whether and when to warn. The engine research will compare workflow and agent
+control; neither has demonstrated superiority in this rebuild.
 
-```text
-Messages -> Data normalizer -> Engine -> Warning policy -> Interface
-                                ^  |
-                                |  v
-                        Conversation status
-```
+---
 
-The rebuild starts with small, separately checked components. The current implementation is
-the [observed-history boundary](engine/history.py): select an observed prefix, preserve its order
-and content, and detach its mutable payloads from source history. It does not perform fraud
-assessment. A workflow implementation and an agent-controlled alternative remain design work.
+## Architecture
+
+The architecture diagram supplied by the project owner:
+
+![Application architecture](docs/assets/architecture.png)
+
+Source adapters implement message ingress. The demo is one source implementation; each
+adapter hands its events to the shared normalizer.
+
+| Part | Responsibility in the current design |
+|---|---|
+| Source adapter | Receive source events and hand off source context plus the unchanged native message-event data |
+| Data normalizer | Interpret the native data using that source's mapping and produce an internal message representation |
+| Engine | Analyze the observed conversation and return an assessment with references to supporting/counterevidence |
+| Warning policy | Decide whether/when to warn from the assessment and permitted warning history |
+| Interface | Present the policy's action to the user |
+| Conversation status | Retained conversation information available to the engine; detailed state ownership and persistence remain design work |
+
+Two input representations must stay distinct:
+
+- **Adapter event:** common handoff metadata plus `payload`, the original source event data.
+  A common wrapper does not make the source's content a common internal message.
+- **Internal message:** the normalizer's output that the engine understands. Its exact schema
+  has not been selected or implemented.
+
+The [current handoff schema](src/safeguard/adapters/contract.schema.json) preserves native payloads. Adding a
+source therefore requires its adapter **and** a compatible payload mapping for the normalizer.
+The purpose is to keep platform field names out of the engine. Engine analysis and user-facing
+warning decisions remain separate. Detailed engine/state/policy behavior is still proposed;
+this diagram is not a claim that the application is implemented.
+
+---
+
+## Current implementation
+
+Application code lives under `src/safeguard/`, with architecture components such as `adapters`
+and `engine` inside that package. Component tests and their neutral fixtures live under `tests/`;
+architecture illustrations live under `docs/assets/`; benchmark tooling stays under `evaluation/`.
+The `src` directory is placed on the import path by the test command below. No package installation
+is needed for that command. Package metadata and schema-resource inclusion are in `pyproject.toml`.
+
+The rebuild starts with small, separately checked components. Its executable engine component is
+the [observed-history boundary](src/safeguard/engine/history.py): select an observed prefix, preserve its order
+and content, and detach its mutable payloads from source history. It is parked for the later
+Engine stage and does not perform fraud assessment.
+
+The source-adapter schema and isolated authoring checker exist. DemoAdapter, source integration,
+normalizer, full engine, warning policy and interface integration remain unimplemented.
+Work proceeds in input-flow order using separately reviewed small tasks.
 
 ---
 
 ## Development checks
 
-Run from the repository root with Python 3.12, the verified execution version. Only the standard
-library is required:
+Run from the repository root with Python. The component suite was verified with Python 3.14.4;
+only the standard library is required for this suite:
 
 ```sh
-timeout 90s python3 -m unittest discover -s tests -p 'test_*.py' -v
+timeout 90s env PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
 The timeout is an operational bound. Tests use independently authored neutral toy messages.
+
+The separate contract-authoring check requires `jsonschema` (verified with version 4.19.2):
+
+```sh
+timeout 90s python3 -I tests/contract_checks.py
+```
+
+It validates newly authored toy envelopes, not source integration or normalizer behavior.
 
 > **Note:** Do not use benchmark data from any split for development tests, debugging, fixtures
 > or prompt/threshold tuning. Audit scripts under `evaluation/` are separate from development

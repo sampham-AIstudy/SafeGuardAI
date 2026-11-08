@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SourceAdapter handoff envelope, version 1.0",
+  "description": "Transport metadata and an unchanged native message-event payload. This is not a normalized message or an engine input schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "source", "account_id", "conversation_id", "message_id",
+    "sender_id", "event_type", "observed_at", "payload"
+  ],
+  "$defs": {
+    "identifier": {"type": "string", "minLength": 1, "pattern": "\\S"}
+  },
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "source": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]*$"},
+    "account_id": {"$ref": "#/$defs/identifier"},
+    "conversation_id": {"$ref": "#/$defs/identifier"},
+    "message_id": {"$ref": "#/$defs/identifier"},
+    "sender_id": {"$ref": "#/$defs/identifier"},
+    "event_type": {"const": "message.created"},
+    "observed_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "payload": {"type": "object", "minProperties": 1}
+  }
+}
