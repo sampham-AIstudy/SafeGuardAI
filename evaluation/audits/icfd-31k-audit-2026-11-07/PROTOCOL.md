@@ -2,10 +2,10 @@
 
 Prepared and approved: 2026-11-07. The owner authorized execution of the described CPU/data/scoring
 audit after reviewing its explanation. This does not adopt the benchmark or authorize detector runs.
-The shortlist is [BENCHMARKS.md](BENCHMARKS.md).
-Execution is complete. Original evidence is in [the audit result](icfd-31k-audit-2026-11-07/REPORT.md).
+The shortlist is [BENCHMARKS.md](../../BENCHMARKS.md).
+Execution is complete. Original evidence is in [the audit result](REPORT.md).
 Its primary-suite framing is superseded by the capability-specific, numerically rechecked assessment
-in [BENCHMARKS.md](BENCHMARKS.md). No benchmark or model experiment is selected by this audit.
+in [BENCHMARKS.md](../../BENCHMARKS.md). No benchmark or model experiment is selected by this audit.
 
 ## Purpose and decision
 

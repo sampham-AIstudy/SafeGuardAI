@@ -5,7 +5,7 @@ further in a new benchmark. This records source/suitability reviews and the appr
 it is not an executed experiment suite.
 The initial shortlist inspected documentation, paper methods and release listings without downloading
 corpora or running a detector. The subsequently approved ICFD-31k CPU audit is complete:
-[historical audit result](icfd-31k-audit-2026-11-07/REPORT.md). Its measurements remain unchanged;
+[historical audit result](audits/icfd-31k-audit-2026-11-07/REPORT.md). Its measurements remain unchanged;
 current selection criteria and numerical task-specific interpretations are maintained in this file.
 The Selected benchmark tasks section is authoritative for the current allocation; dated search
 and audit findings below retain their original measurement scope and limitations.
@@ -13,10 +13,65 @@ Other candidates remain documentation/access reviews; SCAMBENCH also has aggrega
 checks, with its raw data unavailable and adoption parked. BothBosu has a bounded CPU/data audit,
 including structural ranking diagnostics; no engine, LLM or learned text classifier was run.
 
-Reference source copies retain the upstream code licenses: [ICFD MIT](icfd-31k-audit-2026-11-07/upstream/LICENSE),
-[BABILong Apache-2.0](capability-audit-2026-11-07/sources/LICENSE-BABILong), and
-[PhishRewrite MIT](capability-audit-2026-11-07/sources/LICENSE-PhishRewrite). These notices accompany
+Reference source copies retain the upstream code licenses: [ICFD MIT](audits/icfd-31k-audit-2026-11-07/upstream/LICENSE),
+[BABILong Apache-2.0](audits/capability-audit-2026-11-07/sources/LICENSE-BABILong), and
+[PhishRewrite MIT](audits/capability-audit-2026-11-07/sources/LICENSE-PhishRewrite). These notices accompany
 reference code; the raw datasets and local authoring/review records are not published here.
+
+## Evaluation artifact layout and execution status
+
+Current organization separates preserved corpus evidence, active audit code and fresh outputs:
+
+| Location | Contents and status |
+|---|---|
+| `BENCHMARKS.md` | Current selected tasks, scoring interpretation and limits |
+| `audits/` | Preserved dated dataset-audit bundles, the ICFD audit protocol and the SCAMBENCH public review |
+| `compatibility/` | The two earlier interpretation/criteria notes, kept as redirects to this catalog |
+| `private/` | Ignored SGC-250 construction, review and release-QC evidence/tools; not engine-run results |
+| `runs/` | Ignored fresh CPU audit outputs; future engine runs require separate identities and approval |
+| `../src/safeguard/evaluation/` | Active path-migrated CPU audit tools; not an engine-evaluation runner |
+
+The four original dated audit bundles retain all 97 original file contents, hashes and modes.
+The SCAMBENCH review metadata also remain unchanged. Link updates in this catalog and protocol/
+redirect documents do not change measured results. Temporary old-path symlinks, including root
+`testset`, the SGC-250 QC link and its legacy view, are removed. The unchanged local checksum
+members resolve through explicit physical paths; frozen release content was not edited.
+
+**Current reproduction boundary:** archived scripts retain their original source identities and
+root assumptions. Use the migrated tools, not archived commands, for canonical paths. With pinned
+data, source snapshots and the ICFD parser environment present, repeat the formal CPU measurements
+from the repository root:
+
+```sh
+timeout 2400s env PYTHONPATH=src python3 -m safeguard.evaluation.remeasure
+```
+
+The default run identity is `benchmark-measurements-2026-11-08`. The controller resumes completed
+stages only under its matching source manifest. To start another clean run, set
+`SAFEGUARD_AUDIT_RUN` to a new purpose/date name. Deadlines are operational limits. No automatic
+downloads, model inference, engine execution or paid calls are part of this command. Older inline
+read-only snippets below describe historical calculations; their stored paths are not the current
+execution interface. Historical locks are interpreted by the explicit resolver, without aliases.
+
+| Checked after final path migration, 2026-11-08 | Supported conclusion |
+|---|---|
+| All eight fresh measurement/verification stages completed successfully | ICFD raw scan/derivations, BABILong, PhishRewrite, PhishVN, BothBosu and SGC-250 CPU diagnostics reproduced |
+| Aggregate comparison with original reports | All measurement fields match; changed provenance consists of source/signature/path fields and two added license hashes |
+| Final component suite: 38 tests, 64 subcases, zero benchmark-access attempts | Independent toy checks cover the adapter, history utility and explicit audit path mapping |
+| Original data and all 97 archived bundle files retain hashes/sizes/modes; 21 local checksum members verified by mapped paths | Relocation preserved frozen data and evidence |
+
+Fresh outputs, source/lock manifest, per-stage logs and comparison evidence are under ignored
+`evaluation/runs/benchmark-measurements-2026-11-08/`, especially `stages.json`, `comparison.json`
+and `icfd/supplementary.json`. The initial capability-path failure and the scoped mapping repair
+remain in `repairs/release-source-path/`. The corrected run reused only its already completed
+fresh ICFD stages after verifying that their code, data and path behavior were unchanged.
+The original reports below remain historical references. The rerun adds reproducibility evidence,
+not new semantic validation, stronger task claims or engine performance. SCAMBENCH remains parked;
+its public arithmetic review is not a raw-data or model result.
+
+No rebuilt-engine evaluation runner is implemented. Future engine task adapters/scorers belong
+under `src/safeguard/evaluation/`, outside the production messaging pipeline. Development checks
+must use independent toy inputs, never benchmark samples from any split.
 
 ## Selection basis
 
@@ -103,9 +158,9 @@ remain disclosed; inclusion does not close them or authorize tuning on the test 
 
 Question: can the frozen local corpus add an interpretable task beyond the selected external
 measurements? The supported claim is reference-based behavior on a constructed synthetic pool,
-not an independently validated real-world warning boundary. Evidence: [aggregate results](local-suitability-audit-2026-11-08/aggregate.json),
-[audit script](local-suitability-audit-2026-11-08/audit.py), [computational cross-checks](local-suitability-audit-2026-11-08/verify.py)
-and [check log](local-suitability-audit-2026-11-08/checks.log).
+not an independently validated real-world warning boundary. Evidence: [aggregate results](audits/local-suitability-audit-2026-11-08/aggregate.json),
+[audit script](audits/local-suitability-audit-2026-11-08/audit.py), [computational cross-checks](audits/local-suitability-audit-2026-11-08/verify.py)
+and [check log](audits/local-suitability-audit-2026-11-08/checks.log).
 
 | Measurement | Result | Consequence for task/interpretation |
 |---|---|---|
@@ -134,11 +189,11 @@ The measurements do not justify interpreting those scores as human-optimal inter
 real-world scam competence or causal use of the deciding difference. Scores concern engine plus
 the declared warning policy. No fresh labeling, frozen edits or actual detector run occurred.
 
-Reproduce from the repository root; 90 seconds is an operational bound for each command:
+Current formal reproduction, from the repository root (operational bounds):
 
 ```sh
-timeout 90s python3 -I evaluation/local-suitability-audit-2026-11-08/audit.py
-timeout 90s python3 -I evaluation/local-suitability-audit-2026-11-08/verify.py
+timeout 90s env PYTHONPATH=src python3 -m safeguard.evaluation.audits.local.audit
+timeout 90s env PYTHONPATH=src python3 -m safeguard.evaluation.audits.local.verify
 ```
 
 ## Capability-directed follow-up search, 2026-11-07
@@ -275,11 +330,11 @@ checked in full. Additional public method code was inspected at commit
 `e840fa3be67661d8857a5ac60af0dda851c8a331`. Individual records and judgments stayed outside the
 development LLM context. No model, engine, synthetic generation or semantic relabeling was run.
 
-Reproduction assets: [release lock](capability-audit-2026-11-07/release-lock.json),
-[retrieval](capability-audit-2026-11-07/retrieve.py),
-[analysis](capability-audit-2026-11-07/analyze.py),
-[independent verification](capability-audit-2026-11-07/verify.py), and
-[check results](capability-audit-2026-11-07/checks.log).
+Reproduction assets: [release lock](audits/capability-audit-2026-11-07/release-lock.json),
+[retrieval](audits/capability-audit-2026-11-07/retrieve.py),
+[analysis](audits/capability-audit-2026-11-07/analyze.py),
+[independent verification](audits/capability-audit-2026-11-07/verify.py), and
+[check results](audits/capability-audit-2026-11-07/checks.log).
 Raw inputs stay under ignored `.audit-private/capability-audit-2026-11-07/`; aggregate outputs bind
 the lock, analysis script and method-source hashes. ICFD's original frozen audit was not edited.
 
@@ -304,7 +359,7 @@ hashes/sizes were rechecked unchanged; no new model or engine evidence was gener
 
 ### BABILong measurements and claim limits
 
-[Aggregate evidence](capability-audit-2026-11-07/babilong.json): QA1/QA2/QA3 at 0k, 4k and 16k,
+[Aggregate evidence](audits/capability-audit-2026-11-07/babilong.json): QA1/QA2/QA3 at 0k, 4k and 16k,
 100 records per cell, 900 file records total. All have nonempty input/question/target, no exact
 duplicate full records within a cell, and 100% native-score acceptance of the target itself.
 The target vocabulary has six locations; uniform guessing has expected accuracy 16.67%.
@@ -343,7 +398,7 @@ detects scams, nor that the benchmark exhaustively isolates semantic reasoning.
 
 ### PhishVN content-study measurements and claim limits
 
-[Aggregate evidence](capability-audit-2026-11-07/phishvn.json): 336 originals, 193 phishing and
+[Aggregate evidence](audits/capability-audit-2026-11-07/phishvn.json): 336 originals, 193 phishing and
 143 benign; 209 SMS and 127 emails. No empty text, normalized duplicate originals or conflicting
 normalized original labels were found. Both labels occur in all seven scenario categories. This
 helps avoid the fully disjoint-topic construction observed in BothBosu, but it is not evidence of
@@ -396,7 +451,7 @@ filtering or regeneration was performed.
 
 ### PhishRewrite measurements and claim limits
 
-[Aggregate evidence](capability-audit-2026-11-07/phishrewrite.json): the complete archive has 28,201
+[Aggregate evidence](audits/capability-audit-2026-11-07/phishrewrite.json): the complete archive has 28,201
 source emails and 4,000 rewrites. Original train/test counts are 22,560/5,641. The test has 1,078
 phishing and 4,563 ham emails, with zero normalized test-text overlaps with train and no normalized
 duplicate/conflicting test texts. Length-only test AUC is **0.517076**; this weak length correlate
@@ -446,7 +501,7 @@ changing the eligibility filter creates an adapted evaluation population.
 
 ### ICFD reassessment under the same capability questions
 
-[Current audit cross-check](capability-audit-2026-11-07/icfd.json) verifies all 55 earlier snapshot
+[Current audit cross-check](audits/capability-audit-2026-11-07/icfd.json) verifies all 55 earlier snapshot
 hashes unchanged and recomputes the class/denominator references. The earlier direct-shard pass
 already checked 83 data files and counted all 31,000 conversations/1,111,071 chunks; those unchanged
 measurements were reused, not presented as a new detector experiment.
@@ -466,12 +521,13 @@ this reassessment; it preserves the owner's two ICFD tasks with the measured lim
 Offline reproduction (deadlines are operational bounds, not runtime estimates):
 
 ```sh
-timeout 240s python3 -I evaluation/capability-audit-2026-11-07/analyze.py
-timeout 60s python3 -I evaluation/capability-audit-2026-11-07/verify.py
+timeout 240s env PYTHONPATH=src python3 -m safeguard.evaluation.audits.capability.analyze
+timeout 120s env PYTHONPATH=src python3 -m safeguard.evaluation.audits.capability.verify
 ```
 
-For missing fixed input files, `retrieve.py` uses the saved metadata snapshots and verifies already
-completed downloads before resuming. The original ICFD audit must be present for the reuse check.
+These commands require the current run's completed ICFD scan/derivations and all pinned canonical
+inputs. The full controller above establishes that order. Historical retrieval scripts retain
+their original layout assumptions; the migrated audit command does not retrieve missing files.
 Passing mechanical checks verifies this audit's calculations, not full semantic reference validity
 or actual engine capability. Those remaining limits are part of the result, not silently passed checks.
 
@@ -608,7 +664,7 @@ and creates no files.
 ```python
 from pathlib import Path
 import hashlib, json, sqlite3
-root = Path('evaluation/icfd-31k-audit-2026-11-07')
+root = Path('evaluation/audits/icfd-31k-audit-2026-11-07')
 evidence = json.loads((root / 'execution-evidence.json').read_text())
 assert all(hashlib.sha256((root / p).read_bytes()).hexdigest() == h
            for p, h in evidence['artifact_sha256'].items())
@@ -674,7 +730,7 @@ validated first-warning timing and Vietnamese transfer are not established by th
 **Review status, 2026-11-07:** public-methodology/metadata review and aggregate arithmetic complete;
 raw-data audit unavailable. Parked after the owner's access update; progress does not depend on approval.
 The owner reports approval is unlikely, rather than a confirmed rejection. Evidence and transcribed
-inputs are in [SCAMBENCH aggregate evidence](scambench-review-2026-11-07.json). No CSV or detector
+inputs are in [SCAMBENCH aggregate evidence](audits/scambench-review-2026-11-07/review.json). No CSV or detector
 prediction was inspected, and no model was run. Counts and detector scores below are author-reported;
 the arithmetic and rounding-consistency checks are this project's work.
 
@@ -757,7 +813,7 @@ To recheck the count-based references without opening individual messages:
 python3 -I - <<'PY'
 import json
 from pathlib import Path
-d = json.loads(Path('evaluation/scambench-review-2026-11-07.json').read_text())
+d = json.loads(Path('evaluation/audits/scambench-review-2026-11-07/review.json').read_text())
 a = d['author_reported']
 p = sum(a['table_6_final_scam_counts'].values())
 n = sum(a['table_7_non_scam_counts'].values())
@@ -793,12 +849,12 @@ label. Exact generator model/version and prompts were not established. The datas
 generation does not require an agent-controlled detector.
 
 **Reproducible evidence.** Revision `709db2b6c37f424c3070f29138abb33971e21ab9` was ungated in
-anonymous API metadata. [Release lock](bothbosu-audit-2026-11-07/release-lock.json) pins all four
+anonymous API metadata. [Release lock](audits/bothbosu-audit-2026-11-07/release-lock.json) pins all four
 retrieved files by URL, byte count and SHA-256. Total downloaded CSV/card bytes were 9,660,265;
 the API `usedStorage` value of 1,937,365 was not the transfer size. Raw CSVs stay under ignored
 `.audit-private/bothbosu-audit-2026-11-07/data/`; individual records were not displayed to the
-development LLM. [Aggregate result](bothbosu-audit-2026-11-07/aggregate.json) records the input-lock
-and script hashes. [Audit code](bothbosu-audit-2026-11-07/audit.py) uses only Python's standard
+development LLM. [Aggregate result](audits/bothbosu-audit-2026-11-07/aggregate.json) records the input-lock
+and script hashes. [Audit code](audits/bothbosu-audit-2026-11-07/audit.py) uses only Python's standard
 library. It does not train or run an engine, LLM or learned text classifier.
 
 | Measured split | Scam | Non-scam | Total |
@@ -865,16 +921,16 @@ checks failed. Preserve the audit; label semantics and shortcut sensitivity rema
 Offline reproduction after the pinned downloads are present (180 seconds is an operational limit):
 
 ```sh
-timeout 180s python3 -I evaluation/bothbosu-audit-2026-11-07/audit.py --data-dir .audit-private/bothbosu-audit-2026-11-07/data
-timeout 30s python3 -I evaluation/bothbosu-audit-2026-11-07/verify.py
+timeout 2400s env PYTHONPATH=src python3 -m safeguard.evaluation.remeasure
 ```
 
-The audit emits aggregate statistics only. `--download` additionally retrieves the four pinned
-public inputs; verified saved files are reused, and changed saved bytes cause failure. Public
+The controller includes the BothBosu audit and its verification after preparing the run lock and
+execution log. It emits aggregate statistics only and does not download missing inputs. The
+archived audit's `--download` option describes its historical retrieval method. Public
 fixtures checked schema aliases and ambiguity, multiline CSV, invalid labels/ragged rows, normalized
 duplicates, and AUC against independent pairwise calculations. The final verification also recounts
 all rows and checks the test AUC directly from every scam/non-scam pair; see `checks.log`.
-The independent [verification script](bothbosu-audit-2026-11-07/verify.py) is included for that
+The independent [verification script](audits/bothbosu-audit-2026-11-07/verify.py) is included for that
 cross-check; the 30-second timeout is an operational limit. The all-file has a UTF-8 byte-order mark,
 which the audit and final independent verification both handle explicitly.
 
