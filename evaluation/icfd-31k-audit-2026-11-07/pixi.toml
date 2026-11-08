@@ -1,0 +1,13 @@
+[workspace]
+name = "icfd-release-audit"
+version = "0.1.0"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+python = "3.12.*"
+pyarrow = ">=18,<25"
+zstandard = ">=0.23,<1"
+
+[tasks]
+verify = "python -I -m unittest discover -s . -p test_audit.py -v"

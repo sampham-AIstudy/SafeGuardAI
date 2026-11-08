@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Guide version | 1.2 (generator changed to Codex by owner decision, 2026-10-22) |
-| Date | 2026-10-22 |
+| Guide version | 1.6 (artifact and catalog documentation; label rules unchanged from 1.5) |
+| Date | 2026-11-04 |
 | Author | Claude (claude-opus-5-5) wrote this guide and the seed catalog. The conversations are written by an OpenAI model through the Codex CLI (owner decision, 2026-10-22); the exact model is recorded in `provenance.generator.model` |
 | Applies to | `testset/synthetic-v1/` (primary synthetic set), `testset/case-studies-real/` (optional, qualitative) and `devset/` (development set, Section 11) |
-| Status | Not frozen. Section 9 freezes the *test set*. The guide version used is recorded by hash in the test-set manifest. |
+| Status | Mutable public guide. The local synthetic-v1 dataset is frozen and owns its immutable guide snapshot; its manifest records the evaluated guide hash. Local data publication remains withheld. |
 
 Vietnamese text appears only inside example strings and inside source titles.
 
@@ -63,9 +63,12 @@ labels or checks test content.
    seed catalog (`testset/seeds/`). Owner decision, 2026-10-22.
 8. The development set (Section 11) is the only labeled data that the detection developers read. Its seed cases are
    disjoint from the test seed cases.
-7. The generator (an OpenAI model through the Codex CLI) is a different model family from the detection model
-   (Gemini) and from the second labeler (Claude, Section 8.2). The detection model is not used to generate, label or
-   adjudicate test content.
+7. Owner update, 2026-11-04: Claude is unavailable. The remaining second-pass labeling may use isolated GPT
+   subagents that have not seen the detector or author labels. This waives the earlier requirement that the
+   second labeler be from a different model family than the OpenAI generator; disclose the resulting
+   same-family correlation. Preserve the completed Claude-labeled subset with its original provenance.
+   The rebuilt detector model is not selected. Check and disclose generator/labeler overlap when selecting it;
+   do not describe the earlier assumed Gemini detector as an approved current choice.
 
 ---
 
@@ -82,6 +85,13 @@ labels or checks test content.
   `alert_turn` and evidence indices use this index.
 - **Prefix up to index t**: messages 0 to t, inclusive. The engine sees only this prefix when it decides after
   message t.
+
+**Speaker-role consistency (clarification, 2026-11-04).** The `role` field and the text must identify the same
+protected user and counterpart throughout the conversation. Labelers do not silently swap roles to recover an
+intended label. A direct request made by the protected user to the contact is not, by itself, a contact's scam
+attempt against that user. If contradictory speaker assignments change who is soliciting whom, or whether the
+protected user is a target, the input needs repair before scoring. A local wording inconsistency that does not
+change the actors or the deciding evidence may be documented as nonblocking. Record the reason in QC.
 
 ### 2.2 Conversation-level label
 
@@ -367,29 +377,30 @@ follows from the text. Exclusion is a quality-control result, not a generation t
 
 ### 3.3 Taxonomy summary with count targets
 
-Counts are **scored** targets after quality control. The author generates about 15 % more (Section 7.1) to absorb
-exclusions.
+Counts are **scored** targets after quality control. Owner update, 2026-11-03: use the full 250-candidate
+pool as the intended benchmark. The targets below retain the existing generation allocation; failed candidates
+need repair or replacement under Section 8 before inclusion. They are not accepted merely to meet a count.
 
 | `scam_type` | Full name | Scored target | Main sources |
 |---|---|---:|---|
-| `authority_impersonation` | Police, procuracy or court impersonation | 10 | [cattt-24-forms-2023], [ca-hcm-16-methods-2023] |
-| `government_service_impersonation` | Public services, VNeID, tax, social insurance | 9 | [bca-vneid-2025-07], [cuc-thue-hcm-fake-app-2023] |
-| `utility_telecom_impersonation` | Electricity company or mobile operator | 6 | [evn-merger-2025-06], [cattt-24-forms-2023] |
-| `bank_impersonation` | Bank staff, bank SMS, card and reward-point phishing | 10 | [vcb-reward-points-2026], [cattt-24-forms-2023] |
-| `account_takeover_money_request` | Hijacked or cloned account of a known person | 10 | [ca-hcm-16-methods-2023], [vpbank-deepfake-2023] |
-| `relative_emergency` | Teacher or medical staff reports a relative's emergency | 5 | [moet-teacher-2023] |
-| `task_job_scam` | Easy work, high pay; pay-to-do-tasks | 9 | [cattt-24-forms-2023], [ca-hcm-16-methods-2023] |
-| `investment_romance_scam` | Relationship that leads to a fake investment platform | 9 | [laichau-romance-2025], [hanoi-koi-global-2025] |
-| `parcel_customs_scam` | Gift held by "customs" | 5 | [ca-hcm-16-methods-2023] |
-| `prize_scam` | Prize that requires a fee | 5 | [ca-hcm-16-methods-2023] |
-| `loan_advance_fee` | Fake loan with fees before disbursement | 6 | [hanoi-loan-2025-12] |
-| `delivery_shipper_scam` | Fake shipper or delivery company | 6 | [bca-shipper-2025-05] |
-| `online_purchase_booking_scam` | Fake seller, accommodation, tour or ticket | 6 | [bca-tet-2026] |
-| `fake_payment_wrong_transfer` | Fake receipt or "money sent by mistake" | 4 | [cattt-24-forms-2023] |
-| `recovery_scam` | Recovery of lost money or account for a fee | 4 | [cattt-24-forms-2023] |
+| `authority_impersonation` | Police, procuracy or court impersonation | 11 | [cattt-24-forms-2023], [ca-hcm-16-methods-2023] |
+| `government_service_impersonation` | Public services, VNeID, tax, social insurance | 10 | [bca-vneid-2025-07], [cuc-thue-hcm-fake-app-2023] |
+| `utility_telecom_impersonation` | Electricity company or mobile operator | 7 | [evn-merger-2025-06], [cattt-24-forms-2023] |
+| `bank_impersonation` | Bank staff, bank SMS, card and reward-point phishing | 11 | [vcb-reward-points-2026], [cattt-24-forms-2023] |
+| `account_takeover_money_request` | Hijacked or cloned account of a known person | 11 | [ca-hcm-16-methods-2023], [vpbank-deepfake-2023] |
+| `relative_emergency` | Teacher or medical staff reports a relative's emergency | 6 | [moet-teacher-2023] |
+| `task_job_scam` | Easy work, high pay; pay-to-do-tasks | 10 | [cattt-24-forms-2023], [ca-hcm-16-methods-2023] |
+| `investment_romance_scam` | Relationship that leads to a fake investment platform | 10 | [laichau-romance-2025], [hanoi-koi-global-2025] |
+| `parcel_customs_scam` | Gift held by "customs" | 6 | [ca-hcm-16-methods-2023] |
+| `prize_scam` | Prize that requires a fee | 6 | [ca-hcm-16-methods-2023] |
+| `loan_advance_fee` | Fake loan with fees before disbursement | 7 | [hanoi-loan-2025-12] |
+| `delivery_shipper_scam` | Fake shipper or delivery company | 7 | [bca-shipper-2025-05] |
+| `online_purchase_booking_scam` | Fake seller, accommodation, tour or ticket | 7 | [bca-tet-2026] |
+| `fake_payment_wrong_transfer` | Fake receipt or "money sent by mistake" | 5 | [cattt-24-forms-2023] |
+| `recovery_scam` | Recovery of lost money or account for a fee | 5 | [cattt-24-forms-2023] |
 | `gambling_tip_scam` | Paid lottery numbers, betting apps | 3 | [cattt-24-forms-2023] |
 | `child_targeted_scam` | Child model casting, game items, scholarships | 3 | [cattt-24-forms-2023] |
-| **Total** | | **110** | |
+| **Total** | | **125** | |
 
 **Basis of the counts.** No source in this guide gives a reliable national prevalence per type, so the counts are
 not prevalence estimates. The author gives more weight to types that (a) official warnings repeat across years and
@@ -398,7 +409,7 @@ that a per-type failure is visible. Per-type results with fewer than 10 conversa
 
 **Seed-case coverage.** Each scam conversation uses one seed case (Section 6.4). One seed case seeds at most
 **3** conversations, and those conversations differ in at least two of: channel, lure, requested action, payment
-method, persona. Therefore the 110 scored scam conversations need at least 37 distinct seed cases. The sources above
+method, persona. Therefore the 125 scored scam conversations need at least 42 distinct seed cases. The sources above
 are the anchor sources; the author collects further case reports into `seeds/seed_catalog.jsonl` before generation.
 
 ### 3.4 Sources
@@ -455,28 +466,28 @@ search-engine result summary was available.
 
 | `benign_category` | Full name and definition | Resembles | Scored target |
 |---|---|---|---:|
-| `bank_notice_legitimate` | Real bank messages: OTP sent to the user with a "do not share" warning, balance-change notice, card expiry notice, reminder to update biometrics **inside the official app or at a branch**, official domain links | `bank_impersonation` | 10 |
-| `government_notice_legitimate` | Real public-service contact: ward police ask the user to come to the office; tax or social-insurance reminders that point to the official portal or the App Store app; no link to an unknown domain | `government_service_impersonation`, `authority_impersonation` | 6 |
-| `utility_telecom_legitimate` | Real power or telecom messages: bill reminder that names official payment channels, planned outage notice, data-plan offer by the operator's short code | `utility_telecom_impersonation` | 6 |
-| `relative_money_request_consistent` | A relative or friend asks for money, and the text shows consistency: shared specific history, recipient account in the person's own name or a known account, a voice call or a meeting is offered or done, no secrecy | `account_takeover_money_request` | 12 |
+| `bank_notice_legitimate` | Real bank messages: OTP sent to the user with a "do not share" warning, balance-change notice, card expiry notice, reminder to update biometrics **inside the official app or at a branch**, official domain links | `bank_impersonation` | 11 |
+| `government_notice_legitimate` | Real public-service contact: ward police ask the user to come to the office; tax or social-insurance reminders that point to the official portal or the App Store app; no link to an unknown domain | `government_service_impersonation`, `authority_impersonation` | 7 |
+| `utility_telecom_legitimate` | Real power or telecom messages: bill reminder that names official payment channels, planned outage notice, data-plan offer by the operator's short code | `utility_telecom_impersonation` | 7 |
+| `relative_money_request_consistent` | A relative or friend asks for money, and the text shows consistency: shared specific history, recipient account in the person's own name or a known account, a voice call or a meeting is offered or done, no secrecy | `account_takeover_money_request` | 14 |
 | `real_emergency_contact` | A real school or relative reports an accident; the message gives the hospital name and asks the user to come or call the school; no transfer to a personal account | `relative_emergency` | 4 |
-| `job_recruitment_legitimate` | A recruiter offers a job, asks for a CV, sets an interview; no fee, no deposit | `task_job_scam` | 8 |
-| `investment_discussion_legitimate` | Friends or a licensed broker discuss savings, stocks or gold through licensed channels; no guaranteed return; no deposit to a personal account | `investment_romance_scam` | 6 |
-| `friendship_dating_benign` | Friendly or romantic chat between people who met online; may last many messages; no money, no platform, no gift fees | `investment_romance_scam`, `parcel_customs_scam` | 8 |
-| `promotion_lucky_draw_legitimate` | A real promotion or prize notice with an official domain, pickup at a store, or prize tax deducted by the organizer (not paid by the user to a personal account) | `prize_scam` | 6 |
-| `lending_legitimate` | A bank loan officer asks the user to bring documents to a branch; or a friend lends money; no fee before disbursement | `loan_advance_fee` | 5 |
-| `delivery_legitimate` | A shipper calls or messages about an order that the user placed; cash on delivery; inspection allowed; tracking through the official app | `delivery_shipper_scam` | 8 |
-| `marketplace_booking_legitimate` | A buyer and a seller agree on goods; a hotel confirms a booking; payment through the platform or to the business account named on the official page | `online_purchase_booking_scam`, `fake_payment_wrong_transfer` | 8 |
-| `payment_between_friends` | Bill splitting, repaying a small debt, a real mistaken transfer returned through the bank's official dispute process | `fake_payment_wrong_transfer` | 6 |
-| `scam_discussion_warning` | People discuss a scam they heard of, forward a police warning, or ask each other "is this a scam?" about a third party; the conversation itself contains no attempt | Any (keywords such as "lừa đảo", "OTP", "công an") | 7 |
-| `everyday_chat` | Ordinary family, school, work or neighborhood chat with no sensitive request | None (easy negatives) | 10 |
-| **Total** | | | **110** |
+| `job_recruitment_legitimate` | A recruiter offers a job, asks for a CV, sets an interview; no fee, no deposit | `task_job_scam` | 9 |
+| `investment_discussion_legitimate` | Friends or a licensed broker discuss savings, stocks or gold through licensed channels; no guaranteed return; no deposit to a personal account | `investment_romance_scam` | 7 |
+| `friendship_dating_benign` | Friendly or romantic chat between people who met online; may last many messages; no money, no platform, no gift fees | `investment_romance_scam`, `parcel_customs_scam` | 9 |
+| `promotion_lucky_draw_legitimate` | A real promotion or prize notice with an official domain, pickup at a store, or prize tax deducted by the organizer (not paid by the user to a personal account) | `prize_scam` | 7 |
+| `lending_legitimate` | A bank loan officer asks the user to bring documents to a branch; or a friend lends money; no fee before disbursement | `loan_advance_fee` | 6 |
+| `delivery_legitimate` | A shipper calls or messages about an order that the user placed; cash on delivery; inspection allowed; tracking through the official app | `delivery_shipper_scam` | 9 |
+| `marketplace_booking_legitimate` | A buyer and a seller agree on goods; a hotel confirms a booking; payment through the platform or to the business account named on the official page | `online_purchase_booking_scam`, `fake_payment_wrong_transfer` | 9 |
+| `payment_between_friends` | Bill splitting, repaying a small debt, a real mistaken transfer returned through the bank's official dispute process | `fake_payment_wrong_transfer` | 7 |
+| `scam_discussion_warning` | People discuss a scam they heard of, forward a police warning, or ask each other "is this a scam?" about a third party; the conversation itself contains no attempt | Any (keywords such as "lừa đảo", "OTP", "công an") | 8 |
+| `everyday_chat` | Ordinary family, school, work or neighborhood chat with no sensitive request | None (easy negatives) | 11 |
+| **Total** | | | **125** |
 
-Hard negatives (all categories except `everyday_chat`) are 100 of 110 scored benign conversations.
+Hard negatives (all categories except `everyday_chat`) are 114 of 125 scored benign conversations.
 
 ### 4.3 Paired near-miss construction
 
-For each scam type with a target of 5 or more, the author writes at least two benign conversations that share the
+For each scam type with a target of 6 or more (the scaled equivalent of the former 5-of-110 threshold), the author writes at least two benign conversations that share the
 scam type's channel and opening (for example, the same bank, the same "con bị tai nạn" opening, the same job
 offer), and differ only in the facts that decide legitimacy. The `paired_with` field links them. This construction
 tests whether a system detects the deciding evidence or only the topic.
@@ -553,6 +564,9 @@ the prefix 0..t. It is the index of the message that **completes** the condition
 
 - The completing message can be a user message. Example: the user writes "họ bảo em cài app này để nhận hoàn tiền",
   which reports a harmful request from an off-chat call.
+- A user message supplies a contact's harmful request only when it clearly reports or quotes that request
+  as coming from the contact. Do not reinterpret the user's own direct solicitation as a reported contact
+  request. Apply Section 2.1 when speaker attribution is contradictory.
 - The condition is monotone: when it holds at t, it holds at every later index.
 - Later messages do not move `alert_turn` earlier or later.
 - In a scam conversation, `alert_turn` is never `null`. In a benign conversation, it is always `null`.
@@ -636,8 +650,10 @@ nhé". `alert_turn` = `null`.
 - One JSON object per conversation, in a JSON Lines file (Section 9).
 - The object has two parts: **`input`** (what the engine may see) and **`gold`** plus **`provenance`** (what the
   engine must never see). The evaluation harness passes only `input` to the engine.
-- This field table is the authoritative schema for version 1. A machine-readable JSON Schema is generated from it at
-  generation time and checked against it.
+- This field table is the authoritative schema for version 1. The machine-readable structural schema is
+  `conversation.schema.json`, exported by `tools/export_schema.py`. It was recovered during QC completion;
+  a standalone schema artifact from the original generation was not found. Relational and semantic checks
+  remain in `tools/validate.py` and independent QC.
 
 ### 6.2 Conversation object
 
@@ -705,7 +721,7 @@ Attachment placeholder types:
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `seed.kind` | enum | yes | `reported_case` (scam), `official_procedure` (benign that imitates an organization), `everyday_scenario` (other benign) |
-| `seed.seed_id` | string | yes | Key into `seeds/seed_catalog.jsonl` |
+| `seed.seed_id` | string | yes | Key into the version-owned frozen seed catalog (Section 9.1) |
 | `seed.sources` | array of `{url, publisher, published, accessed, access_mode}` | yes for `reported_case` and `official_procedure` | `access_mode` is `fetched` or `search_summary` |
 | `seed.case_facts.scam_type` | enum | for `reported_case` | Section 3.3 identifier |
 | `seed.case_facts.impersonated_party` | string | for `reported_case` | For example "ward police officer" |
@@ -733,13 +749,14 @@ Seed facts are **case-level facts only**. The seed record never contains message
 
 | Set | Scored target | Generation target |
 |---|---:|---:|
-| Scam | 110 | 125 |
-| Benign | 110 | 125 |
+| Scam | 125 | 125 |
+| Benign | 125 | 125 |
 
-The generation target is about 115 % of the scored target. Basis: COVA-X reported that 3.9 % of conversations still
-needed relabeling after its cleanup [cova-x-2026], and this set adds an independent-agreement filter; the margin is
-an operational allowance, not a measured exclusion rate. If exclusions leave a type below its scored target, the
-author generates replacements under the same guide version **before** freezing.
+The owner intends all existing candidates for the scored benchmark. The former 110-per-class scored target
+and 125-per-class oversampling plan are superseded. Invalid or ambiguous candidates are repaired, or excluded
+and replaced under the same quality contract before freezing; this does not require accepting uncertain labels.
+Generation metadata and original author labels remain preserved. Existing generation/coverage tooling keeps its
+legacy 110-based constants to reproduce the allocation, scaled to these 125-per-class targets.
 
 Scam and benign distributions by type and category are in Sections 3.3 and 4.2.
 
@@ -747,10 +764,10 @@ Scam and benign distributions by type and category are in Sections 3.3 and 4.2.
 
 | Channel | Scam | Benign |
 |---|---:|---:|
-| `zalo` | 45 | 45 |
-| `messenger` | 25 | 25 |
-| `sms` | 30 | 30 |
-| `telegram` | 10 | 10 |
+| `zalo` | 51 | 51 |
+| `messenger` | 29 | 29 |
+| `sms` | 34 | 34 |
+| `telegram` | 11 | 11 |
 
 The channel distributions match between classes, so the channel is not a label cue.
 
@@ -758,9 +775,9 @@ The channel distributions match between classes, so the channel is not a label c
 
 | `length_bucket` | Scam | Benign |
 |---|---:|---:|
-| `short` (2–5 messages) | 25 | 25 |
-| `medium` (6–15 messages) | 55 | 55 |
-| `long` (16–60 messages) | 30 | 30 |
+| `short` (2–5 messages) | 28 | 28 |
+| `medium` (6–15 messages) | 62 | 62 |
+| `long` (16–60 messages) | 35 | 35 |
 
 The length distributions match between classes. The author also checks that the mean number of messages per class
 differs by less than 15 %.
@@ -769,13 +786,13 @@ differs by less than 15 %.
 
 | Condition | Target |
 |---|---|
-| `alert_turn` = 0 (single-message alert) | 10 to 15 |
-| `slow_build` (`alert_turn` ≥ 10) | at least 20 |
-| `has_prior_benign_history` | at least 8 (mainly `account_takeover_money_request`) |
+| `alert_turn` = 0 (single-message alert) | 12 to 17 |
+| `slow_build` (`alert_turn` ≥ 10) | at least 23 |
+| `has_prior_benign_history` | at least 10 (mainly `account_takeover_money_request`) |
 | At least 2 messages after `alert_turn` | at least 70 % of scam conversations |
 | `alert_turn` at the last message | at most 30 % of scam conversations |
 
-Benign long conversations (16 or more messages) are at least 30, so that false alerts late in long histories are
+Benign long conversations (16 or more messages) are at least 35, so that false alerts late in long histories are
 measurable.
 
 ### 7.5 Language variety
@@ -796,7 +813,7 @@ an unusual URL alone is not a label cue.
 
 In scam conversations, `user_response` covers `complies`, `refuses`, `verifies` and `mixed`, each at least 15 %.
 The user states suspicion before `alert_turn` in at most 15 % of scam conversations. The user states suspicion in at
-least 5 benign conversations (a wrong suspicion), so that the user's suspicion is not a label cue.
+least 6 benign conversations (a wrong suspicion), so that the user's suspicion is not a label cue.
 
 ### 7.7 Authoring constraints that protect the labels
 
@@ -828,8 +845,11 @@ The author records the intended labels (`gold.*`) when writing each conversation
   detection system.
 - For each conversation it writes `label`, `scam_type` or `benign_category`, `alert_turn`, `evidence`,
   `ambiguity_flag` and a short rationale.
-- The second labeler is a Claude model, because the detection model (Gemini) must not label test content. The two
-  labels are therefore not fully independent (Section 10).
+- The first completed subset was labeled by Claude. Under the owner's 2026-11-04 update, remaining items may
+  be labeled by GPT in fresh subagents with no detection-development context. Each receives only this guide
+  and blinded inputs. Record the provider/model identity when exposed, and explicitly record an unavailable
+  exact model revision rather than inventing one. Do not pool reviewer provenance into a claim of a wholly
+  cross-family second pass. The new reviewers share a model family with the generator (Section 10).
 
 ### 8.3 Agreement measures
 
@@ -905,8 +925,12 @@ testset/
 ├── LABELING_GUIDE.md                 # this guide; its SHA-256 goes into each manifest
 ├── CHANGELOG.md                      # one entry per test-set version
 ├── seeds/
-│   └── seed_catalog.jsonl            # case-level facts and source URLs; written before generation
+│   └── seed_catalog.jsonl            # preserved historical author collection
 ├── synthetic-v1/
+│   ├── LABELING_GUIDE.md             # immutable guide snapshot for this version
+│   ├── BENCHMARK_PROTOCOL.md         # immutable scoring contract snapshot
+│   ├── conversation.schema.json      # immutable structural schema snapshot
+│   ├── seeds/seed_catalog.jsonl      # all used seed references, including replacements
 │   ├── conversations.jsonl           # the frozen scored set
 │   ├── excluded.jsonl                # unscored: ambiguous or failed QC, with reasons
 │   ├── qc/
@@ -914,9 +938,16 @@ testset/
 │   │   ├── adjudication.jsonl
 │   │   └── qc_report.json            # kappa, alert-turn agreement, coverage, check results
 │   ├── manifest.json                 # counts, versions, hashes, generator, dates
-│   └── SHA256SUMS                    # sha256sum format, one line per file in this folder and in seeds/
+│   └── SHA256SUMS                    # all managed frozen artifacts; work/ is excluded
 └── case-studies-real/                # optional, separate, never pooled with synthetic-v1
 ```
+
+The version-owned seed catalog consolidates compatible per-record provenance without inventing facts.
+Everyday-scenario rows absent from the historical collection are recovered from preserved generation
+provenance and disclosed as such. New replacement case seeds and verified source-citation corrections
+are included. The historical author collection stays unchanged. Guide, protocol and schema snapshots
+belong to the frozen version so a later version does not change its hashes. Mutable `work/` evidence is
+preserved separately and is not part of the managed read-only artifact set.
 
 The development set lives outside `testset/`, in `devset/` (Section 11), so that the held-out boundary is a
 directory boundary.
@@ -939,7 +970,9 @@ without the owner's explicit approval.
 `manifest.json` holds: test-set version (`synthetic-v1`), freeze date, guide version and guide SHA-256, generator
 model identifiers, prompt template identifiers, counts per class, type and category, number of excluded
 conversations per reason, QC agreement values, the SHA-256 of `conversations.jsonl`, and a per-record SHA-256 of each
-canonical line (so a single changed record is traceable).
+canonical line (so a single changed record is traceable). It also binds the version-owned guide, protocol,
+schema and seed-catalog hashes. `status: frozen` and scoring `protocol_version: "1.0"` identify the local
+artifact; the prediction run must bind its data and output hashes under `BENCHMARK_PROTOCOL.md`.
 
 ### 9.4 Freeze steps
 
@@ -967,10 +1000,10 @@ canonical line (so a single changed record is traceable).
 1. **Single-generator style bias.** One model family (OpenAI, through Codex) writes all conversations. Its phrasing, rhythm and
    choice of details are more uniform than real chat. A detector can learn or benefit from these regularities. The
    set measures detection of **these written patterns**, not of real messages.
-2. **Correlated labeling.** The author (OpenAI) and the second labeler (Claude) are different model families, but
-   both are large language models trained on similar web text. Agreement between them can still overestimate
-   agreement between independent humans. A human spot check (Section 8.6) reduces but does not remove
-   this risk.
+2. **Correlated labeling.** The OpenAI author and new GPT second-pass labelers share a model family. Earlier
+   Claude review used a different family, but all are large language models with correlated training and
+   judgments. Agreement does not establish agreement between independent humans. Report agreement by
+   reviewer provenance where feasible. A human spot check (Section 8.6) reduces but does not remove this risk.
 3. **No prevalence information.** The class balance (about 1:1) and the type counts are design choices. Precision on
    this set does not predict precision on real traffic, where most conversations are benign. Report a
    precision estimate at a stated assumed prevalence only as a scenario, not as a measurement.

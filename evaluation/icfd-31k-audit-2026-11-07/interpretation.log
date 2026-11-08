@@ -1,0 +1,70 @@
+{
+  "source_data_audit_signature": "797854a820840af04706b068dea8ed33105ca5041a4743a7415dc05c8096529b",
+  "class_balance": {
+    "train": {
+      "scam": 6481,
+      "benign": 14519,
+      "scam_share": 0.3086190476190476,
+      "always_scam_accuracy_arithmetic": 0.3086190476190476,
+      "always_scam_f1_arithmetic": 0.471671336559805
+    },
+    "validation": {
+      "scam": 4474,
+      "benign": 26,
+      "scam_share": 0.9942222222222222,
+      "always_scam_accuracy_arithmetic": 0.9942222222222222,
+      "always_scam_f1_arithmetic": 0.9971027412525072
+    },
+    "test": {
+      "scam": 4477,
+      "benign": 23,
+      "scam_share": 0.9948888888888889,
+      "always_scam_accuracy_arithmetic": 0.9948888888888889,
+      "always_scam_f1_arithmetic": 0.9974378968474992
+    },
+    "cross_domain": {
+      "scam": 961,
+      "benign": 39,
+      "scam_share": 0.961,
+      "always_scam_accuracy_arithmetic": 0.961,
+      "always_scam_f1_arithmetic": 0.9801121876593575
+    }
+  },
+  "native_majority_denominator_consequences": {
+    "train": {
+      "source_fraud_conversations": 6480,
+      "source_fraud_not_majority_positive_chunks": 2700,
+      "source_fraud_without_positive_chunk": 662,
+      "source_benign_majority_positive_chunks": 0
+    },
+    "validation": {
+      "source_fraud_conversations": 4473,
+      "source_fraud_not_majority_positive_chunks": 1591,
+      "source_fraud_without_positive_chunk": 23,
+      "source_benign_majority_positive_chunks": 0
+    },
+    "test": {
+      "source_fraud_conversations": 4476,
+      "source_fraud_not_majority_positive_chunks": 1809,
+      "source_fraud_without_positive_chunk": 26,
+      "source_benign_majority_positive_chunks": 0
+    },
+    "cross_domain": {
+      "source_fraud_conversations": 961,
+      "source_fraud_not_majority_positive_chunks": 407,
+      "source_fraud_without_positive_chunk": 12,
+      "source_benign_majority_positive_chunks": 0
+    }
+  },
+  "chunks": 1111071,
+  "labels_matching_native_keyword_or_duration_rule": 1111071,
+  "matching_rule_share": 1.0,
+  "source_annotation_exact_time_overlap": 51674,
+  "source_annotation_exact_time_disagreements": 5774,
+  "source_annotation_exact_time_disagreement_share": 0.11173897898362813,
+  "interpretation_limits": [
+    "Constant-classifier arithmetic is not model inference.",
+    "Matching the pinned chunker does not validate its semantic labels.",
+    "Saved published results were inspected, not reproduced with models."
+  ]
+}

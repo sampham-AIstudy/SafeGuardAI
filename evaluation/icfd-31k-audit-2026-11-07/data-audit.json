@@ -1,0 +1,283 @@
+{
+  "aggregate": {
+    "static": {
+      "cross_domain": {
+        "counts": {
+          "annotation_after_conversation": 17,
+          "annotation_yes_to_no_transitions": 18,
+          "fraud_boundary_finite": 961,
+          "fraud_sources": 961,
+          "fraud_without_positive_source_annotation": 0,
+          "native_threshold_equals_source_first_yes": 47,
+          "rows": 1000,
+          "unordered_transcript_timestamps": 2
+        },
+        "domains": {
+          "cross_domain_1": 200,
+          "cross_domain_2": 200,
+          "cross_domain_3": 200,
+          "cross_domain_4": 200,
+          "cross_domain_5": 200
+        },
+        "expected_rows": 1000,
+        "labels": {
+          "NO": 39,
+          "YES": 961
+        }
+      },
+      "test": {
+        "counts": {
+          "annotation_after_conversation": 217,
+          "annotation_yes_to_no_transitions": 31,
+          "fraud_boundary_finite": 4476,
+          "fraud_sources": 4477,
+          "fraud_without_positive_source_annotation": 2,
+          "invalid_annotation_timestamps": 2,
+          "invalid_transcript_timestamps": 1,
+          "native_threshold_equals_source_first_yes": 546,
+          "rows": 4500,
+          "unordered_transcript_timestamps": 1
+        },
+        "domains": {
+          "bank_payment_fraud": 450,
+          "ecommerce_marketplace": 450,
+          "government_impersonation": 450,
+          "insurance_healthcare": 450,
+          "job_employment": 450,
+          "loan_shark_harassment": 450,
+          "personal_emergency_extortion": 450,
+          "tech_support_account": 450,
+          "travel_lottery": 450,
+          "utility_bill_service": 450
+        },
+        "expected_rows": 4500,
+        "labels": {
+          "NO": 23,
+          "YES": 4477
+        }
+      },
+      "train": {
+        "counts": {
+          "annotation_after_conversation": 1066,
+          "annotation_yes_to_no_transitions": 117,
+          "fraud_boundary_finite": 5863,
+          "fraud_sources": 6481,
+          "fraud_without_positive_source_annotation": 0,
+          "invalid_annotation_timestamps": 14,
+          "invalid_transcript_timestamps": 5,
+          "native_threshold_equals_source_first_yes": 753,
+          "nonbinary_source_annotations": 3,
+          "rows": 21000,
+          "unordered_transcript_timestamps": 13
+        },
+        "domains": {
+          "bank_payment_fraud": 2100,
+          "ecommerce_marketplace": 2100,
+          "government_impersonation": 2100,
+          "insurance_healthcare": 2100,
+          "job_employment": 2100,
+          "loan_shark_harassment": 2100,
+          "personal_emergency_extortion": 2100,
+          "tech_support_account": 2100,
+          "travel_lottery": 2100,
+          "utility_bill_service": 2100
+        },
+        "expected_rows": 21000,
+        "labels": {
+          "NO": 14519,
+          "YES": 6481
+        }
+      },
+      "validation": {
+        "counts": {
+          "annotation_after_conversation": 152,
+          "annotation_yes_to_no_transitions": 31,
+          "fraud_boundary_finite": 4474,
+          "fraud_sources": 4474,
+          "fraud_without_positive_source_annotation": 1,
+          "invalid_annotation_timestamps": 5,
+          "invalid_transcript_timestamps": 1,
+          "native_threshold_equals_source_first_yes": 722,
+          "nonbinary_source_annotations": 1,
+          "rows": 4500,
+          "unordered_transcript_timestamps": 3
+        },
+        "domains": {
+          "bank_payment_fraud": 450,
+          "ecommerce_marketplace": 450,
+          "government_impersonation": 450,
+          "insurance_healthcare": 450,
+          "job_employment": 450,
+          "loan_shark_harassment": 450,
+          "personal_emergency_extortion": 450,
+          "tech_support_account": 450,
+          "travel_lottery": 450,
+          "utility_bill_service": 450
+        },
+        "expected_rows": 4500,
+        "labels": {
+          "NO": 26,
+          "YES": 4474
+        }
+      }
+    },
+    "streaming": {
+      "cross_domain": {
+        "counts": {
+          "checkable_native_rule_label": 45115,
+          "checkable_source_prefix": 45115,
+          "chunk_after_source_end": 0,
+          "cumulative_text_matches_newline_format": 45098,
+          "empty_prefix": 0,
+          "input_contract_rejected": 114,
+          "native_rule_label_match": 45115,
+          "off_three_second_grid": 0,
+          "prefix_content_source_match": 45115,
+          "prefix_exact_source_match": 45115,
+          "rows": 45115,
+          "same_as_conversation_label": 29970,
+          "source_annotation_label_match": 1166,
+          "source_annotation_time_overlap": 1512
+        },
+        "domains": {
+          "cross_domain_1": 9137,
+          "cross_domain_2": 9065,
+          "cross_domain_3": 9263,
+          "cross_domain_4": 8968,
+          "cross_domain_5": 8682
+        },
+        "expected_rows": 45115,
+        "labels": {
+          "NO": 17196,
+          "YES": 27919
+        }
+      },
+      "test": {
+        "counts": {
+          "checkable_native_rule_label": 179827,
+          "checkable_source_prefix": 179827,
+          "chunk_after_source_end": 0,
+          "cumulative_text_matches_newline_format": 179133,
+          "empty_prefix": 0,
+          "input_contract_rejected": 44,
+          "native_rule_label_match": 179827,
+          "off_three_second_grid": 0,
+          "prefix_content_source_match": 179827,
+          "prefix_exact_source_match": 179827,
+          "rows": 179827,
+          "same_as_conversation_label": 116214,
+          "source_annotation_label_match": 6502,
+          "source_annotation_time_overlap": 8096
+        },
+        "domains": {
+          "bank_payment_fraud": 23187,
+          "ecommerce_marketplace": 17938,
+          "government_impersonation": 17125,
+          "insurance_healthcare": 17906,
+          "job_employment": 16765,
+          "loan_shark_harassment": 16504,
+          "personal_emergency_extortion": 18123,
+          "tech_support_account": 17397,
+          "travel_lottery": 18978,
+          "utility_bill_service": 15904
+        },
+        "expected_rows": 179827,
+        "labels": {
+          "NO": 64670,
+          "YES": 115157
+        }
+      },
+      "train": {
+        "counts": {
+          "checkable_native_rule_label": 712316,
+          "checkable_source_prefix": 712283,
+          "chunk_after_source_end": 0,
+          "cumulative_text_matches_newline_format": 710087,
+          "empty_prefix": 0,
+          "input_contract_rejected": 333,
+          "native_rule_label_match": 712316,
+          "off_three_second_grid": 0,
+          "prefix_content_source_match": 712283,
+          "prefix_exact_source_match": 712283,
+          "rows": 712316,
+          "same_as_conversation_label": 613563,
+          "source_annotation_label_match": 32256,
+          "source_annotation_time_overlap": 34750,
+          "uncheckable_source_prefix": 33
+        },
+        "domains": {
+          "bank_payment_fraud": 96666,
+          "ecommerce_marketplace": 74933,
+          "government_impersonation": 64908,
+          "insurance_healthcare": 70617,
+          "job_employment": 68414,
+          "loan_shark_harassment": 69048,
+          "personal_emergency_extortion": 69929,
+          "tech_support_account": 68462,
+          "travel_lottery": 67741,
+          "utility_bill_service": 61598
+        },
+        "expected_rows": 712316,
+        "labels": {
+          "NO": 563251,
+          "YES": 149065
+        }
+      },
+      "validation": {
+        "counts": {
+          "checkable_native_rule_label": 173813,
+          "checkable_source_prefix": 173813,
+          "chunk_after_source_end": 0,
+          "cumulative_text_matches_newline_format": 173179,
+          "empty_prefix": 0,
+          "input_contract_rejected": 72,
+          "native_rule_label_match": 173813,
+          "off_three_second_grid": 0,
+          "prefix_content_source_match": 173813,
+          "prefix_exact_source_match": 173813,
+          "rows": 173813,
+          "same_as_conversation_label": 115652,
+          "source_annotation_label_match": 5976,
+          "source_annotation_time_overlap": 7316
+        },
+        "domains": {
+          "bank_payment_fraud": 20689,
+          "ecommerce_marketplace": 16647,
+          "government_impersonation": 17224,
+          "insurance_healthcare": 16827,
+          "job_employment": 17967,
+          "loan_shark_harassment": 16789,
+          "personal_emergency_extortion": 17439,
+          "tech_support_account": 16677,
+          "travel_lottery": 17974,
+          "utility_bill_service": 15580
+        },
+        "expected_rows": 173813,
+        "labels": {
+          "NO": 59512,
+          "YES": 114301
+        }
+      }
+    }
+  },
+  "completed_shards": 83,
+  "cross_checks": {
+    "chunk_uid_cross_split_groups": 0,
+    "conversations_with_conflicting_identical_prefix": 1942,
+    "cross_domain_domain_names_overlap_main_count": 0,
+    "duplicate_source_uid_groups": 0,
+    "duplicate_uid_timestamp_groups": 0,
+    "identical_observed_prefix_with_conflicting_labels_groups": 1942,
+    "normalized_transcript_cross_split_groups": 0,
+    "normalized_transcript_duplicate_groups": 0,
+    "source_uid_cross_split_groups": 0,
+    "sources_final_utterance_not_in_any_chunk": 27763,
+    "sources_without_chunks": 6
+  },
+  "elapsed_seconds_this_invocation": 69.96662935600034,
+  "expected_shards": 83,
+  "input_signature": "797854a820840af04706b068dea8ed33105ca5041a4743a7415dc05c8096529b",
+  "private_checkpoint_db": "/home/geminitt/projects/mini-safeguard/.audit-private/icfd-31k-audit-2026-11-07/audit-797854a82084.sqlite",
+  "release_lock_sha256": "16ef8cc06f6fdd71f95cd028f7d5b2ecd3532bbabe33cba971fcd270dbc50e68",
+  "scope": "Mechanical data/temporal checks; no detector and no independent semantic validation"
+}

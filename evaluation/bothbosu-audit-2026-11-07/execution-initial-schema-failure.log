@@ -1,0 +1,14 @@
+Retrieved README.md: 4042 bytes
+Retrieved agent_conversation_all.csv: 4828897 bytes
+Retrieved agent_conversation_train.csv: 3841211 bytes
+Retrieved agent_conversation_test.csv: 986115 bytes
+Traceback (most recent call last):
+  File "/home/geminitt/projects/mini-safeguard/evaluation/bothbosu-audit-2026-11-07/audit.py", line 214, in <module>
+    main()
+    ~~~~^^
+  File "/home/geminitt/projects/mini-safeguard/evaluation/bothbosu-audit-2026-11-07/audit.py", line 172, in main
+    headers[split], splits[split] = read_csv(args.data_dir / f"agent_conversation_{split}.csv")
+                                    ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/geminitt/projects/mini-safeguard/evaluation/bothbosu-audit-2026-11-07/audit.py", line 80, in read_csv
+    raise ValueError("Required CSV columns missing: " + path.name)
+ValueError: Required CSV columns missing: agent_conversation_all.csv

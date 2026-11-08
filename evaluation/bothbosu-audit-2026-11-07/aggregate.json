@@ -1,0 +1,491 @@
+{
+  "review_date": "2026-11-07",
+  "dataset": "BothBosu/multi-agent-scam-conversation",
+  "revision": "709db2b6c37f424c3070f29138abb33971e21ab9",
+  "scope": "CPU mechanical aggregate audit; no LLM/engine inference or semantic relabeling",
+  "input_lock_sha256": "e34ec128042e23eda1c8a5f2f83e5dd05992ec8c0a8b0ba8bef56f6c925957d3",
+  "script_sha256": "aa73888c1f697f08ac584f447607f52d33daaf2709cdbed50230412eae9a8f2c",
+  "headers": {
+    "all": [
+      "dialogue",
+      "personality",
+      "type",
+      "labels"
+    ],
+    "train": [
+      "dialogue",
+      "personality",
+      "type",
+      "labels"
+    ],
+    "test": [
+      "dialogue",
+      "personality",
+      "type",
+      "labels"
+    ]
+  },
+  "splits": {
+    "all": {
+      "rows": 1600,
+      "labels": {
+        "1": 800,
+        "0": 800
+      },
+      "empty_fields": {
+        "dialogue": 0,
+        "personality": 0,
+        "type": 0,
+        "label": 0
+      },
+      "type_by_label": {
+        "ssn": {
+          "1": 200
+        },
+        "reward": {
+          "1": 200
+        },
+        "refund": {
+          "1": 200
+        },
+        "support": {
+          "1": 200
+        },
+        "delivery": {
+          "0": 200
+        },
+        "appointment": {
+          "0": 200
+        },
+        "insurance": {
+          "0": 200
+        },
+        "wrong": {
+          "0": 200
+        }
+      },
+      "personality_by_label": {
+        "skeptical": {
+          "1": 100,
+          "0": 100
+        },
+        "distracted": {
+          "1": 100,
+          "0": 100
+        },
+        "polite": {
+          "1": 100,
+          "0": 100
+        },
+        "aggressive": {
+          "1": 100,
+          "0": 100
+        },
+        "trusting": {
+          "1": 100,
+          "0": 100
+        },
+        "confused": {
+          "1": 100,
+          "0": 100
+        },
+        "anxious": {
+          "1": 100,
+          "0": 100
+        },
+        "greedy": {
+          "1": 100,
+          "0": 100
+        }
+      },
+      "word_count_definition": "Number of Unicode regex \\w+ matches in serialized dialogue",
+      "word_count_by_label": {
+        "0": {
+          "count": 800,
+          "min": 78,
+          "median": 304.0,
+          "mean": 400.695,
+          "max": 2279
+        },
+        "1": {
+          "count": 800,
+          "min": 75,
+          "median": 557.5,
+          "mean": 724.055,
+          "max": 2378
+        }
+      },
+      "longer_dialogue_auc": 0.7905359375,
+      "duplicate_excess_rows": {
+        "row": 0,
+        "exact": 0,
+        "normalized": 0
+      },
+      "normalized_dialogue_groups_with_both_labels": 0,
+      "dialogue_marker_presence_by_label": {
+        "Suspect": {
+          "0": 800,
+          "1": 800
+        },
+        "Innocent": {
+          "0": 800,
+          "1": 800
+        },
+        "TERMINATE": {
+          "0": 0,
+          "1": 0
+        },
+        "scammer": {
+          "0": 7,
+          "1": 28
+        },
+        "scam": {
+          "0": 35,
+          "1": 345
+        },
+        "fraud": {
+          "0": 0,
+          "1": 126
+        }
+      },
+      "constant_references": {
+        "always_scam": {
+          "accuracy": 0.5,
+          "scam_recall": 1,
+          "positive_f1": 0.6666666666666666,
+          "false_positive_rate": 1
+        },
+        "always_non_scam": {
+          "accuracy": 0.5,
+          "scam_recall": 0,
+          "positive_f1": 0,
+          "false_positive_rate": 0
+        }
+      }
+    },
+    "train": {
+      "rows": 1280,
+      "labels": {
+        "0": 640,
+        "1": 640
+      },
+      "empty_fields": {
+        "dialogue": 0,
+        "personality": 0,
+        "type": 0,
+        "label": 0
+      },
+      "type_by_label": {
+        "appointment": {
+          "0": 160
+        },
+        "delivery": {
+          "0": 160
+        },
+        "insurance": {
+          "0": 160
+        },
+        "refund": {
+          "1": 160
+        },
+        "reward": {
+          "1": 160
+        },
+        "ssn": {
+          "1": 160
+        },
+        "support": {
+          "1": 160
+        },
+        "wrong": {
+          "0": 160
+        }
+      },
+      "personality_by_label": {
+        "aggressive": {
+          "0": 80,
+          "1": 80
+        },
+        "anxious": {
+          "0": 80,
+          "1": 80
+        },
+        "confused": {
+          "0": 80,
+          "1": 80
+        },
+        "distracted": {
+          "0": 80,
+          "1": 80
+        },
+        "greedy": {
+          "0": 80,
+          "1": 80
+        },
+        "polite": {
+          "0": 80,
+          "1": 80
+        },
+        "skeptical": {
+          "0": 80,
+          "1": 80
+        },
+        "trusting": {
+          "0": 80,
+          "1": 80
+        }
+      },
+      "word_count_definition": "Number of Unicode regex \\w+ matches in serialized dialogue",
+      "word_count_by_label": {
+        "0": {
+          "count": 640,
+          "min": 78,
+          "median": 308.0,
+          "mean": 395.8796875,
+          "max": 2066
+        },
+        "1": {
+          "count": 640,
+          "min": 75,
+          "median": 554.0,
+          "mean": 722.7546875,
+          "max": 2378
+        }
+      },
+      "longer_dialogue_auc": 0.792196044921875,
+      "duplicate_excess_rows": {
+        "row": 0,
+        "exact": 0,
+        "normalized": 0
+      },
+      "normalized_dialogue_groups_with_both_labels": 0,
+      "dialogue_marker_presence_by_label": {
+        "Suspect": {
+          "0": 640,
+          "1": 640
+        },
+        "Innocent": {
+          "0": 640,
+          "1": 640
+        },
+        "TERMINATE": {
+          "0": 0,
+          "1": 0
+        },
+        "scammer": {
+          "0": 7,
+          "1": 23
+        },
+        "scam": {
+          "0": 28,
+          "1": 269
+        },
+        "fraud": {
+          "0": 0,
+          "1": 104
+        }
+      },
+      "constant_references": {
+        "always_scam": {
+          "accuracy": 0.5,
+          "scam_recall": 1,
+          "positive_f1": 0.6666666666666666,
+          "false_positive_rate": 1
+        },
+        "always_non_scam": {
+          "accuracy": 0.5,
+          "scam_recall": 0,
+          "positive_f1": 0,
+          "false_positive_rate": 0
+        }
+      }
+    },
+    "test": {
+      "rows": 320,
+      "labels": {
+        "0": 160,
+        "1": 160
+      },
+      "empty_fields": {
+        "dialogue": 0,
+        "personality": 0,
+        "type": 0,
+        "label": 0
+      },
+      "type_by_label": {
+        "appointment": {
+          "0": 40
+        },
+        "delivery": {
+          "0": 40
+        },
+        "insurance": {
+          "0": 40
+        },
+        "refund": {
+          "1": 40
+        },
+        "reward": {
+          "1": 40
+        },
+        "ssn": {
+          "1": 40
+        },
+        "support": {
+          "1": 40
+        },
+        "wrong": {
+          "0": 40
+        }
+      },
+      "personality_by_label": {
+        "aggressive": {
+          "0": 20,
+          "1": 20
+        },
+        "anxious": {
+          "0": 20,
+          "1": 20
+        },
+        "confused": {
+          "0": 20,
+          "1": 20
+        },
+        "distracted": {
+          "0": 20,
+          "1": 20
+        },
+        "greedy": {
+          "0": 20,
+          "1": 20
+        },
+        "polite": {
+          "0": 20,
+          "1": 20
+        },
+        "skeptical": {
+          "0": 20,
+          "1": 20
+        },
+        "trusting": {
+          "0": 20,
+          "1": 20
+        }
+      },
+      "word_count_definition": "Number of Unicode regex \\w+ matches in serialized dialogue",
+      "word_count_by_label": {
+        "0": {
+          "count": 160,
+          "min": 92,
+          "median": 291.5,
+          "mean": 419.95625,
+          "max": 2279
+        },
+        "1": {
+          "count": 160,
+          "min": 241,
+          "median": 582.0,
+          "mean": 729.25625,
+          "max": 1861
+        }
+      },
+      "longer_dialogue_auc": 0.7845703125,
+      "duplicate_excess_rows": {
+        "row": 0,
+        "exact": 0,
+        "normalized": 0
+      },
+      "normalized_dialogue_groups_with_both_labels": 0,
+      "dialogue_marker_presence_by_label": {
+        "Suspect": {
+          "0": 160,
+          "1": 160
+        },
+        "Innocent": {
+          "0": 160,
+          "1": 160
+        },
+        "TERMINATE": {
+          "0": 0,
+          "1": 0
+        },
+        "scammer": {
+          "0": 0,
+          "1": 5
+        },
+        "scam": {
+          "0": 7,
+          "1": 76
+        },
+        "fraud": {
+          "0": 0,
+          "1": 22
+        }
+      },
+      "constant_references": {
+        "always_scam": {
+          "accuracy": 0.5,
+          "scam_recall": 1,
+          "positive_f1": 0.6666666666666666,
+          "false_positive_rate": 1
+        },
+        "always_non_scam": {
+          "accuracy": 0.5,
+          "scam_recall": 0,
+          "positive_f1": 0,
+          "false_positive_rate": 0
+        }
+      }
+    }
+  },
+  "schema_note": "Pinned CSV uses labels; card documents label. Parser accepts one explicit alias and preserves original headers.",
+  "split_relationships": {
+    "row": {
+      "train_test_common_groups": 0,
+      "train_rows_in_shared_groups": 0,
+      "test_rows_in_shared_groups": 0,
+      "all_equals_train_plus_test_as_multiset": true
+    },
+    "exact": {
+      "train_test_common_groups": 0,
+      "train_rows_in_shared_groups": 0,
+      "test_rows_in_shared_groups": 0,
+      "all_equals_train_plus_test_as_multiset": true
+    },
+    "normalized": {
+      "train_test_common_groups": 0,
+      "train_rows_in_shared_groups": 0,
+      "test_rows_in_shared_groups": 0,
+      "all_equals_train_plus_test_as_multiset": true
+    }
+  },
+  "metadata_majority_rules_from_train": {
+    "type": {
+      "covered_test_rows": 320,
+      "correct_test_rows": 320,
+      "input_allowed_for_detector": false,
+      "interpretation": "Metadata association diagnostic, not text-only detector performance"
+    },
+    "personality": {
+      "covered_test_rows": 320,
+      "correct_test_rows": 160,
+      "input_allowed_for_detector": false,
+      "interpretation": "Metadata association diagnostic, not text-only detector performance"
+    }
+  },
+  "length_ranking_diagnostic": {
+    "direction_selected_on_train": 1,
+    "train_longer_dialogue_auc": 0.792196044921875,
+    "test_auc_with_train_direction": 0.7845703125,
+    "threshold_selected": false
+  },
+  "not_checked": [
+    "Semantic label validity",
+    "Semantic near-duplicates or shared templates",
+    "Natural conversation fidelity",
+    "Earliest evidence or warning-time annotations",
+    "Original generation prompts, model snapshots and sampling reproducibility",
+    "Real-world or Vietnamese transfer",
+    "Any detector or engine quality"
+  ]
+}

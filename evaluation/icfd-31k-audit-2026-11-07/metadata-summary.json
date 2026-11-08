@@ -1,0 +1,19 @@
+{
+  "author_revision": "5d02311657b2ca6454b5fb1c67bcdeb056b589c3",
+  "dataset_revision": "e91937a718b4cec97b8c06820225a9bdc30dd84a",
+  "disk_free_bytes": 250144804864,
+  "document_and_code_files": 28,
+  "manifest_keys": [
+    "bytes",
+    "dataset",
+    "path",
+    "records",
+    "sha256",
+    "split",
+    "task",
+    "version"
+  ],
+  "manifest_rows": 83,
+  "manifest_total_bytes": 64617715,
+  "size_field": "bytes"
+}

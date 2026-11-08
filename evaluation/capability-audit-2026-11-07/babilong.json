@@ -1,0 +1,410 @@
+{
+  "cells": {
+    "qa1/0k": {
+      "rows": 100,
+      "empty_fields": {
+        "input": 0,
+        "question": 0,
+        "target": 0
+      },
+      "distinct_targets": 6,
+      "largest_target_count": 23,
+      "oracle_majority_target_accuracy": 0.23,
+      "uniform_task_label_expected_accuracy": 0.16666666666666666,
+      "duplicate_inputs": 0,
+      "duplicate_full_records": 0,
+      "input_word_count": {
+        "count": 100,
+        "min": 10,
+        "median": 30.5,
+        "mean": 30.03,
+        "max": 54
+      },
+      "native_oracle_accuracy": 1.0,
+      "first_location_rule_accuracy": 0.22,
+      "last_location_rule_accuracy": 0.53
+    },
+    "qa1/4k": {
+      "rows": 100,
+      "empty_fields": {
+        "input": 0,
+        "question": 0,
+        "target": 0
+      },
+      "distinct_targets": 6,
+      "largest_target_count": 23,
+      "oracle_majority_target_accuracy": 0.23,
+      "uniform_task_label_expected_accuracy": 0.16666666666666666,
+      "duplicate_inputs": 0,
+      "duplicate_full_records": 0,
+      "input_word_count": {
+        "count": 100,
+        "min": 1613,
+        "median": 2651.0,
+        "mean": 2600.86,
+        "max": 2921
+      },
+      "native_oracle_accuracy": 1.0,
+      "first_location_rule_accuracy": 0.18,
+      "last_location_rule_accuracy": 0.47
+    },
+    "qa1/16k": {
+      "rows": 100,
+      "empty_fields": {
+        "input": 0,
+        "question": 0,
+        "target": 0
+      },
+      "distinct_targets": 6,
+      "largest_target_count": 23,
+      "oracle_majority_target_accuracy": 0.23,
+      "uniform_task_label_expected_accuracy": 0.16666666666666666,
+      "duplicate_inputs": 0,
+      "duplicate_full_records": 0,
+      "input_word_count": {
+        "count": 100,
+        "min": 5221,
+        "median": 11265.0,
+        "mean": 11042.76,
+        "max": 12173
+      },
+      "native_oracle_accuracy": 1.0,
+      "first_location_rule_accuracy": 0.17,
+      "last_location_rule_accuracy": 0.37
+    },
+    "qa2/0k": {
+      "rows": 100,
+      "empty_fields": {
+        "input": 0,
+        "question": 0,
+        "target": 0
+      },
+      "distinct_targets": 6,
+      "largest_target_count": 21,
+      "oracle_majority_target_accuracy": 0.21,
+      "uniform_task_label_expected_accuracy": 0.16666666666666666,
+      "duplicate_inputs": 0,
+      "duplicate_full_records": 0,
+      "input_word_count": {
+        "count": 100,
+        "min": 10,
+        "median": 77.0,
+        "mean": 81.83,
+        "max": 174
+      },
+      "native_oracle_accuracy": 1.0,
+      "first_location_rule_accuracy": 0.24,
+      "last_location_rule_accuracy": 0.36
+    },
+    "qa2/4k": {
+      "rows": 100,
+      "empty_fields": {
+        "input": 0,
+        "question": 0,
+        "target": 0
+      },
+      "distinct_targets": 6,
+      "largest_target_count": 21,
+      "oracle_majority_target_accuracy": 0.21,
+      "uniform_task_label_expected_accuracy": 0.16666666666666666,
+      "duplicate_inputs": 0,
+      "duplicate_full_records": 0,
+      "input_word_count": {
+        "count": 100,
+        "min": 1266,
+        "median": 2684.5,
+        "mean": 2598.75,
+        "max": 3027
+      },
+      "native_oracle_accuracy": 1.0,
+      "first_location_rule_accuracy": 0.24,
+      "last_location_rule_accuracy": 0.3
+    },
+    "qa2/16k": {
+      "rows": 100,
+      "empty_fields": {
+        "input": 0,
+        "question": 0,
+        "target": 0
+      },
+      "distinct_targets": 6,
+      "largest_target_count": 21,
+      "oracle_majority_target_accuracy": 0.21,
+      "uniform_task_label_expected_accuracy": 0.16666666666666666,
+      "duplicate_inputs": 0,
+      "duplicate_full_records": 0,
+      "input_word_count": {
+        "count": 100,
+        "min": 6070,
+        "median": 11314.0,
+        "mean": 10960.16,
+        "max": 12392
+      },
+      "native_oracle_accuracy": 1.0,
+      "first_location_rule_accuracy": 0.2,
+      "last_location_rule_accuracy": 0.29
+    },
+    "qa3/0k": {
+      "rows": 100,
+      "empty_fields": {
+        "input": 0,
+        "question": 0,
+        "target": 0
+      },
+      "distinct_targets": 6,
+      "largest_target_count": 20,
+      "oracle_majority_target_accuracy": 0.2,
+      "uniform_task_label_expected_accuracy": 0.16666666666666666,
+      "duplicate_inputs": 0,
+      "duplicate_full_records": 0,
+      "input_word_count": {
+        "count": 100,
+        "min": 22,
+        "median": 220.5,
+        "mean": 266.21,
+        "max": 724
+      },
+      "native_oracle_accuracy": 1.0,
+      "first_location_rule_accuracy": 0.2,
+      "last_location_rule_accuracy": 0.15
+    },
+    "qa3/4k": {
+      "rows": 100,
+      "empty_fields": {
+        "input": 0,
+        "question": 0,
+        "target": 0
+      },
+      "distinct_targets": 6,
+      "largest_target_count": 21,
+      "oracle_majority_target_accuracy": 0.21,
+      "uniform_task_label_expected_accuracy": 0.16666666666666666,
+      "duplicate_inputs": 0,
+      "duplicate_full_records": 0,
+      "input_word_count": {
+        "count": 100,
+        "min": 1353,
+        "median": 2710.5,
+        "mean": 2641.46,
+        "max": 2991
+      },
+      "native_oracle_accuracy": 1.0,
+      "first_location_rule_accuracy": 0.21,
+      "last_location_rule_accuracy": 0.14
+    },
+    "qa3/16k": {
+      "rows": 100,
+      "empty_fields": {
+        "input": 0,
+        "question": 0,
+        "target": 0
+      },
+      "distinct_targets": 6,
+      "largest_target_count": 21,
+      "oracle_majority_target_accuracy": 0.21,
+      "uniform_task_label_expected_accuracy": 0.16666666666666666,
+      "duplicate_inputs": 0,
+      "duplicate_full_records": 0,
+      "input_word_count": {
+        "count": 100,
+        "min": 8326,
+        "median": 11421.5,
+        "mean": 11158.38,
+        "max": 12142
+      },
+      "native_oracle_accuracy": 1.0,
+      "first_location_rule_accuracy": 0.2,
+      "last_location_rule_accuracy": 0.15
+    }
+  },
+  "cross_length_story_pairing": {
+    "qa1/4k": {
+      "same_row_question_and_target": 100,
+      "same_row_question_target_and_ordered_story_sentences": 100,
+      "ordered_short_story_match_count_distribution": {
+        "1": 96,
+        "2": 4
+      },
+      "suffix_coverage_diagnostic": {
+        "128": {
+          "eligible_unique_story_matches": 96,
+          "suffix_retains_all_short_story_sentences": 0
+        },
+        "512": {
+          "eligible_unique_story_matches": 96,
+          "suffix_retains_all_short_story_sentences": 1
+        },
+        "1024": {
+          "eligible_unique_story_matches": 96,
+          "suffix_retains_all_short_story_sentences": 3
+        }
+      },
+      "interpretation": "All short-story sentences, not independently identified minimal supporting evidence; words, not model tokens"
+    },
+    "qa1/16k": {
+      "same_row_question_and_target": 100,
+      "same_row_question_target_and_ordered_story_sentences": 100,
+      "ordered_short_story_match_count_distribution": {
+        "1": 96,
+        "2": 4
+      },
+      "suffix_coverage_diagnostic": {
+        "128": {
+          "eligible_unique_story_matches": 96,
+          "suffix_retains_all_short_story_sentences": 0
+        },
+        "512": {
+          "eligible_unique_story_matches": 96,
+          "suffix_retains_all_short_story_sentences": 0
+        },
+        "1024": {
+          "eligible_unique_story_matches": 96,
+          "suffix_retains_all_short_story_sentences": 0
+        }
+      },
+      "interpretation": "All short-story sentences, not independently identified minimal supporting evidence; words, not model tokens"
+    },
+    "qa2/4k": {
+      "same_row_question_and_target": 100,
+      "same_row_question_target_and_ordered_story_sentences": 100,
+      "ordered_short_story_match_count_distribution": {
+        "1": 92,
+        "2": 8
+      },
+      "suffix_coverage_diagnostic": {
+        "128": {
+          "eligible_unique_story_matches": 92,
+          "suffix_retains_all_short_story_sentences": 0
+        },
+        "512": {
+          "eligible_unique_story_matches": 92,
+          "suffix_retains_all_short_story_sentences": 0
+        },
+        "1024": {
+          "eligible_unique_story_matches": 92,
+          "suffix_retains_all_short_story_sentences": 0
+        }
+      },
+      "interpretation": "All short-story sentences, not independently identified minimal supporting evidence; words, not model tokens"
+    },
+    "qa2/16k": {
+      "same_row_question_and_target": 100,
+      "same_row_question_target_and_ordered_story_sentences": 100,
+      "ordered_short_story_match_count_distribution": {
+        "1": 92,
+        "2": 8
+      },
+      "suffix_coverage_diagnostic": {
+        "128": {
+          "eligible_unique_story_matches": 92,
+          "suffix_retains_all_short_story_sentences": 0
+        },
+        "512": {
+          "eligible_unique_story_matches": 92,
+          "suffix_retains_all_short_story_sentences": 0
+        },
+        "1024": {
+          "eligible_unique_story_matches": 92,
+          "suffix_retains_all_short_story_sentences": 0
+        }
+      },
+      "interpretation": "All short-story sentences, not independently identified minimal supporting evidence; words, not model tokens"
+    },
+    "qa3/4k": {
+      "same_row_question_and_target": 86,
+      "same_row_question_target_and_ordered_story_sentences": 86,
+      "ordered_short_story_match_count_distribution": {
+        "1": 84,
+        "2": 2,
+        "0": 14
+      },
+      "suffix_coverage_diagnostic": {
+        "128": {
+          "eligible_unique_story_matches": 84,
+          "suffix_retains_all_short_story_sentences": 0
+        },
+        "512": {
+          "eligible_unique_story_matches": 84,
+          "suffix_retains_all_short_story_sentences": 0
+        },
+        "1024": {
+          "eligible_unique_story_matches": 84,
+          "suffix_retains_all_short_story_sentences": 0
+        }
+      },
+      "interpretation": "All short-story sentences, not independently identified minimal supporting evidence; words, not model tokens"
+    },
+    "qa3/16k": {
+      "same_row_question_and_target": 86,
+      "same_row_question_target_and_ordered_story_sentences": 86,
+      "ordered_short_story_match_count_distribution": {
+        "1": 84,
+        "2": 2,
+        "0": 14
+      },
+      "suffix_coverage_diagnostic": {
+        "128": {
+          "eligible_unique_story_matches": 84,
+          "suffix_retains_all_short_story_sentences": 0
+        },
+        "512": {
+          "eligible_unique_story_matches": 84,
+          "suffix_retains_all_short_story_sentences": 0
+        },
+        "1024": {
+          "eligible_unique_story_matches": 84,
+          "suffix_retains_all_short_story_sentences": 0
+        }
+      },
+      "interpretation": "All short-story sentences, not independently identified minimal supporting evidence; words, not model tokens"
+    }
+  },
+  "public_scorer_fixtures": [
+    {
+      "fixture": "correct_single_label",
+      "intended": true,
+      "native": true
+    },
+    {
+      "fixture": "wrong_single_label",
+      "intended": false,
+      "native": false
+    },
+    {
+      "fixture": "negated_target",
+      "intended": false,
+      "native": true
+    },
+    {
+      "fixture": "substring_not_label",
+      "intended": false,
+      "native": true
+    },
+    {
+      "fixture": "contradiction_after_period",
+      "intended": false,
+      "native": true
+    },
+    {
+      "fixture": "abstention_with_target",
+      "intended": false,
+      "native": true
+    }
+  ],
+  "fixture_disagreements": 4,
+  "scope": "900 bounded records, no model; lexical rules and parser probes are diagnostics",
+  "audit_script_sha256": "5c3118f08fdd24a553f212271a50454b8e172ffec6e4b0d0a122360bc4b0ff95",
+  "release_lock_sha256": "7a199f0cc19aaf40e0701fcca59d2c57e6364e8e6d38cbb7556b938df708e0f2",
+  "source_sha256": {
+    "babilong-hf-metadata.json": "2d59625e274c3614dc56b97f15f8de982a6e13f02ec958e89a8f0c3302e9f099",
+    "babilong-tree-metadata.json": "e3027c72258a71970cc302825ca91b8fc08b394d0ad59b64875a071e6bffe4e4",
+    "babilong_metrics.py": "f77c139809690588f85ed29c1c93f22394c6b48b1fdc8afeaaa5d0969d973daf",
+    "phishrewrite-code-identity.json": "7b343d5a8a7b49c6bda4252a1be4d68418dfaac8855a33b55a7b0e2e11baf2e7",
+    "phishrewrite-release-metadata.json": "ed2fc66a8809c2dd1a964e2a60504f0e2c42edf98fd16c2b12caa05663935a31",
+    "phishrewrite_ablation.py": "49dcc53d97e864f87ab3cbe6ada7a6b6a7ad487736a04faa864cf7e0edcb08b4",
+    "phishrewrite_attack.py": "046ceb31650b1d505a76e0e84625cd8e89225b06f29784f16cb7c9361c97c8d4",
+    "phishrewrite_evaluate.py": "36cbbc7faadb058948449f43507e7790fed0a19d13e4cc12d0df346ecd3d6e8b",
+    "phishrewrite_features.py": "2959c3776eec5fe7e463c74fb9a1406258fe4c3ed68267a17a63b58d354a1f79",
+    "phishvn-content-metadata.json": "16348b542edef6394d7ab6fb87bd3e6d4e7f88a6ca7eeca29d1a56feba911e1c"
+  }
+}

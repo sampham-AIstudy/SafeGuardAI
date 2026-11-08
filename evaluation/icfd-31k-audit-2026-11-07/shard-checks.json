@@ -1,0 +1,2544 @@
+{
+  "source_conversations/cross_domain-00000-of-00001.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 17,
+      "annotation_yes_to_no_transitions": 18,
+      "fraud_boundary_finite": 961,
+      "fraud_sources": 961,
+      "fraud_without_positive_source_annotation": 0,
+      "native_threshold_equals_source_first_yes": 47,
+      "rows": 1000,
+      "unordered_transcript_timestamps": 2
+    },
+    "domains": {
+      "cross_domain_1": 200,
+      "cross_domain_2": 200,
+      "cross_domain_3": 200,
+      "cross_domain_4": 200,
+      "cross_domain_5": 200
+    },
+    "expected_rows": 1000,
+    "fields": {
+      "agent_persona": 1000,
+      "chunk_level_analysis": 1000,
+      "customer_persona": 1000,
+      "final_slow_thinking_rationale": 1000,
+      "final_verdict": 1000,
+      "generation_metadata": 1000,
+      "key_entities": 1000,
+      "multimodal_analysis": 1000,
+      "release_metadata": 1000,
+      "scam_outcome": 1000,
+      "scenario": 1000,
+      "session_id": 1000,
+      "transcript": 1000,
+      "violated_policies": 1000
+    },
+    "labels": {
+      "NO": 39,
+      "YES": 961
+    },
+    "split": "cross_domain",
+    "task": "static"
+  },
+  "source_conversations/test-00000-of-00002.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 136,
+      "annotation_yes_to_no_transitions": 24,
+      "fraud_boundary_finite": 2238,
+      "fraud_sources": 2238,
+      "fraud_without_positive_source_annotation": 1,
+      "native_threshold_equals_source_first_yes": 277,
+      "rows": 2250
+    },
+    "domains": {
+      "bank_payment_fraud": 450,
+      "ecommerce_marketplace": 450,
+      "job_employment": 450,
+      "loan_shark_harassment": 450,
+      "utility_bill_service": 450
+    },
+    "expected_rows": 2250,
+    "fields": {
+      "agent_persona": 2250,
+      "chunk_level_analysis": 2249,
+      "chunk_level_analysis!": 1,
+      "customer_persona": 2250,
+      "final_slow_thinking_rationale": 2250,
+      "final_verdict": 2250,
+      "generation_metadata": 2250,
+      "key_entities": 2250,
+      "multimodal_analysis": 2250,
+      "release_metadata": 2250,
+      "scam_outcome": 2250,
+      "scenario": 2250,
+      "session_id": 2250,
+      "transcript": 2250,
+      "violated_policies": 2250
+    },
+    "labels": {
+      "NO": 12,
+      "YES": 2238
+    },
+    "split": "test",
+    "task": "static"
+  },
+  "source_conversations/test-00001-of-00002.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 81,
+      "annotation_yes_to_no_transitions": 7,
+      "fraud_boundary_finite": 2238,
+      "fraud_sources": 2239,
+      "fraud_without_positive_source_annotation": 1,
+      "invalid_annotation_timestamps": 2,
+      "invalid_transcript_timestamps": 1,
+      "native_threshold_equals_source_first_yes": 269,
+      "rows": 2250,
+      "unordered_transcript_timestamps": 1
+    },
+    "domains": {
+      "government_impersonation": 450,
+      "insurance_healthcare": 450,
+      "personal_emergency_extortion": 450,
+      "tech_support_account": 450,
+      "travel_lottery": 450
+    },
+    "expected_rows": 2250,
+    "fields": {
+      "agent_persona": 2250,
+      "chunk_level_analysis": 2250,
+      "customer_persona": 2250,
+      "final_slow_thinking_rationale": 2250,
+      "final_verdict": 2250,
+      "generation_metadata": 2250,
+      "key_entities": 2250,
+      "multimodal_analysis": 2250,
+      "release_metadata": 2250,
+      "scam_outcome": 2250,
+      "scenario": 2250,
+      "session_id": 2250,
+      "transcript": 2250,
+      "violated_policies": 2249,
+      "violated_policies=": 1
+    },
+    "labels": {
+      "NO": 11,
+      "YES": 2239
+    },
+    "split": "test",
+    "task": "static"
+  },
+  "source_conversations/train-00000-of-00010.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 176,
+      "annotation_yes_to_no_transitions": 21,
+      "fraud_boundary_finite": 600,
+      "fraud_sources": 763,
+      "fraud_without_positive_source_annotation": 0,
+      "native_threshold_equals_source_first_yes": 230,
+      "rows": 2100
+    },
+    "domains": {
+      "bank_payment_fraud": 2100
+    },
+    "expected_rows": 2100,
+    "fields": {
+      "agent_persona": 2100,
+      "chunk_level_analysis": 2100,
+      "customer_persona": 2100,
+      "final_slow_thinking_rationale": 2100,
+      "final_verdict": 2100,
+      "generation_metadata": 2100,
+      "key_entities": 2100,
+      "multimodal_analysis": 2100,
+      "release_metadata": 2100,
+      "scam_outcome": 2100,
+      "scenario": 2100,
+      "session_id": 2100,
+      "transcript": 2100,
+      "violated_policies": 2100
+    },
+    "labels": {
+      "NO": 1337,
+      "YES": 763
+    },
+    "split": "train",
+    "task": "static"
+  },
+  "source_conversations/train-00001-of-00010.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 311,
+      "annotation_yes_to_no_transitions": 32,
+      "fraud_boundary_finite": 597,
+      "fraud_sources": 645,
+      "fraud_without_positive_source_annotation": 0,
+      "native_threshold_equals_source_first_yes": 95,
+      "rows": 2100
+    },
+    "domains": {
+      "ecommerce_marketplace": 2100
+    },
+    "expected_rows": 2100,
+    "fields": {
+      "agent_persona": 2100,
+      "chunk_level_analysis": 2100,
+      "customer_persona": 2100,
+      "final_slow_thinking_rationale": 2100,
+      "final_verdict": 2100,
+      "generation_metadata": 2100,
+      "key_entities": 2100,
+      "multimodal_analysis": 2100,
+      "release_metadata": 2100,
+      "scam_outcome": 2100,
+      "scenario": 2100,
+      "session_id": 2100,
+      "transcript": 2100,
+      "violated_policies": 2100
+    },
+    "labels": {
+      "NO": 1455,
+      "YES": 645
+    },
+    "split": "train",
+    "task": "static"
+  },
+  "source_conversations/train-00002-of-00010.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 78,
+      "annotation_yes_to_no_transitions": 5,
+      "fraud_boundary_finite": 600,
+      "fraud_sources": 665,
+      "fraud_without_positive_source_annotation": 0,
+      "invalid_annotation_timestamps": 4,
+      "invalid_transcript_timestamps": 1,
+      "native_threshold_equals_source_first_yes": 41,
+      "nonbinary_source_annotations": 1,
+      "rows": 2100,
+      "unordered_transcript_timestamps": 2
+    },
+    "domains": {
+      "utility_bill_service": 2100
+    },
+    "expected_rows": 2100,
+    "fields": {
+      "agent_persona": 2100,
+      "chunk_level_analysis": 2100,
+      "customer_persona": 2100,
+      "final_slow_thinking_rationale": 2100,
+      "final_verdict": 2100,
+      "generation_metadata": 2100,
+      "key_entities": 2100,
+      "multimodal_analysis": 2100,
+      "release_metadata": 2100,
+      "scam_outcome": 2100,
+      "scenario": 2100,
+      "session_id": 2100,
+      "transcript": 2100,
+      "violated_policies": 2100
+    },
+    "labels": {
+      "NO": 1435,
+      "YES": 665
+    },
+    "split": "train",
+    "task": "static"
+  },
+  "source_conversations/train-00003-of-00010.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 65,
+      "annotation_yes_to_no_transitions": 3,
+      "fraud_boundary_finite": 597,
+      "fraud_sources": 654,
+      "fraud_without_positive_source_annotation": 0,
+      "invalid_annotation_timestamps": 3,
+      "invalid_transcript_timestamps": 1,
+      "native_threshold_equals_source_first_yes": 19,
+      "rows": 2100,
+      "unordered_transcript_timestamps": 3
+    },
+    "domains": {
+      "job_employment": 2100
+    },
+    "expected_rows": 2100,
+    "fields": {
+      "agent_persona": 2100,
+      "chunk_level_analysis": 2100,
+      "customer_persona": 2100,
+      "final_slow_thinking_rationale": 2100,
+      "final_verdict": 2100,
+      "generation_metadata": 2100,
+      "key_entities": 2100,
+      "multimodal_analysis": 2100,
+      "release_metadata": 2100,
+      "scam_outcome": 2100,
+      "scenario": 2100,
+      "session_id": 2100,
+      "transcript": 2100,
+      "violated_policies": 2100
+    },
+    "labels": {
+      "NO": 1446,
+      "YES": 654
+    },
+    "split": "train",
+    "task": "static"
+  },
+  "source_conversations/train-00004-of-00010.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 75,
+      "annotation_yes_to_no_transitions": 5,
+      "fraud_boundary_finite": 591,
+      "fraud_sources": 645,
+      "fraud_without_positive_source_annotation": 0,
+      "native_threshold_equals_source_first_yes": 44,
+      "rows": 2100,
+      "unordered_transcript_timestamps": 1
+    },
+    "domains": {
+      "loan_shark_harassment": 2100
+    },
+    "expected_rows": 2100,
+    "fields": {
+      "agent_persona": 2100,
+      "chunk_level_analysis": 2100,
+      "customer_persona": 2100,
+      "final_slow_thinking_rationale": 2100,
+      "final_verdict": 2100,
+      "generation_metadata": 2100,
+      "key_entities": 2100,
+      "multimodal_analysis": 2100,
+      "release_metadata": 2100,
+      "scam_outcome": 2100,
+      "scenario": 2100,
+      "session_id": 2100,
+      "transcript": 2100,
+      "violated_policies": 2100
+    },
+    "labels": {
+      "NO": 1455,
+      "YES": 645
+    },
+    "split": "train",
+    "task": "static"
+  },
+  "source_conversations/train-00005-of-00010.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 54,
+      "annotation_yes_to_no_transitions": 17,
+      "fraud_boundary_finite": 596,
+      "fraud_sources": 657,
+      "fraud_without_positive_source_annotation": 0,
+      "invalid_transcript_timestamps": 1,
+      "native_threshold_equals_source_first_yes": 79,
+      "rows": 2100
+    },
+    "domains": {
+      "tech_support_account": 2100
+    },
+    "expected_rows": 2100,
+    "fields": {
+      "agent_persona": 2100,
+      "chunk_level_analysis": 2100,
+      "customer_persona": 2100,
+      "final_slow_thinking_rationale": 2100,
+      "final_verdict": 2100,
+      "generation_metadata": 2100,
+      "key_entities": 2100,
+      "multimodal_analysis": 2100,
+      "release_metadata": 2100,
+      "scam_outcome": 2100,
+      "scenario": 2100,
+      "session_id": 2100,
+      "transcript": 2100,
+      "violated_policies": 2100
+    },
+    "labels": {
+      "NO": 1443,
+      "YES": 657
+    },
+    "split": "train",
+    "task": "static"
+  },
+  "source_conversations/train-00006-of-00010.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 87,
+      "annotation_yes_to_no_transitions": 26,
+      "fraud_boundary_finite": 512,
+      "fraud_sources": 524,
+      "fraud_without_positive_source_annotation": 0,
+      "native_threshold_equals_source_first_yes": 42,
+      "rows": 2100,
+      "unordered_transcript_timestamps": 1
+    },
+    "domains": {
+      "personal_emergency_extortion": 2100
+    },
+    "expected_rows": 2100,
+    "fields": {
+      "agent_persona": 2100,
+      "chunk_level_analysis": 2100,
+      "customer_persona": 2100,
+      "final_slow_thinking_rationale": 2100,
+      "final_verdict": 2100,
+      "generation_metadata": 2100,
+      "key_entities": 2100,
+      "multimodal_analysis": 2100,
+      "release_metadata": 2100,
+      "scam_outcome": 2100,
+      "scenario": 2100,
+      "session_id": 2100,
+      "transcript": 2100,
+      "violated_policies": 2100
+    },
+    "labels": {
+      "NO": 1576,
+      "YES": 524
+    },
+    "split": "train",
+    "task": "static"
+  },
+  "source_conversations/train-00007-of-00010.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 82,
+      "annotation_yes_to_no_transitions": 5,
+      "fraud_boundary_finite": 596,
+      "fraud_sources": 659,
+      "fraud_without_positive_source_annotation": 0,
+      "invalid_annotation_timestamps": 3,
+      "invalid_transcript_timestamps": 1,
+      "native_threshold_equals_source_first_yes": 43,
+      "nonbinary_source_annotations": 1,
+      "rows": 2100,
+      "unordered_transcript_timestamps": 4
+    },
+    "domains": {
+      "insurance_healthcare": 2100
+    },
+    "expected_rows": 2100,
+    "fields": {
+      "agent_persona": 2100,
+      "chunk_level_analysis": 2100,
+      "customer_persona": 2100,
+      "final_slow_thinking_rationale": 2100,
+      "final_verdict": 2100,
+      "generation_metadata": 2100,
+      "key_entities": 2100,
+      "multimodal_analysis": 2100,
+      "release_metadata": 2100,
+      "scam_outcome": 2100,
+      "scenario": 2100,
+      "session_id": 2100,
+      "transcript": 2100,
+      "violated_policies": 2100
+    },
+    "labels": {
+      "NO": 1441,
+      "YES": 659
+    },
+    "split": "train",
+    "task": "static"
+  },
+  "source_conversations/train-00008-of-00010.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 64,
+      "annotation_yes_to_no_transitions": 3,
+      "fraud_boundary_finite": 587,
+      "fraud_sources": 641,
+      "fraud_without_positive_source_annotation": 0,
+      "invalid_annotation_timestamps": 4,
+      "invalid_transcript_timestamps": 1,
+      "native_threshold_equals_source_first_yes": 88,
+      "rows": 2100,
+      "unordered_transcript_timestamps": 2
+    },
+    "domains": {
+      "travel_lottery": 2100
+    },
+    "expected_rows": 2100,
+    "fields": {
+      "agent_persona": 2100,
+      "chunk_level_analysis": 2100,
+      "customer_persona": 2100,
+      "final_slow_thinking_rationale": 2100,
+      "final_verdict": 2100,
+      "generation_metadata": 2100,
+      "key_entities": 2100,
+      "multimodal_analysis": 2100,
+      "release_metadata": 2100,
+      "scam_outcome": 2100,
+      "scenario": 2100,
+      "session_id": 2100,
+      "transcript": 2100,
+      "violated_policies": 2100
+    },
+    "labels": {
+      "NO": 1459,
+      "YES": 641
+    },
+    "split": "train",
+    "task": "static"
+  },
+  "source_conversations/train-00009-of-00010.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 74,
+      "fraud_boundary_finite": 587,
+      "fraud_sources": 628,
+      "fraud_without_positive_source_annotation": 0,
+      "native_threshold_equals_source_first_yes": 72,
+      "nonbinary_source_annotations": 1,
+      "rows": 2100
+    },
+    "domains": {
+      "government_impersonation": 2100
+    },
+    "expected_rows": 2100,
+    "fields": {
+      "agent_persona": 2100,
+      "chunk_level_analysis": 2100,
+      "customer_persona": 2100,
+      "final_slow_thinking_rationale": 2100,
+      "final_verdict": 2100,
+      "generation_metadata": 2100,
+      "key_entities": 2100,
+      "multimodal_analysis": 2100,
+      "release_metadata": 2100,
+      "scam_outcome": 2100,
+      "scenario": 2100,
+      "session_id": 2100,
+      "transcript": 2100,
+      "violated_policies": 2100
+    },
+    "labels": {
+      "NO": 1472,
+      "YES": 628
+    },
+    "split": "train",
+    "task": "static"
+  },
+  "source_conversations/validation-00000-of-00002.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 88,
+      "annotation_yes_to_no_transitions": 26,
+      "fraud_boundary_finite": 2240,
+      "fraud_sources": 2240,
+      "fraud_without_positive_source_annotation": 0,
+      "native_threshold_equals_source_first_yes": 455,
+      "nonbinary_source_annotations": 1,
+      "rows": 2250,
+      "unordered_transcript_timestamps": 1
+    },
+    "domains": {
+      "bank_payment_fraud": 450,
+      "ecommerce_marketplace": 450,
+      "job_employment": 450,
+      "loan_shark_harassment": 450,
+      "utility_bill_service": 450
+    },
+    "expected_rows": 2250,
+    "fields": {
+      "agent_persona": 2250,
+      "chunk_level_analysis": 2250,
+      "customer_persona": 2250,
+      "final_slow_thinking_rationale": 2250,
+      "final_verdict": 2250,
+      "generation_metadata": 2250,
+      "key_entities": 2250,
+      "multimodal_analysis": 2250,
+      "release_metadata": 2250,
+      "scam_outcome": 2250,
+      "scenario": 2250,
+      "session_id": 2250,
+      "transcript": 2250,
+      "violated_policies": 2250
+    },
+    "labels": {
+      "NO": 10,
+      "YES": 2240
+    },
+    "split": "validation",
+    "task": "static"
+  },
+  "source_conversations/validation-00001-of-00002.jsonl.zst": {
+    "counts": {
+      "annotation_after_conversation": 64,
+      "annotation_yes_to_no_transitions": 5,
+      "fraud_boundary_finite": 2234,
+      "fraud_sources": 2234,
+      "fraud_without_positive_source_annotation": 1,
+      "invalid_annotation_timestamps": 5,
+      "invalid_transcript_timestamps": 1,
+      "native_threshold_equals_source_first_yes": 267,
+      "rows": 2250,
+      "unordered_transcript_timestamps": 2
+    },
+    "domains": {
+      "government_impersonation": 450,
+      "insurance_healthcare": 450,
+      "personal_emergency_extortion": 450,
+      "tech_support_account": 450,
+      "travel_lottery": 450
+    },
+    "expected_rows": 2250,
+    "fields": {
+      "agent_persona": 2250,
+      "chunk_level_analysis": 2250,
+      "customer_persona": 2250,
+      "final_slow_thinking_rationale": 2250,
+      "final_verdict": 2250,
+      "generation_metadata": 2250,
+      "key_entities": 2250,
+      "multimodal_analysis": 2250,
+      "release_metadata": 2250,
+      "scam_outcome": 2250,
+      "scenario": 2250,
+      "session_id": 2250,
+      "transcript": 2250,
+      "violated_policies": 2250
+    },
+    "labels": {
+      "NO": 16,
+      "YES": 2234
+    },
+    "split": "validation",
+    "task": "static"
+  },
+  "streaming_chunks/cross_domain-00000-of-00002.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 22557,
+      "checkable_source_prefix": 22557,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 22550,
+      "empty_prefix": 0,
+      "native_rule_label_match": 22557,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 22557,
+      "prefix_exact_source_match": 22557,
+      "rows": 22557,
+      "same_as_conversation_label": 14921,
+      "source_annotation_label_match": 583,
+      "source_annotation_time_overlap": 751
+    },
+    "domains": {
+      "cross_domain_1": 9137,
+      "cross_domain_2": 9065,
+      "cross_domain_3": 4355
+    },
+    "expected_rows": 22557,
+    "labels": {
+      "NO": 8654,
+      "YES": 13903
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "cross_domain",
+    "task": "streaming"
+  },
+  "streaming_chunks/cross_domain-00001-of-00002.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 22558,
+      "checkable_source_prefix": 22558,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 22548,
+      "empty_prefix": 0,
+      "input_contract_rejected": 114,
+      "native_rule_label_match": 22558,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 22558,
+      "prefix_exact_source_match": 22558,
+      "rows": 22558,
+      "same_as_conversation_label": 15049,
+      "source_annotation_label_match": 583,
+      "source_annotation_time_overlap": 761
+    },
+    "domains": {
+      "cross_domain_3": 4908,
+      "cross_domain_4": 8968,
+      "cross_domain_5": 8682
+    },
+    "expected_rows": 22558,
+    "labels": {
+      "NO": 8542,
+      "YES": 14016
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "cross_domain",
+    "task": "streaming"
+  },
+  "streaming_chunks/test-00000-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 22478,
+      "checkable_source_prefix": 22478,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 22047,
+      "empty_prefix": 0,
+      "native_rule_label_match": 22478,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 22478,
+      "prefix_exact_source_match": 22478,
+      "rows": 22478,
+      "same_as_conversation_label": 19027,
+      "source_annotation_label_match": 1154,
+      "source_annotation_time_overlap": 1293
+    },
+    "domains": {
+      "bank_payment_fraud": 22478
+    },
+    "expected_rows": 22478,
+    "labels": {
+      "NO": 3451,
+      "YES": 19027
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "test",
+    "task": "streaming"
+  },
+  "streaming_chunks/test-00001-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 22478,
+      "checkable_source_prefix": 22478,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 22302,
+      "empty_prefix": 0,
+      "native_rule_label_match": 22478,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 22478,
+      "prefix_exact_source_match": 22478,
+      "rows": 22478,
+      "same_as_conversation_label": 13791,
+      "source_annotation_label_match": 928,
+      "source_annotation_time_overlap": 1179
+    },
+    "domains": {
+      "bank_payment_fraud": 709,
+      "ecommerce_marketplace": 17938,
+      "utility_bill_service": 3831
+    },
+    "expected_rows": 22478,
+    "labels": {
+      "NO": 9286,
+      "YES": 13192
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "test",
+    "task": "streaming"
+  },
+  "streaming_chunks/test-00002-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 22479,
+      "checkable_source_prefix": 22479,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 22458,
+      "empty_prefix": 0,
+      "native_rule_label_match": 22479,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 22479,
+      "prefix_exact_source_match": 22479,
+      "rows": 22479,
+      "same_as_conversation_label": 12370,
+      "source_annotation_label_match": 707,
+      "source_annotation_time_overlap": 946
+    },
+    "domains": {
+      "job_employment": 10406,
+      "utility_bill_service": 12073
+    },
+    "expected_rows": 22479,
+    "labels": {
+      "NO": 10109,
+      "YES": 12370
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "test",
+    "task": "streaming"
+  },
+  "streaming_chunks/test-00003-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 22478,
+      "checkable_source_prefix": 22478,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 22471,
+      "empty_prefix": 0,
+      "native_rule_label_match": 22478,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 22478,
+      "prefix_exact_source_match": 22478,
+      "rows": 22478,
+      "same_as_conversation_label": 13735,
+      "source_annotation_label_match": 836,
+      "source_annotation_time_overlap": 1123
+    },
+    "domains": {
+      "job_employment": 6359,
+      "loan_shark_harassment": 16119
+    },
+    "expected_rows": 22478,
+    "labels": {
+      "NO": 8743,
+      "YES": 13735
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "test",
+    "task": "streaming"
+  },
+  "streaming_chunks/test-00004-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 22478,
+      "checkable_source_prefix": 22478,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 22471,
+      "empty_prefix": 0,
+      "native_rule_label_match": 22478,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 22478,
+      "prefix_exact_source_match": 22478,
+      "rows": 22478,
+      "same_as_conversation_label": 14662,
+      "source_annotation_label_match": 691,
+      "source_annotation_time_overlap": 839
+    },
+    "domains": {
+      "loan_shark_harassment": 385,
+      "personal_emergency_extortion": 4696,
+      "tech_support_account": 17397
+    },
+    "expected_rows": 22478,
+    "labels": {
+      "NO": 7816,
+      "YES": 14662
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "test",
+    "task": "streaming"
+  },
+  "streaming_chunks/test-00005-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 22479,
+      "checkable_source_prefix": 22479,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 22441,
+      "empty_prefix": 0,
+      "native_rule_label_match": 22479,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 22479,
+      "prefix_exact_source_match": 22479,
+      "rows": 22479,
+      "same_as_conversation_label": 16139,
+      "source_annotation_label_match": 701,
+      "source_annotation_time_overlap": 840
+    },
+    "domains": {
+      "insurance_healthcare": 9052,
+      "personal_emergency_extortion": 13427
+    },
+    "expected_rows": 22479,
+    "labels": {
+      "NO": 6740,
+      "YES": 15739
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "test",
+    "task": "streaming"
+  },
+  "streaming_chunks/test-00006-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 22478,
+      "checkable_source_prefix": 22478,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 22476,
+      "empty_prefix": 0,
+      "input_contract_rejected": 44,
+      "native_rule_label_match": 22478,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 22478,
+      "prefix_exact_source_match": 22478,
+      "rows": 22478,
+      "same_as_conversation_label": 12459,
+      "source_annotation_label_match": 712,
+      "source_annotation_time_overlap": 879
+    },
+    "domains": {
+      "insurance_healthcare": 8854,
+      "travel_lottery": 13624
+    },
+    "expected_rows": 22478,
+    "labels": {
+      "NO": 10077,
+      "YES": 12401
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "test",
+    "task": "streaming"
+  },
+  "streaming_chunks/test-00007-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 22479,
+      "checkable_source_prefix": 22479,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 22467,
+      "empty_prefix": 0,
+      "native_rule_label_match": 22479,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 22479,
+      "prefix_exact_source_match": 22479,
+      "rows": 22479,
+      "same_as_conversation_label": 14031,
+      "source_annotation_label_match": 773,
+      "source_annotation_time_overlap": 997
+    },
+    "domains": {
+      "government_impersonation": 17125,
+      "travel_lottery": 5354
+    },
+    "expected_rows": 22479,
+    "labels": {
+      "NO": 8448,
+      "YES": 14031
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "test",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00000-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14130,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 12573,
+      "source_annotation_label_match": 622,
+      "source_annotation_time_overlap": 686
+    },
+    "domains": {
+      "bank_payment_fraud": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 9987,
+      "YES": 4259
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00001-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14085,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 11614,
+      "source_annotation_label_match": 607,
+      "source_annotation_time_overlap": 690
+    },
+    "domains": {
+      "bank_payment_fraud": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 14246
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00002-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14074,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 12316,
+      "source_annotation_label_match": 623,
+      "source_annotation_time_overlap": 673
+    },
+    "domains": {
+      "bank_payment_fraud": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 14246
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00003-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14232,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 13054,
+      "source_annotation_label_match": 729,
+      "source_annotation_time_overlap": 753
+    },
+    "domains": {
+      "bank_payment_fraud": 14247
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 9710,
+      "YES": 4537
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00004-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14246,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 14131,
+      "source_annotation_label_match": 980,
+      "source_annotation_time_overlap": 981
+    },
+    "domains": {
+      "bank_payment_fraud": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 14246
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00005-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14107,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 12048,
+      "source_annotation_label_match": 700,
+      "source_annotation_time_overlap": 743
+    },
+    "domains": {
+      "bank_payment_fraud": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 8159,
+      "YES": 6087
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00006-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14052,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 11043,
+      "source_annotation_label_match": 595,
+      "source_annotation_time_overlap": 669
+    },
+    "domains": {
+      "bank_payment_fraud": 11189,
+      "ecommerce_marketplace": 3058
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 3204,
+      "YES": 11043
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00007-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14246,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 13850,
+      "source_annotation_label_match": 814,
+      "source_annotation_time_overlap": 828
+    },
+    "domains": {
+      "ecommerce_marketplace": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 14035,
+      "YES": 211
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00008-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14188,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 12951,
+      "source_annotation_label_match": 716,
+      "source_annotation_time_overlap": 750
+    },
+    "domains": {
+      "ecommerce_marketplace": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 14246
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00009-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14091,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 13121,
+      "source_annotation_label_match": 882,
+      "source_annotation_time_overlap": 905
+    },
+    "domains": {
+      "ecommerce_marketplace": 14247
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 11530,
+      "YES": 2717
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00010-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14200,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 14167,
+      "source_annotation_label_match": 840,
+      "source_annotation_time_overlap": 844
+    },
+    "domains": {
+      "ecommerce_marketplace": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 13998,
+      "YES": 248
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00011-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14053,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 10358,
+      "source_annotation_label_match": 601,
+      "source_annotation_time_overlap": 743
+    },
+    "domains": {
+      "ecommerce_marketplace": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 3994,
+      "YES": 10252
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00012-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14225,
+      "empty_prefix": 0,
+      "input_contract_rejected": 15,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 11823,
+      "source_annotation_label_match": 570,
+      "source_annotation_time_overlap": 640
+    },
+    "domains": {
+      "ecommerce_marketplace": 644,
+      "utility_bill_service": 13603
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 11911,
+      "YES": 2336
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00013-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14246,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 13010,
+      "source_annotation_label_match": 722,
+      "source_annotation_time_overlap": 767
+    },
+    "domains": {
+      "utility_bill_service": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 13502,
+      "YES": 744
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00014-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14246,
+      "empty_prefix": 0,
+      "input_contract_rejected": 83,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 13486,
+      "source_annotation_label_match": 742,
+      "source_annotation_time_overlap": 773
+    },
+    "domains": {
+      "utility_bill_service": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 12096,
+      "YES": 2150
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00015-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14233,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 12820,
+      "source_annotation_label_match": 688,
+      "source_annotation_time_overlap": 752
+    },
+    "domains": {
+      "utility_bill_service": 14247
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 7947,
+      "YES": 6300
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00016-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14216,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 11277,
+      "source_annotation_label_match": 524,
+      "source_annotation_time_overlap": 598
+    },
+    "domains": {
+      "job_employment": 8990,
+      "utility_bill_service": 5256
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 8333,
+      "YES": 5913
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00017-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14144,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 12942,
+      "source_annotation_label_match": 693,
+      "source_annotation_time_overlap": 721
+    },
+    "domains": {
+      "job_employment": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 14246
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00018-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14247,
+      "empty_prefix": 0,
+      "input_contract_rejected": 42,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 11699,
+      "source_annotation_label_match": 608,
+      "source_annotation_time_overlap": 699
+    },
+    "domains": {
+      "job_employment": 14247
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 12543,
+      "YES": 1704
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00019-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14207,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 14246,
+      "source_annotation_label_match": 980,
+      "source_annotation_time_overlap": 980
+    },
+    "domains": {
+      "job_employment": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 14246
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00020-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14242,
+      "empty_prefix": 0,
+      "input_contract_rejected": 16,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 6864,
+      "source_annotation_label_match": 398,
+      "source_annotation_time_overlap": 518
+    },
+    "domains": {
+      "job_employment": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 8617,
+      "YES": 5629
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00021-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14247,
+      "empty_prefix": 0,
+      "input_contract_rejected": 35,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 11603,
+      "source_annotation_label_match": 534,
+      "source_annotation_time_overlap": 599
+    },
+    "domains": {
+      "job_employment": 2439,
+      "loan_shark_harassment": 11808
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 10219,
+      "YES": 4028
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00022-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14197,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 12945,
+      "source_annotation_label_match": 616,
+      "source_annotation_time_overlap": 638
+    },
+    "domains": {
+      "loan_shark_harassment": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 14246
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00023-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14093,
+      "empty_prefix": 0,
+      "input_contract_rejected": 18,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 12447,
+      "source_annotation_label_match": 602,
+      "source_annotation_time_overlap": 649
+    },
+    "domains": {
+      "loan_shark_harassment": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 12379,
+      "YES": 1867
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00024-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14226,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 14247,
+      "source_annotation_label_match": 836,
+      "source_annotation_time_overlap": 836
+    },
+    "domains": {
+      "loan_shark_harassment": 14247
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 14247
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00025-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14239,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 8172,
+      "source_annotation_label_match": 533,
+      "source_annotation_time_overlap": 691
+    },
+    "domains": {
+      "loan_shark_harassment": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 6542,
+      "YES": 7704
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00026-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14231,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 13063,
+      "source_annotation_label_match": 583,
+      "source_annotation_time_overlap": 624
+    },
+    "domains": {
+      "loan_shark_harassment": 255,
+      "tech_support_account": 13991
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 11037,
+      "YES": 3209
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00027-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14246,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 12653,
+      "source_annotation_label_match": 545,
+      "source_annotation_time_overlap": 577
+    },
+    "domains": {
+      "tech_support_account": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 14246
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00028-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14236,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 13103,
+      "source_annotation_label_match": 568,
+      "source_annotation_time_overlap": 588
+    },
+    "domains": {
+      "tech_support_account": 14247
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 11215,
+      "YES": 3032
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00029-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14226,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 13804,
+      "source_annotation_label_match": 661,
+      "source_annotation_time_overlap": 699
+    },
+    "domains": {
+      "tech_support_account": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 11797,
+      "YES": 2449
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00030-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14213,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14240,
+      "empty_prefix": 0,
+      "input_contract_rejected": 33,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14213,
+      "prefix_exact_source_match": 14213,
+      "rows": 14246,
+      "same_as_conversation_label": 9543,
+      "source_annotation_label_match": 469,
+      "source_annotation_time_overlap": 543,
+      "uncheckable_source_prefix": 33
+    },
+    "domains": {
+      "personal_emergency_extortion": 2514,
+      "tech_support_account": 11732
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 5192,
+      "YES": 9054
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00031-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14247,
+      "empty_prefix": 0,
+      "input_contract_rejected": 1,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 13436,
+      "source_annotation_label_match": 553,
+      "source_annotation_time_overlap": 564
+    },
+    "domains": {
+      "personal_emergency_extortion": 14247
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 13608,
+      "YES": 639
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00032-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14211,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 13750,
+      "source_annotation_label_match": 568,
+      "source_annotation_time_overlap": 576
+    },
+    "domains": {
+      "personal_emergency_extortion": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 13566,
+      "YES": 680
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00033-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14133,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 12831,
+      "source_annotation_label_match": 590,
+      "source_annotation_time_overlap": 641
+    },
+    "domains": {
+      "personal_emergency_extortion": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 12479,
+      "YES": 1767
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00034-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14245,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 10523,
+      "source_annotation_label_match": 751,
+      "source_annotation_time_overlap": 793
+    },
+    "domains": {
+      "personal_emergency_extortion": 14247
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 11294,
+      "YES": 2953
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00035-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14239,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 10922,
+      "source_annotation_label_match": 521,
+      "source_annotation_time_overlap": 631
+    },
+    "domains": {
+      "insurance_healthcare": 3817,
+      "personal_emergency_extortion": 10429
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 6692,
+      "YES": 7554
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00036-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14224,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 13333,
+      "source_annotation_label_match": 627,
+      "source_annotation_time_overlap": 651
+    },
+    "domains": {
+      "insurance_healthcare": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 14246
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00037-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14179,
+      "empty_prefix": 0,
+      "input_contract_rejected": 57,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 12229,
+      "source_annotation_label_match": 717,
+      "source_annotation_time_overlap": 765
+    },
+    "domains": {
+      "insurance_healthcare": 14247
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 13070,
+      "YES": 1177
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00038-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14246,
+      "empty_prefix": 0,
+      "input_contract_rejected": 15,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 13445,
+      "source_annotation_label_match": 731,
+      "source_annotation_time_overlap": 757
+    },
+    "domains": {
+      "insurance_healthcare": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 12743,
+      "YES": 1503
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00039-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14191,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 12301,
+      "source_annotation_label_match": 695,
+      "source_annotation_time_overlap": 735
+    },
+    "domains": {
+      "insurance_healthcare": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 10974,
+      "YES": 3272
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00040-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14205,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 7095,
+      "source_annotation_label_match": 468,
+      "source_annotation_time_overlap": 644
+    },
+    "domains": {
+      "insurance_healthcare": 9815,
+      "travel_lottery": 4432
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 7682,
+      "YES": 6565
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00041-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14243,
+      "empty_prefix": 0,
+      "input_contract_rejected": 12,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 13430,
+      "source_annotation_label_match": 549,
+      "source_annotation_time_overlap": 568
+    },
+    "domains": {
+      "travel_lottery": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 14246
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00042-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14246,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 12099,
+      "source_annotation_label_match": 515,
+      "source_annotation_time_overlap": 562
+    },
+    "domains": {
+      "travel_lottery": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 12408,
+      "YES": 1838
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00043-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14231,
+      "empty_prefix": 0,
+      "input_contract_rejected": 6,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 13714,
+      "source_annotation_label_match": 660,
+      "source_annotation_time_overlap": 671
+    },
+    "domains": {
+      "travel_lottery": 14247
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 13552,
+      "YES": 695
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00044-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14232,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 11490,
+      "source_annotation_label_match": 587,
+      "source_annotation_time_overlap": 645
+    },
+    "domains": {
+      "travel_lottery": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 8748,
+      "YES": 5498
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00045-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14173,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 12724,
+      "source_annotation_label_match": 610,
+      "source_annotation_time_overlap": 679
+    },
+    "domains": {
+      "government_impersonation": 7922,
+      "travel_lottery": 6324
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 6263,
+      "YES": 7983
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00046-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14247,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 12955,
+      "source_annotation_label_match": 584,
+      "source_annotation_time_overlap": 610
+    },
+    "domains": {
+      "government_impersonation": 14247
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 14247
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00047-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14246,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 13118,
+      "source_annotation_label_match": 587,
+      "source_annotation_time_overlap": 618
+    },
+    "domains": {
+      "government_impersonation": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 11474,
+      "YES": 2772
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00048-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14246,
+      "checkable_source_prefix": 14246,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14237,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14246,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14246,
+      "prefix_exact_source_match": 14246,
+      "rows": 14246,
+      "same_as_conversation_label": 14173,
+      "source_annotation_label_match": 859,
+      "source_annotation_time_overlap": 859
+    },
+    "domains": {
+      "government_impersonation": 14246
+    },
+    "expected_rows": 14246,
+    "labels": {
+      "NO": 14246
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/train-00049-of-00050.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 14247,
+      "checkable_source_prefix": 14247,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 14221,
+      "empty_prefix": 0,
+      "native_rule_label_match": 14247,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 14247,
+      "prefix_exact_source_match": 14247,
+      "rows": 14247,
+      "same_as_conversation_label": 9022,
+      "source_annotation_label_match": 503,
+      "source_annotation_time_overlap": 624
+    },
+    "domains": {
+      "government_impersonation": 14247
+    },
+    "expected_rows": 14247,
+    "labels": {
+      "NO": 5551,
+      "YES": 8696
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "train",
+    "task": "streaming"
+  },
+  "streaming_chunks/validation-00000-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 21726,
+      "checkable_source_prefix": 21726,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 21442,
+      "empty_prefix": 0,
+      "native_rule_label_match": 21726,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 21726,
+      "prefix_exact_source_match": 21726,
+      "rows": 21726,
+      "same_as_conversation_label": 18991,
+      "source_annotation_label_match": 986,
+      "source_annotation_time_overlap": 1033
+    },
+    "domains": {
+      "bank_payment_fraud": 20689,
+      "ecommerce_marketplace": 1037
+    },
+    "expected_rows": 21726,
+    "labels": {
+      "NO": 2735,
+      "YES": 18991
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "validation",
+    "task": "streaming"
+  },
+  "streaming_chunks/validation-00001-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 21727,
+      "checkable_source_prefix": 21727,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 21611,
+      "empty_prefix": 0,
+      "native_rule_label_match": 21727,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 21727,
+      "prefix_exact_source_match": 21727,
+      "rows": 21727,
+      "same_as_conversation_label": 16076,
+      "source_annotation_label_match": 1080,
+      "source_annotation_time_overlap": 1274
+    },
+    "domains": {
+      "ecommerce_marketplace": 15610,
+      "utility_bill_service": 6117
+    },
+    "expected_rows": 21727,
+    "labels": {
+      "NO": 5957,
+      "YES": 15770
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "validation",
+    "task": "streaming"
+  },
+  "streaming_chunks/validation-00002-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 21726,
+      "checkable_source_prefix": 21726,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 21699,
+      "empty_prefix": 0,
+      "input_contract_rejected": 19,
+      "native_rule_label_match": 21726,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 21726,
+      "prefix_exact_source_match": 21726,
+      "rows": 21726,
+      "same_as_conversation_label": 10912,
+      "source_annotation_label_match": 614,
+      "source_annotation_time_overlap": 850
+    },
+    "domains": {
+      "job_employment": 12263,
+      "utility_bill_service": 9463
+    },
+    "expected_rows": 21726,
+    "labels": {
+      "NO": 10853,
+      "YES": 10873
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "validation",
+    "task": "streaming"
+  },
+  "streaming_chunks/validation-00003-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 21727,
+      "checkable_source_prefix": 21727,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 21725,
+      "empty_prefix": 0,
+      "native_rule_label_match": 21727,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 21727,
+      "prefix_exact_source_match": 21727,
+      "rows": 21727,
+      "same_as_conversation_label": 15247,
+      "source_annotation_label_match": 668,
+      "source_annotation_time_overlap": 811
+    },
+    "domains": {
+      "job_employment": 5704,
+      "loan_shark_harassment": 16023
+    },
+    "expected_rows": 21727,
+    "labels": {
+      "NO": 6631,
+      "YES": 15096
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "validation",
+    "task": "streaming"
+  },
+  "streaming_chunks/validation-00004-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 21727,
+      "checkable_source_prefix": 21727,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 21674,
+      "empty_prefix": 0,
+      "native_rule_label_match": 21727,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 21727,
+      "prefix_exact_source_match": 21727,
+      "rows": 21727,
+      "same_as_conversation_label": 15473,
+      "source_annotation_label_match": 715,
+      "source_annotation_time_overlap": 888
+    },
+    "domains": {
+      "loan_shark_harassment": 766,
+      "personal_emergency_extortion": 4284,
+      "tech_support_account": 16677
+    },
+    "expected_rows": 21727,
+    "labels": {
+      "NO": 6711,
+      "YES": 15016
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "validation",
+    "task": "streaming"
+  },
+  "streaming_chunks/validation-00005-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 21726,
+      "checkable_source_prefix": 21726,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 21620,
+      "empty_prefix": 0,
+      "input_contract_rejected": 53,
+      "native_rule_label_match": 21726,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 21726,
+      "prefix_exact_source_match": 21726,
+      "rows": 21726,
+      "same_as_conversation_label": 12035,
+      "source_annotation_label_match": 636,
+      "source_annotation_time_overlap": 827
+    },
+    "domains": {
+      "insurance_healthcare": 8571,
+      "personal_emergency_extortion": 13155
+    },
+    "expected_rows": 21726,
+    "labels": {
+      "NO": 10089,
+      "YES": 11637
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "validation",
+    "task": "streaming"
+  },
+  "streaming_chunks/validation-00006-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 21727,
+      "checkable_source_prefix": 21727,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 21696,
+      "empty_prefix": 0,
+      "native_rule_label_match": 21727,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 21727,
+      "prefix_exact_source_match": 21727,
+      "rows": 21727,
+      "same_as_conversation_label": 11561,
+      "source_annotation_label_match": 561,
+      "source_annotation_time_overlap": 790
+    },
+    "domains": {
+      "insurance_healthcare": 8256,
+      "travel_lottery": 13471
+    },
+    "expected_rows": 21727,
+    "labels": {
+      "NO": 10166,
+      "YES": 11561
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "validation",
+    "task": "streaming"
+  },
+  "streaming_chunks/validation-00007-of-00008.parquet": {
+    "counts": {
+      "checkable_native_rule_label": 21727,
+      "checkable_source_prefix": 21727,
+      "chunk_after_source_end": 0,
+      "cumulative_text_matches_newline_format": 21712,
+      "empty_prefix": 0,
+      "native_rule_label_match": 21727,
+      "off_three_second_grid": 0,
+      "prefix_content_source_match": 21727,
+      "prefix_exact_source_match": 21727,
+      "rows": 21727,
+      "same_as_conversation_label": 15357,
+      "source_annotation_label_match": 716,
+      "source_annotation_time_overlap": 843
+    },
+    "domains": {
+      "government_impersonation": 17224,
+      "travel_lottery": 4503
+    },
+    "expected_rows": 21727,
+    "labels": {
+      "NO": 6370,
+      "YES": 15357
+    },
+    "schema": "dataset: string\nrelease_version: string\nsplit: string\ndomain: string\nsource_batch: string\nsource_file_stem: string\nchunk_file: string\nconversation_uid: string\nsession_id: int64\nchunk_timestamp: int64\nfinal_verdict: string\nslow_thinking_rationale: string\ncumulative_text: string\ncumulative_transcript_json: string\ncumulative_audio_analysis_json: string\nscenario_info_json: string\nscenario_id: int64\ncase_type: string\ncombination_key: string\nmultiplier_round: int64\ngenerated_at: null",
+    "split": "validation",
+    "task": "streaming"
+  }
+}

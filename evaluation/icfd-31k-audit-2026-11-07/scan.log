@@ -1,0 +1,101 @@
+{"phase": "sources", "completed_shard": "source_conversations/cross_domain-00000-of-00001.jsonl.zst", "rows": 1000}
+{"phase": "sources", "completed_shard": "source_conversations/test-00000-of-00002.jsonl.zst", "rows": 2250}
+{"phase": "sources", "completed_shard": "source_conversations/test-00001-of-00002.jsonl.zst", "rows": 2250}
+{"phase": "sources", "completed_shard": "source_conversations/train-00000-of-00010.jsonl.zst", "rows": 2100}
+{"phase": "sources", "completed_shard": "source_conversations/train-00001-of-00010.jsonl.zst", "rows": 2100}
+{"phase": "sources", "completed_shard": "source_conversations/train-00002-of-00010.jsonl.zst", "rows": 2100}
+{"phase": "sources", "completed_shard": "source_conversations/train-00003-of-00010.jsonl.zst", "rows": 2100}
+{"phase": "sources", "completed_shard": "source_conversations/train-00004-of-00010.jsonl.zst", "rows": 2100}
+{"phase": "sources", "completed_shard": "source_conversations/train-00005-of-00010.jsonl.zst", "rows": 2100}
+{"phase": "sources", "completed_shard": "source_conversations/train-00006-of-00010.jsonl.zst", "rows": 2100}
+{"phase": "sources", "completed_shard": "source_conversations/train-00007-of-00010.jsonl.zst", "rows": 2100}
+{"phase": "sources", "completed_shard": "source_conversations/train-00008-of-00010.jsonl.zst", "rows": 2100}
+{"phase": "sources", "completed_shard": "source_conversations/train-00009-of-00010.jsonl.zst", "rows": 2100}
+{"phase": "sources", "completed_shard": "source_conversations/validation-00000-of-00002.jsonl.zst", "rows": 2250}
+{"phase": "sources", "completed_shard": "source_conversations/validation-00001-of-00002.jsonl.zst", "rows": 2250}
+{"phase": "chunks", "completed_shard": "streaming_chunks/cross_domain-00000-of-00002.parquet", "rows": 22557}
+{"phase": "chunks", "completed_shard": "streaming_chunks/cross_domain-00001-of-00002.parquet", "rows": 22558}
+{"phase": "chunks", "completed_shard": "streaming_chunks/test-00000-of-00008.parquet", "rows": 22478}
+{"phase": "chunks", "completed_shard": "streaming_chunks/test-00001-of-00008.parquet", "rows": 22478}
+{"phase": "chunks", "completed_shard": "streaming_chunks/test-00002-of-00008.parquet", "rows": 22479}
+{"phase": "chunks", "completed_shard": "streaming_chunks/test-00003-of-00008.parquet", "rows": 22478}
+{"phase": "chunks", "completed_shard": "streaming_chunks/test-00004-of-00008.parquet", "rows": 22478}
+{"phase": "chunks", "completed_shard": "streaming_chunks/test-00005-of-00008.parquet", "rows": 22479}
+{"phase": "chunks", "completed_shard": "streaming_chunks/test-00006-of-00008.parquet", "rows": 22478}
+{"phase": "chunks", "completed_shard": "streaming_chunks/test-00007-of-00008.parquet", "rows": 22479}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00000-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00001-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00002-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00003-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00004-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00005-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00006-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00007-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00008-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00009-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00010-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00011-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00012-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00013-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00014-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00015-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00016-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00017-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00018-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00019-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00020-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00021-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00022-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00023-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00024-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00025-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00026-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00027-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00028-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00029-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00030-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00031-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00032-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00033-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00034-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00035-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00036-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00037-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00038-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00039-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00040-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00041-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00042-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00043-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00044-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00045-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00046-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00047-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00048-of-00050.parquet", "rows": 14246}
+{"phase": "chunks", "completed_shard": "streaming_chunks/train-00049-of-00050.parquet", "rows": 14247}
+{"phase": "chunks", "completed_shard": "streaming_chunks/validation-00000-of-00008.parquet", "rows": 21726}
+{"phase": "chunks", "completed_shard": "streaming_chunks/validation-00001-of-00008.parquet", "rows": 21727}
+{"phase": "chunks", "completed_shard": "streaming_chunks/validation-00002-of-00008.parquet", "rows": 21726}
+{"phase": "chunks", "completed_shard": "streaming_chunks/validation-00003-of-00008.parquet", "rows": 21727}
+{"phase": "chunks", "completed_shard": "streaming_chunks/validation-00004-of-00008.parquet", "rows": 21727}
+{"phase": "chunks", "completed_shard": "streaming_chunks/validation-00005-of-00008.parquet", "rows": 21726}
+{"phase": "chunks", "completed_shard": "streaming_chunks/validation-00006-of-00008.parquet", "rows": 21727}
+{"phase": "chunks", "completed_shard": "streaming_chunks/validation-00007-of-00008.parquet", "rows": 21727}
+{
+  "completed_shards": 83,
+  "cross_checks": {
+    "duplicate_source_uid_groups": 0,
+    "source_uid_cross_split_groups": 0,
+    "normalized_transcript_duplicate_groups": 0,
+    "normalized_transcript_cross_split_groups": 0,
+    "chunk_uid_cross_split_groups": 0,
+    "duplicate_uid_timestamp_groups": 0,
+    "identical_observed_prefix_with_conflicting_labels_groups": 1941,
+    "conversations_with_conflicting_identical_prefix": 1941,
+    "sources_without_chunks": 0,
+    "sources_final_utterance_not_in_any_chunk": 27758,
+    "cross_domain_domain_names_overlap_main_count": 0
+  },
+  "report": "/home/geminitt/projects/mini-safeguard/evaluation/icfd-31k-audit-2026-11-07/data-audit.json",
+  "elapsed_seconds": 72.74864754600276
+}

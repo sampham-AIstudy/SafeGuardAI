@@ -1,77 +1,66 @@
-# SafeGuard AI - Scam/Phishing Message Copilot
+<div align="center">
 
-> Do an ca nhan - He thong phat hien tin nhan lua dao/phishing dua tren LLM
+# mini-safeguard
 
-SafeGuard AI la tro ly ho tro nguoi dung tre kiem tra tin nhan, email, duong link, ma QR va anh bill chuyen khoan dang nghi. San pham khong quyet dinh thay nguoi dung; AI phan tich rui ro, chi ra red flags, uoc luong confidence va goi y hanh dong kiem chung an toan trong duoi 30 giay.
+![Python](https://img.shields.io/badge/Python-standard_library-498AF2?style=for-the-badge)
+![Stage](https://img.shields.io/badge/Stage-incremental_rebuild-A19654?style=for-the-badge)
+![Tests](https://img.shields.io/badge/Tests-unittest-6B7F4E?style=for-the-badge)
 
-## Lat cat san pham
-Mot sinh vien dan tin nhan/email/link/QR dang nghi vao prototype; AI phan loai muc rui ro, chi ra red flags va goi y hanh dong kiem chung an toan; ket qua la nguoi dung biet nen bam, bo qua hay xac minh trong duoi 30 giay.
+**Research an engine that assesses scam risk from observed conversation history.**
 
-## Kien truc Multi-Agent
+</div>
+
+---
+
+## Scope
+
+The application boundary is:
+
 ```text
-Browser UI / Streamlit UI
-  -> REST API / Orchestrator
-  -> PromptGuard
-  -> OCRAgent
-  -> RAGAgent + ThreatIntelAgent
-  -> MemoryAgent
-  -> ExplainableAgent
-  -> ConfidenceAgent
-  -> EmergencyAgent
-  -> DecisionAgent
-  -> Risk score + reasons + next actions
+Messages -> Data normalizer -> Engine -> Warning policy -> Interface
+                                ^  |
+                                |  v
+                        Conversation status
 ```
 
-### Agent chinh
-- **PromptGuard**: chan prompt injection va yeu cau nguy hiem.
-- **OCRAgent**: trich xuat chu tu screenshot, bill, QR/image input.
-- **RAGAgent**: doi soat PhishVN 51.362 ban ghi, knowledge base scam tactics va blacklist noi dia.
-- **ThreatIntelAgent**: bo sung tin hieu domain/URL va dau hieu phishing.
-- **MemoryAgent**: luu ngu canh phien de nhan ra chuoi lua dao leo thang.
-- **ExplainableAgent**: tinh Risk Breakdown theo red flags.
-- **ConfidenceAgent**: tach biet muc rui ro va do tin cay cua AI.
-- **EmergencyAgent**: kich hoat quy trinh 1'-3'-5'-10'-30' khi nguoi dung da chuyen tien/lo OTP.
-- **DecisionAgent**: tong hop ket qua, dua khuyen nghi va disclaimer Human-in-the-Loop.
+The rebuild starts with small, separately checked components. The current implementation is
+the [observed-history boundary](engine/history.py): select an observed prefix, preserve its order
+and content, and detach its mutable payloads from source history. It does not perform fraud
+assessment. A workflow implementation and an agent-controlled alternative remain design work.
 
-## Cau truc repo
-| File / thu muc | Noi dung |
+---
+
+## Development checks
+
+Run from the repository root with Python 3.12, the verified execution version. Only the standard
+library is required:
+
+```sh
+timeout 90s python3 -m unittest discover -s tests -p 'test_*.py' -v
+```
+
+The timeout is an operational bound. Tests use independently authored neutral toy messages.
+
+> **Note:** Do not use benchmark data from any split for development tests, debugging, fixtures
+> or prompt/threshold tuning. Audit scripts under `evaluation/` are separate from development
+> tests and must not be run as a component test suite.
+
+---
+
+## Evaluation
+
+The [benchmark catalog](evaluation/BENCHMARKS.md) records the measured suitability checks,
+selected tasks, source versions and interpretation limits.
+
+| Dataset | Selected tasks |
 |---|---|
-| `spec.md` | AI Product Specification |
-| `demo-slides.md` | Kich ban slide va demo live 5 phut |
-| `validation/user_feedback.md` | Log validation voi nguoi dung ben ngoai |
-| `codebase/` | Prototype backend, agent va web server |
-| `eval/` | Golden set va script danh gia |
+| ICFD-31k | Full-conversation classification; released-prefix reference classification |
+| BABILong QA2/QA3 | Multi-fact question answering under distracting context through a declared component interface |
+| PhishRewrite | Classification robustness across fixed-source rewrite levels |
+| Local synthetic-v1 | Guide-reference first-warning timing; joint success on declared scam/benign pairs, as an internal pilot |
 
-## Cai dat
-Yeu cau: [pixi](https://pixi.sh).
-
-```bash
-pixi install
-cp .env.example .env
-```
-
-He thong su dung SQLite database (mac dinh tu dong tao tai data/safeguard.db). Khong can cai dat MySQL hay XAMPP. Neu khong co API key, prototype van co the chay hoan toan offline bang fallback tuy theo agent.
-
-## Chay prototype hien tai
-Ban web hien tai duoc phuc vu qua REST API server va static HTML:
-
-```bash
-pixi run python codebase/server.py
-```
-
-Mo trinh duyet tai:
-
-```text
-http://localhost:8000
-```
-
-
-
-## Kiem thu
-Chay golden set:
-
-```bash
-pixi run python eval/run_eval.py
-```
-
-Quality bar trong `spec.md`: Risk Accuracy >=85%, Critical Pass =100%, va High/Critical case phai co bang chung/red flags ro rang.
+Task selection is not an executed engine evaluation. No rebuilt detector performance is reported.
+The [local scoring contract](testset/BENCHMARK_PROTOCOL.md) and deterministic scorer are available;
+local conversation data, seed catalogs, generation material and private reviews are withheld.
+External raw benchmark downloads are also excluded. Data-audit reproduction requires the separately
+retrieved pinned inputs and is distinct from development testing.

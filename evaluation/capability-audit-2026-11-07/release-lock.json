@@ -1,0 +1,165 @@
+{
+  "date": "2026-11-07",
+  "files": {
+    "phishvn-content/paraphrase.csv": {
+      "url": "https://zenodo.org/api/records/23634300/files/paraphrase.csv/content",
+      "path": ".audit-private/capability-audit-2026-11-07/phishvn-content/paraphrase.csv",
+      "bytes": 80278,
+      "sha256": "5e65ce937e7985c5dc90d2400a63244075e2088c0b08e6439343a452c75f3752",
+      "upstream_checksum": "md5:7afef095f20eb5c9e889602f5f277822",
+      "upstream_size": 80278
+    },
+    "phishvn-content/paraphrase_band.csv": {
+      "url": "https://zenodo.org/api/records/23634300/files/paraphrase_band.csv/content",
+      "path": ".audit-private/capability-audit-2026-11-07/phishvn-content/paraphrase_band.csv",
+      "bytes": 86403,
+      "sha256": "6d2471e14a780ba728010d1325b610bdd2ec8326f4d785120980121505ceadd1",
+      "upstream_checksum": "md5:6793848398e0dca6d8ac370099b536c3",
+      "upstream_size": 86403
+    },
+    "phishvn-content/SHA256SUMS": {
+      "url": "https://zenodo.org/api/records/23634300/files/SHA256SUMS/content",
+      "path": ".audit-private/capability-audit-2026-11-07/phishvn-content/SHA256SUMS",
+      "bytes": 759,
+      "sha256": "82c2516528e7cf566a00b6a085e7bedae59c9d45a8cc89048e8bc426e22ffef1",
+      "upstream_checksum": "md5:7f9297f750fd8210e2011f71d09f426d",
+      "upstream_size": 759
+    },
+    "phishvn-content/synthetic_email.csv": {
+      "url": "https://zenodo.org/api/records/23634300/files/synthetic_email.csv/content",
+      "path": ".audit-private/capability-audit-2026-11-07/phishvn-content/synthetic_email.csv",
+      "bytes": 31300,
+      "sha256": "1242f1ba6e7f3a20d0635a8417639dd73b4f5a2fb33ac4a55e282b9b77475740",
+      "upstream_checksum": "md5:e86c72ba4b6d190d8a7a3f65f3ba1c7d",
+      "upstream_size": 31300
+    },
+    "phishvn-content/synthetic_sms.csv": {
+      "url": "https://zenodo.org/api/records/23634300/files/synthetic_sms.csv/content",
+      "path": ".audit-private/capability-audit-2026-11-07/phishvn-content/synthetic_sms.csv",
+      "bytes": 41958,
+      "sha256": "239e2170d865cd851348a8808ec1a34b64e0dd05f44ce68a625720ab78b8cd78",
+      "upstream_checksum": "md5:de907f25af3e1977e6e6cf8ea2e9582d",
+      "upstream_size": 41958
+    },
+    "phishvn-content/human_eval_ratings.csv": {
+      "url": "https://zenodo.org/api/records/23634300/files/human_eval_ratings.csv/content",
+      "path": ".audit-private/capability-audit-2026-11-07/phishvn-content/human_eval_ratings.csv",
+      "bytes": 1823,
+      "sha256": "999d9fa7472c18147e9d1e160098c755ff7e9d35ca3fff4281b32cd136bed432",
+      "upstream_checksum": "md5:f50877b018e4a3e3e36f888ec415c078",
+      "upstream_size": 1823
+    },
+    "phishvn-content/paraphrase_pilot_ids.csv": {
+      "url": "https://zenodo.org/api/records/23634300/files/paraphrase_pilot_ids.csv/content",
+      "path": ".audit-private/capability-audit-2026-11-07/phishvn-content/paraphrase_pilot_ids.csv",
+      "bytes": 2708,
+      "sha256": "2fe5644a0427eeff654cf8b24fafc8aa4ba82992ba29780c63def08d611cabf3",
+      "upstream_checksum": "md5:e1bf3b3844dc99f960674809f275c2e3",
+      "upstream_size": 2708
+    },
+    "phishvn-content/README.md": {
+      "url": "https://zenodo.org/api/records/23634300/files/README.md/content",
+      "path": ".audit-private/capability-audit-2026-11-07/phishvn-content/README.md",
+      "bytes": 3606,
+      "sha256": "34b52bf69137049fdb077e447217ae6bdd846b66ae944474a310326a0f2aa5e1",
+      "upstream_checksum": "md5:a5d17fcccff7f8f1664140c5f2619fb0",
+      "upstream_size": 3606
+    },
+    "phishvn-content/human_eval_pairs.csv": {
+      "url": "https://zenodo.org/api/records/23634300/files/human_eval_pairs.csv/content",
+      "path": ".audit-private/capability-audit-2026-11-07/phishvn-content/human_eval_pairs.csv",
+      "bytes": 12931,
+      "sha256": "a2450e775bf3c57e9c8b0813de7a057e9366035568a04768f3d49ae9afc0bb4b",
+      "upstream_checksum": "md5:bf389d3cb3d4cf42b3982ed8f5d8cb5c",
+      "upstream_size": 12931
+    },
+    "phishrewrite-release/phishrewrite-benchmark-v1.0.zip": {
+      "url": "https://zenodo.org/api/records/21018700/files/phishrewrite-benchmark-v1.0.zip/content",
+      "path": ".audit-private/capability-audit-2026-11-07/phishrewrite-release/phishrewrite-benchmark-v1.0.zip",
+      "bytes": 21371735,
+      "sha256": "bc907619f21e87f87bfa5be6ee886eee59d18a4a0f72698401719e82441e04c7",
+      "upstream_checksum": "md5:6868f01f5c416a93b5c3ffccc6a947c8",
+      "upstream_size": 21371735
+    },
+    "babilong/qa1/0k.json": {
+      "url": "https://huggingface.co/datasets/RMT-team/babilong/resolve/ee0d588794c7ac098062ee0d247c733d62e94fe2/data/qa1/0k.json",
+      "path": ".audit-private/capability-audit-2026-11-07/babilong/qa1/0k.json",
+      "bytes": 24108,
+      "sha256": "1101607845951d2b2a0e0f01ddc0fe2a3096ea8436f6bc7d7879dc5730993cd3",
+      "upstream_checksum": null,
+      "upstream_size": null
+    },
+    "babilong/qa1/4k.json": {
+      "url": "https://huggingface.co/datasets/RMT-team/babilong/resolve/ee0d588794c7ac098062ee0d247c733d62e94fe2/data/qa1/4k.json",
+      "path": ".audit-private/capability-audit-2026-11-07/babilong/qa1/4k.json",
+      "bytes": 1493148,
+      "sha256": "95dc878018194d3ff9f3d576f36768d302a48e1e7e012bdc13c163bc31ee3a30",
+      "upstream_checksum": null,
+      "upstream_size": null
+    },
+    "babilong/qa1/16k.json": {
+      "url": "https://huggingface.co/datasets/RMT-team/babilong/resolve/ee0d588794c7ac098062ee0d247c733d62e94fe2/data/qa1/16k.json",
+      "path": ".audit-private/capability-audit-2026-11-07/babilong/qa1/16k.json",
+      "bytes": 6312414,
+      "sha256": "2687478021246215c84060fa7d1f2be0b7058a09d774c169d9d75a56fd6994c0",
+      "upstream_checksum": null,
+      "upstream_size": null
+    },
+    "babilong/qa2/0k.json": {
+      "url": "https://huggingface.co/datasets/RMT-team/babilong/resolve/ee0d588794c7ac098062ee0d247c733d62e94fe2/data/qa2/0k.json",
+      "path": ".audit-private/capability-audit-2026-11-07/babilong/qa2/0k.json",
+      "bytes": 54814,
+      "sha256": "7baae649af9883d84eeaec422d847064cf136b3de3eebcc08ea6d75af39c60e9",
+      "upstream_checksum": null,
+      "upstream_size": null
+    },
+    "babilong/qa2/4k.json": {
+      "url": "https://huggingface.co/datasets/RMT-team/babilong/resolve/ee0d588794c7ac098062ee0d247c733d62e94fe2/data/qa2/4k.json",
+      "path": ".audit-private/capability-audit-2026-11-07/babilong/qa2/4k.json",
+      "bytes": 1485632,
+      "sha256": "420fc8e4a52d39b7bfeb4e44d7782c5f0ae7ba10144c00485f0bb332f4ceaced",
+      "upstream_checksum": null,
+      "upstream_size": null
+    },
+    "babilong/qa2/16k.json": {
+      "url": "https://huggingface.co/datasets/RMT-team/babilong/resolve/ee0d588794c7ac098062ee0d247c733d62e94fe2/data/qa2/16k.json",
+      "path": ".audit-private/capability-audit-2026-11-07/babilong/qa2/16k.json",
+      "bytes": 6253199,
+      "sha256": "bc99807d8a5cf507ca92bd1c3c9c2cb2b7c365b26605b8de7c643c5791cd1b93",
+      "upstream_checksum": null,
+      "upstream_size": null
+    },
+    "babilong/qa3/0k.json": {
+      "url": "https://huggingface.co/datasets/RMT-team/babilong/resolve/ee0d588794c7ac098062ee0d247c733d62e94fe2/data/qa3/0k.json",
+      "path": ".audit-private/capability-audit-2026-11-07/babilong/qa3/0k.json",
+      "bytes": 163830,
+      "sha256": "36a7bae93e535b89dd7a779621ca339674e2c2a646ceef43a505295f6d5336c2",
+      "upstream_checksum": null,
+      "upstream_size": null
+    },
+    "babilong/qa3/4k.json": {
+      "url": "https://huggingface.co/datasets/RMT-team/babilong/resolve/ee0d588794c7ac098062ee0d247c733d62e94fe2/data/qa3/4k.json",
+      "path": ".audit-private/capability-audit-2026-11-07/babilong/qa3/4k.json",
+      "bytes": 1502721,
+      "sha256": "6cca199e011107f26b31a6f4af9dfab1b3b81c1ff8da4d4271e3a9c67c7d8fad",
+      "upstream_checksum": null,
+      "upstream_size": null
+    },
+    "babilong/qa3/16k.json": {
+      "url": "https://huggingface.co/datasets/RMT-team/babilong/resolve/ee0d588794c7ac098062ee0d247c733d62e94fe2/data/qa3/16k.json",
+      "path": ".audit-private/capability-audit-2026-11-07/babilong/qa3/16k.json",
+      "bytes": 6356752,
+      "sha256": "e4f6419ec34548137e94e6851540b7c3f504ea86aef6017a4dce7591f9ed957f",
+      "upstream_checksum": null,
+      "upstream_size": null
+    },
+    "babilong/metrics.py": {
+      "url": "https://api.github.com/repos/booydar/babilong/git/blobs/4c112c4cf1c6e8dcec2018a2c33807f024e69b48",
+      "path": "evaluation/capability-audit-2026-11-07/sources/babilong_metrics.py",
+      "bytes": 2924,
+      "sha256": "f77c139809690588f85ed29c1c93f22394c6b48b1fdc8afeaaa5d0969d973daf",
+      "upstream_checksum": null,
+      "upstream_size": null
+    }
+  }
+}

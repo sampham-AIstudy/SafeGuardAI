@@ -1,0 +1,12 @@
+{
+  "observations": [
+    "Readable speaker turns and timestamp representation.",
+    "English text with Hinglish insertions; no Vietnamese task validation.",
+    "A local honorific/name consistency issue was observed; no data was changed."
+  ],
+  "private_input_sha256": "6b0ec59c56f8453d75daf2cb282d238002d2d310f642e6e02adf42dd7ba64a31",
+  "records_read": 4,
+  "scope": "Limited developer usability review, not independent semantic label validation.",
+  "selection": "Two records per binary class with smallest SHA256 of conversation UID",
+  "split": "train"
+}

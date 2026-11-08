@@ -1,0 +1,416 @@
+{
+  "schema_version": 1,
+  "review_date": "2026-11-07",
+  "scope": "Public methodology and metadata review; arithmetic on author-reported aggregates. No CSV access, independent row audit, annotation judgment or detector execution.",
+  "sources": {
+    "paper": {
+      "url": "https://aclanthology.org/2026.findings-emnlp.404.pdf",
+      "tables": [
+        2,
+        3,
+        6,
+        7,
+        26,
+        27
+      ],
+      "identity": "10.18653/2026.findings-emnlp.404",
+      "retrieval": "Read through web tool; PDF bytes/checksum not archived."
+    },
+    "dataset_metadata": {
+      "url": "https://huggingface.co/api/datasets/Shouninger/ScamBench",
+      "method": "Anonymous urllib GET; successful response, no credentials or gate submission. Selected fields transcribed into this artifact.",
+      "id": "Shouninger/ScamBench",
+      "sha": "48c8cb284a7f454644f4006103587da13c05a2ed",
+      "gated": "manual",
+      "lastModified": "2026-08-27T05:06:12.000Z",
+      "siblings": [
+        ".gitattributes",
+        "LICENSE",
+        "Non-scam/Employment.csv",
+        "Non-scam/Imposter.csv",
+        "Non-scam/Investment.csv",
+        "Non-scam/Lottery.csv",
+        "Non-scam/Tech_support.csv",
+        "README.md",
+        "Scam/Advance_loan_fee.csv",
+        "Scam/Employment.csv",
+        "Scam/Imposter.csv",
+        "Scam/Investment.csv",
+        "Scam/Lottery.csv",
+        "Scam/Tech_support.csv"
+      ],
+      "license": "cc-by-nc-4.0",
+      "language": [
+        "en"
+      ],
+      "config_split_names": {
+        "scam": [
+          "train"
+        ],
+        "non_scam": [
+          "train"
+        ]
+      }
+    },
+    "gate_page": "https://huggingface.co/datasets/Shouninger/ScamBench"
+  },
+  "author_reported": {
+    "table_6_final_scam_counts": {
+      "Advance fee loan": 269,
+      "Employment": 566,
+      "Imposter": 293,
+      "Tech support": 305,
+      "Investment": 39,
+      "Sweepstakes/lottery/prizes": 364
+    },
+    "table_7_non_scam_counts": {
+      "Advance fee loan": 0,
+      "Employment": 899,
+      "Imposter": 9,
+      "Tech support": 908,
+      "Investment": 6,
+      "Sweepstakes/lottery/prizes": 12
+    },
+    "table_2_metric_order": [
+      "precision",
+      "recall",
+      "accuracy",
+      "f1"
+    ],
+    "table_2_setting_order": [
+      "original",
+      "rewritten"
+    ],
+    "table_2_rounded_metrics": {
+      "GPT-5.4-nano": [
+        [
+          0.798,
+          0.994,
+          0.871,
+          0.885
+        ],
+        [
+          0.789,
+          0.943,
+          0.846,
+          0.859
+        ]
+      ],
+      "GPT-4.1-nano": [
+        [
+          0.954,
+          0.924,
+          0.94,
+          0.939
+        ],
+        [
+          0.926,
+          0.552,
+          0.754,
+          0.691
+        ]
+      ],
+      "GPT-4o-mini": [
+        [
+          0.95,
+          0.978,
+          0.963,
+          0.964
+        ],
+        [
+          0.941,
+          0.814,
+          0.881,
+          0.873
+        ]
+      ],
+      "Claude-Haiku-4.5": [
+        [
+          0.983,
+          0.982,
+          0.982,
+          0.982
+        ],
+        [
+          0.98,
+          0.839,
+          0.911,
+          0.904
+        ]
+      ],
+      "Claude-Sonnet-4.5": [
+        [
+          0.995,
+          0.954,
+          0.975,
+          0.974
+        ],
+        [
+          0.994,
+          0.693,
+          0.844,
+          0.816
+        ]
+      ]
+    },
+    "table_3_recall_setting_order": [
+      "original",
+      "rewritten"
+    ],
+    "table_3_rounded_recall": {
+      "GPT-5.4-nano": [
+        0.991,
+        0.913
+      ],
+      "GPT-4.1-nano": [
+        0.904,
+        0.53
+      ],
+      "GPT-4o-mini": [
+        0.991,
+        0.783
+      ],
+      "Claude-Haiku-4.5": [
+        0.974,
+        0.809
+      ],
+      "Claude-Sonnet-4.5": [
+        0.939,
+        0.643
+      ]
+    },
+    "rewrite_validation": {
+      "sample_size": 120,
+      "per_category_sample_size": 20,
+      "retained": 115,
+      "excluded_non_scam_or_borderline": 5,
+      "percent_agreement": 96.7,
+      "cohen_kappa": 0.56,
+      "reviewers": "Two authors independently; rewrites presented alongside originals."
+    },
+    "model_access_months": {
+      "full_binary": "2026-04",
+      "validated_and_structured": "2026-07"
+    }
+  },
+  "derived_from_reported_counts": {
+    "positive": 1836,
+    "negative": 1834,
+    "messages_per_setting": 3670,
+    "unique_texts_if_all_rewrites_present": 5506,
+    "non_scam_employment_and_tech_support_share": 0.985278080697928,
+    "human_validated_share_of_all_rewrites": 0.06263616557734204,
+    "excluded_share_of_validation_sample": 0.041666666666666664,
+    "constant_yes": {
+      "accuracy": 0.5002724795640326,
+      "positive_f1": 0.6669088267344715,
+      "macro_f1": 0.33345441336723575,
+      "balanced_accuracy": 0.5,
+      "recall": 1,
+      "false_positive_rate": 1,
+      "original_to_rewritten_recall_drop": 0
+    },
+    "constant_no": {
+      "accuracy": 0.4997275204359673,
+      "recall": 0,
+      "false_positive_rate": 0,
+      "original_to_rewritten_recall_drop": 0
+    },
+    "full_recall_drop_percentage_points": {
+      "GPT-5.4-nano": 5.1,
+      "GPT-4.1-nano": 37.2,
+      "GPT-4o-mini": 16.4,
+      "Claude-Haiku-4.5": 14.3,
+      "Claude-Sonnet-4.5": 26.1
+    },
+    "validated_recall_drop_percentage_points": {
+      "GPT-5.4-nano": 7.8,
+      "GPT-4.1-nano": 37.4,
+      "GPT-4o-mini": 20.8,
+      "Claude-Haiku-4.5": 16.5,
+      "Claude-Sonnet-4.5": 29.6
+    }
+  },
+  "rounding_consistency_check": {
+    "method": "Enumerate integer TP/FP with P=1836,N=1834; all four metrics must lie within 0.000500001 of Table 2. Intersect FP across settings to check compatibility with unchanged benign predictions. These are candidate matrices, not recovered raw predictions.",
+    "models": {
+      "GPT-5.4-nano": {
+        "original_integer_candidates": [
+          {
+            "tp": 1825,
+            "fp": 461
+          },
+          {
+            "tp": 1825,
+            "fp": 462
+          },
+          {
+            "tp": 1825,
+            "fp": 463
+          }
+        ],
+        "rewritten_integer_candidates": [
+          {
+            "tp": 1731,
+            "fp": 462
+          },
+          {
+            "tp": 1732,
+            "fp": 463
+          }
+        ],
+        "shared_fp_candidates": [
+          462,
+          463
+        ],
+        "shared_fpr_range": [
+          0.25190839694656486,
+          0.252453653217012
+        ]
+      },
+      "GPT-4.1-nano": {
+        "original_integer_candidates": [
+          {
+            "tp": 1696,
+            "fp": 81
+          },
+          {
+            "tp": 1696,
+            "fp": 82
+          },
+          {
+            "tp": 1697,
+            "fp": 81
+          },
+          {
+            "tp": 1697,
+            "fp": 82
+          }
+        ],
+        "rewritten_integer_candidates": [
+          {
+            "tp": 1013,
+            "fp": 81
+          }
+        ],
+        "shared_fp_candidates": [
+          81
+        ],
+        "shared_fpr_range": [
+          0.04416575790621592,
+          0.04416575790621592
+        ]
+      },
+      "GPT-4o-mini": {
+        "original_integer_candidates": [
+          {
+            "tp": 1795,
+            "fp": 94
+          },
+          {
+            "tp": 1796,
+            "fp": 94
+          },
+          {
+            "tp": 1796,
+            "fp": 95
+          }
+        ],
+        "rewritten_integer_candidates": [
+          {
+            "tp": 1494,
+            "fp": 93
+          },
+          {
+            "tp": 1494,
+            "fp": 94
+          },
+          {
+            "tp": 1495,
+            "fp": 94
+          }
+        ],
+        "shared_fp_candidates": [
+          94
+        ],
+        "shared_fpr_range": [
+          0.05125408942202835,
+          0.05125408942202835
+        ]
+      },
+      "Claude-Haiku-4.5": {
+        "original_integer_candidates": [
+          {
+            "tp": 1803,
+            "fp": 32
+          }
+        ],
+        "rewritten_integer_candidates": [
+          {
+            "tp": 1540,
+            "fp": 31
+          },
+          {
+            "tp": 1540,
+            "fp": 32
+          },
+          {
+            "tp": 1541,
+            "fp": 31
+          },
+          {
+            "tp": 1541,
+            "fp": 32
+          }
+        ],
+        "shared_fp_candidates": [
+          32
+        ],
+        "shared_fpr_range": [
+          0.017448200654307525,
+          0.017448200654307525
+        ]
+      },
+      "Claude-Sonnet-4.5": {
+        "original_integer_candidates": [
+          {
+            "tp": 1751,
+            "fp": 8
+          },
+          {
+            "tp": 1752,
+            "fp": 8
+          },
+          {
+            "tp": 1752,
+            "fp": 9
+          }
+        ],
+        "rewritten_integer_candidates": [
+          {
+            "tp": 1272,
+            "fp": 8
+          }
+        ],
+        "shared_fp_candidates": [
+          8
+        ],
+        "shared_fpr_range": [
+          0.004362050163576881,
+          0.004362050163576881
+        ]
+      }
+    }
+  },
+  "not_verified": [
+    "CSV row counts and content hashes",
+    "Missing or empty rewrites",
+    "Original-rewrite pairing integrity",
+    "Exact or semantic duplicates",
+    "Per-record label validity and text-only decidability",
+    "Membership of the 115 validated cases and their judgments",
+    "Author output parsing, retry/failure handling, temperature, seeds and immutable API model versions",
+    "An executable official scoring harness or official evaluation holdout",
+    "Raw detector predictions or any reproduced detector result"
+  ]
+}
