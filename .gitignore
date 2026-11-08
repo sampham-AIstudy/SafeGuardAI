@@ -18,11 +18,4 @@ __pycache__/
 # Evaluation inputs, authoring material and private review records stay local.
 /.audit-private/
 /devset/
-/testset/*
-!/testset/LABELING_GUIDE.md
-!/testset/BENCHMARK_PROTOCOL.md
-!/testset/conversation.schema.json
-!/testset/tools/
-/testset/tools/*
-!/testset/tools/score.py
-!/testset/tools/test_score.py
+/testset/

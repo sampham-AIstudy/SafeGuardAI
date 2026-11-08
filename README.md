@@ -110,7 +110,8 @@ selected tasks, source versions and interpretation limits.
 | Local synthetic-v1 | Guide-reference first-warning timing; joint success on declared scam/benign pairs, as an internal pilot |
 
 Task selection is not an executed engine evaluation. No rebuilt detector performance is reported.
-The [local scoring contract](testset/BENCHMARK_PROTOCOL.md) and deterministic scorer are available;
-local conversation data, seed catalogs, generation material and private reviews are withheld.
+The entire local benchmark directory is withheld, including its conversations, guide, protocol,
+schema, scoring tools, seed catalogs, generation material and reviews. Any future dataset
+publication is handled separately by the owner.
 External raw benchmark downloads are also excluded. Data-audit reproduction requires the separately
 retrieved pinned inputs and is distinct from development testing.
