@@ -1,1 +1,0 @@
-# SafeGuardAI evaluation package
