@@ -6,8 +6,10 @@ from .ports import DerivedState
 from .derived import (InMemoryDerivedState, SourceReference, StateError, StateLimits,
     StateProfile, StateReceipt, StateRecord, StateSnapshot, StateWrite)
 from .core import ConversationMemory, MemoryReader, MemoryWriter
+from .sqlite import SqliteConversationMemory, SqliteDerivedState
 
 __all__ = ["ConversationKey", "HistoryBoundary", "HistoryError", "HistoryLimits", "HistorySnapshot", "InMemoryConversationMemory", "ObservedHistory"]
 __all__ += ["DerivedState", "InMemoryDerivedState", "SourceReference", "StateError", "StateLimits",
     "StateProfile", "StateReceipt", "StateRecord", "StateSnapshot", "StateWrite",
     "ConversationMemory", "MemoryReader", "MemoryWriter"]
+__all__ += ["SqliteConversationMemory", "SqliteDerivedState"]

@@ -18,6 +18,10 @@ class ConversationKey:
     def __post_init__(self):
         if any(type(getattr(self, f.name)) is not str or not getattr(self, f.name).strip() for f in fields(self)):
             raise HistoryError("invalid_conversation_key")
+        try:
+            for f in fields(self): getattr(self, f.name).encode('utf-8')
+        except UnicodeError:
+            raise HistoryError('invalid_conversation_key') from None
         if self.source != "demo":
             raise HistoryError("unsupported_source")
 

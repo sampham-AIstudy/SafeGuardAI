@@ -224,8 +224,11 @@ class ConversationIngress:
                 message = self.intake.record(message, context)
             except HistoryError as error:
                 try:
-                    for receipt in stored:
-                        store.delete(context, receipt.key)
+                    # An uncertain durable append may already reference these
+                    # originals. Preserve them until reopen/reconciliation.
+                    if error.code != 'history_commit_uncertain':
+                        for receipt in stored:
+                            store.delete(context, receipt.key)
                 except AssetError:
                     self._reject(trace, "assets", "cleanup_failed")
                 self._reject(trace, "engine_intake", error.code)

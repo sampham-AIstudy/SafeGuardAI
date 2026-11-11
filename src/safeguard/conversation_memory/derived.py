@@ -52,6 +52,10 @@ class StateProfile:
     def __post_init__(self):
         if any(type(x) is not str or not x.strip() for x in (self.name, self.version)) or not callable(self.validate):
             raise StateError('invalid_state_profile')
+        try:
+            self.name.encode('utf-8');self.version.encode('utf-8')
+        except UnicodeError:
+            raise StateError('invalid_state_profile') from None
         if inspect.iscoroutinefunction(self.validate) or inspect.iscoroutinefunction(getattr(self.validate, '__call__', None)):
             raise StateError('invalid_state_profile')
 
@@ -123,6 +127,7 @@ class InMemoryDerivedState(DerivedState):
 
     def _check(self):
         if self._closed: raise StateError('state_closed')
+        if getattr(self,'_broken',False): raise StateError('state_storage_broken')
         if threading.get_ident() != self._owner: raise StateError('wrong_thread')
         if self._busy: raise StateError('state_busy')
 

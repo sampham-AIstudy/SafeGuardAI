@@ -34,6 +34,8 @@ class ObservedHistory(ABC):
 class DerivedState(ABC):
     """Atomic channel-scoped revisions with immutable records and retry identity."""
 
+    history: ObservedHistory
+
     @abstractmethod
     def snapshot(self, context, boundary, *, channel): ...
 

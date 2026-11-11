@@ -36,6 +36,8 @@ class InMemoryConversationMemory(ObservedHistory):
         self._count, self._bytes = 0, 0
 
     def __enter__(self):
+        if threading.get_ident() != self._owner:
+            raise HistoryError('wrong_thread')
         if self._state != "new":
             raise HistoryError("already_started")
         self._state = "open"
@@ -109,6 +111,9 @@ class InMemoryConversationMemory(ObservedHistory):
 
     def append(self, context, message) -> HistoryBoundary:
         key, canonical, size = self._prepare(context, message)
+        return self._append_prepared(key, canonical, size)
+
+    def _append_prepared(self, key, canonical, size):
         if key not in self._messages:
             self._messages[key] = []
         self._messages[key].append(canonical)

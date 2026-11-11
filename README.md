@@ -44,7 +44,7 @@ scoped retrieval. Original uploads use integration/file-ingress coordination, se
 Adapter.receive(). The partner application supplies permitted input and renders returned actions.
 
 These are logical responsibilities, not mandatory separate servers. Real model/readers, complete
-controllers, derived-state commits, Warning Policy and production integration remain unimplemented.
+controllers, controller-driven state updates, Warning Policy and production integration remain unimplemented.
 Code lives in safeguard.scam_detection, conversation_memory, original_assets and adapters;
 existing serialized contracts remain unchanged.
 
@@ -72,7 +72,7 @@ this component grouping. Scam Detection and separate Warning Policy are adopted 
 | Scam Detection | Assess the observed conversation and return evidence/coverage or explicit failure; composed from host, controller, models and tools |
 | Warning Policy | Decide whether/when to warn from the assessment and permitted warning history |
 | Partner application | Supply permitted messages/originals and display the returned warning action |
-| Conversation Memory | Separate observed history, derived artifacts/results and warning history; concrete state APIs/persistence remain incomplete |
+| Conversation Memory | Separate observed history, derived artifacts/results and warning records behind scoped ports; local SQLite persistence is implemented |
 | Original Assets | Store original bytes separately from messages and derived evidence; scoped retrieval uses source identities and size/hash |
 
 Two input representations must stay distinct:
@@ -99,17 +99,23 @@ The logical architecture includes responsibilities that are still design work.
 |---|---|---|
 | Adapter: Gateway + Norm | Demo receipt, ordered stream/handoff, native envelope v1 and common message v2; text/image/audio/video/file references | Real partner Gateway/mapping and transport integration |
 | Conversation ingress | Trusted scope, resource limits, sequential processing within each conversation, bounded concurrency across conversations and explicit failure/shutdown behavior | Real authentication, delivery protocol and replay/deduplication policy |
-| Original Assets | Scoped, size/hash-verified temporary local originals with upload/retrieval checks | Production backend/retention and selected content interpretation |
-| Conversation Memory | Observed-history admission, scoped detached prefixes and retention after analyzer failure | Derived evidence/results, warning records, general state ports and durable persistence |
-| Scam Detection: Execution Host | Intake, context preparation, registered capability brokerage, controller/result contracts and neutral substitution checks | Actual agent/workflow controllers, model client, reader-enriched context and validated state commits |
+| Original Assets | Scoped store port, temporary backend and durable local SQLite catalog/files; integrity, recovery, limits and upload/retrieval checks | Production operations/retention; content interpretation belongs to selected readers/models |
+| Conversation Memory | Observed-history port, atomic derived-state channels, read/write views, revision/idempotency checks and local SQLite persistence | Production operations/retention, message edit/delete/replay policy and actual Detector/Policy integration |
+| Scam Detection: Execution Host | Intake, context preparation, registered capability brokerage, controller/result contracts and neutral substitution checks | Actual agent/workflow controllers, model client, reader-enriched context and controller-driven state updates |
 | Tools/readers | Scoped original-byte access and evidence/provenance contracts with injected test readers | Actual OCR/ASR/video/document readers or selected direct multimodal model paths |
 | LLM boundary | Request/reply/failure/usage design checked with independent offline examples | Runtime call binding, selected provider/model, token/media handling and real inference checks |
 | Warning Policy / partner return flow | Logical responsibilities defined | Warning rules/state, API/SDK integration, application demo and verified warning display |
 
-The latest source revision passed **281 component tests / 788 subcases** after naming alignment.
+The current storage-block revision passed **323 component tests / 836 subcases**.
 The LLM design separately passed **88 offline authoring checks**, including eight scripted Host
 scenarios. These checks establish covered contract behavior; no real model or detector quality
 was evaluated. Benchmark inputs were not used for development checks.
+
+**Original Assets and Conversation Memory are complete for the selected local backend scope.**
+This includes independent port tests, real Adapter/ingress/Host integration with test controllers,
+restart/crash checks and local resource probes. The durable backend uses SQLite metadata and local
+files; production hosting/retention is unselected. Warning Policy implementation remains deferred
+until Scam Detection is complete. No real model or production service is included in this closure.
 
 Application code lives under `src/safeguard/`, with `adapters/gateways`, `adapters/norm`,
 `scam_detection`, `conversation_memory` and `original_assets` matching the implemented components.
@@ -263,7 +269,7 @@ messages and do not imply that an original exists in the store.
 | `store.read(context, key)` | Return verified complete bytes; whole-file allocation is bounded by the configured file limit |
 | `store.delete(context, key)` | Explicit authorized release and quota recovery; consumer failure does not automatically remove originals |
 
-The POSIX backend uses private generated filenames, exclusive creation and no-follow opens;
+The temporary POSIX backend uses private generated filenames, exclusive creation and no-follow opens;
 stored objects must be regular files. Corrupt, missing, wrong-scope, over-limit or duplicate
 objects cause fixed `AssetError`/`IngressError` reasons without private paths or callback text.
 Copy/source/disk failures are explicit. A sink failure or concurrent storage alteration can leave
@@ -277,6 +283,24 @@ or interpret files. A matching hash proves byte consistency with the stored rece
 safety or media validity. Keep the store alive until all consumers have finished using originals.
 The [file-ingress tests](tests/test_file_ingress.py) show actual Adapter/Norm/consumer retrieval
 using newly created neutral files.
+
+`OriginalAssets` in [ports.py](src/safeguard/original_assets/ports.py) is the backend contract used
+by ingress and EvidencePreparer. [PersistentAssetStore](src/safeguard/original_assets/persistent.py)
+implements it with a private host-selected root, a SQLite catalog and generated original-file names.
+Use `PersistentAssetStore(root=..., limits=AssetLimits(...), storage_limits=StorageLimits(...))`.
+`StorageLimits` requires explicit `max_database_bytes` and `busy_timeout_seconds`; no deployment
+defaults are supplied. Closing releases handles and the owner lock while preserving committed data.
+
+Local storage means storage on the operator-owned SafeGuard service host, not an end-user device.
+The durable local backend targets Linux/WSL with one open owner per directory and one host thread.
+It flushes original bytes and the directory before publishing the whole catalog batch in SQLite.
+On reopen it verifies committed originals and removes only unreferenced generated files left by
+interrupted operations. Unknown files, unsafe paths and corrupted referenced files fail closed.
+Deletion commits catalog removal before file cleanup. An uncertain commit is explicit; files
+that may be committed are retained for reconciliation rather than assumed rolled back.
+This is not a distributed store or a hard total-disk/RSS cap. Host-controlled directories must
+stay private and stable while open. No automatic retention, MIME decoding or remote fetch is added.
+Local runtime directories under `.safeguard-runtime/` are excluded from Git.
 
 ---
 
@@ -321,8 +345,44 @@ The [state tests](tests/test_conversation_memory.py) and
 scope separation, exact prefix boundaries, mutation, capacity, failure/shutdown retention and
 real original-file retrieval. Structural snapshot checks do not establish model/tool information
 isolation outside the supplied callback interface, fraud accuracy or context-selection quality.
-Derived-state storage and warning history remain design work. The common DetectionOutcome envelope
-exists; connecting it to Warning Policy and returning a warning action are not implemented.
+Observed history implements [ObservedHistory](src/safeguard/conversation_memory/ports.py), so
+DetectionIntake accepts another conforming backend. The RAM implementation expires on close.
+[SqliteConversationMemory](src/safeguard/conversation_memory/sqlite.py) preserves observations and
+boundary identity across reopen, checks configured limits on restore and commits an append before
+exposing it in RAM. A failed acknowledgement is reconciled against the committed row; an unresolved
+commit stops the backend and keeps originals that may already be referenced.
+
+[ConversationMemory](src/safeguard/conversation_memory/core.py) composes opened observed history
+with a conforming `DerivedState` backend. [InMemoryDerivedState](src/safeguard/conversation_memory/derived.py)
+and `SqliteDerivedState` provide the same versioned state behavior. The SQLite implementation
+shares the observation database and replays validated transactions on reopen. Changed profile
+identities, malformed transactions or invalid observed boundaries fail instead of silently
+reinterpreting old records. Only one active derived-state owner is allowed for a SQLite history.
+
+| Memory interface | Behavior |
+|---|---|
+| `memory.observations` | Trusted admission owns append-only source history; models/controllers do not rewrite it |
+| `memory.detector` | Host writer for `evidence` and `analysis`; one batch is published entirely or not at all |
+| `memory.warning_history` | Separate `warnings` storage channel reserved for future Warning Policy; no decision/threshold/display logic |
+| `writer.reader()` | Read-only API with detached payload views; no commit method. Trusted assembly chooses which view a tool receives |
+| `snapshot(context, boundary)` | Select latest records available through that observed prefix, retaining older record versions for older reads |
+| `commit(..., expected_version, operation_id, writes)` | Check current scope, boundary, profile, source refs, quotas and channel revision before publishing. Identical retries return the original receipt; conflicting ID reuse or stale revisions fail |
+
+`StateWrite` carries a namespace, record ID, bounded JSON bytes and source references. Trusted
+`StateProfile` validators name/version payload semantics; storage selects no scam labels or warning
+rules. Records bind the observed boundary and a digest of source observations. Observed-data hashes
+are separate from model-specific context hashes. A structurally valid payload is not proof of a
+correct inference. `StateLimits` explicitly bounds record versions, serialized transaction bytes,
+scope/account totals, JSON depth/nodes and references. Historical versions and retry metadata consume
+capacity; there is no silent eviction. A later committed boundary cannot be replaced by a late
+earlier result.
+
+These are trusted-process interfaces, not authentication or isolation from hostile Python code.
+The current normalized-source validation remains demo-scoped. No message edit/delete/replay or
+cross-process service policy is inferred. Original Assets and Memory use separate databases;
+live admission failures compensate new uploads, but no distributed transaction or crash-spanning
+admission/replay protocol is claimed. The common DetectionOutcome can be stored through the
+checked writer interface; actual agent/Policy orchestration is still future work.
 
 ---
 

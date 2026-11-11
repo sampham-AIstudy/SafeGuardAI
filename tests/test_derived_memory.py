@@ -173,3 +173,40 @@ class DerivedMemoryTests(unittest.TestCase):
             self.rejected(lambda:self.commit(),'state_storage_failed')
         self.assertEqual(self.state.stats,before)
         self.commit()
+
+    def test_all_scope_quotas_reject_without_partial_records(self):
+        self.commit(operation='first');charge=self.state.stats['bytes']
+        for field,limit,code in (
+            ('max_records',1,'state_record_count_limit'),
+            ('max_bytes',charge,'state_byte_limit'),
+            ('max_conversation_records',1,'conversation_state_record_limit'),
+            ('max_conversation_bytes',charge,'conversation_state_byte_limit'),
+            ('max_account_records',1,'account_state_record_limit'),
+            ('max_account_bytes',charge,'account_state_byte_limit')):
+            with self.subTest(limit=field):
+                state=InMemoryDerivedState(history=self.history,limits=replace(LIMITS,**{field:limit}),profiles={'analysis':PROFILE})
+                self.addCleanup(state.close)
+                state.commit(ACCESS,self.boundary,channel='detector',expected_version=0,operation_id='first',writes=(write(),))
+                before=state.stats.copy()
+                self.rejected(lambda:state.commit(ACCESS,self.boundary,channel='detector',expected_version=1,operation_id='second',writes=(write(),)),code)
+                self.assertEqual(state.stats,before)
+        # Account limits span conversations; a rejected garden write leaves room state intact.
+        garden=self.append('garden','state-garden')
+        state=InMemoryDerivedState(history=self.history,limits=replace(LIMITS,max_account_records=1),profiles={'analysis':PROFILE})
+        self.addCleanup(state.close)
+        state.commit(ACCESS,self.boundary,channel='detector',expected_version=0,operation_id='room',writes=(write(),))
+        self.rejected(lambda:state.commit(ACCESS,garden,channel='detector',expected_version=0,operation_id='garden',writes=(write(),)),'account_state_record_limit')
+
+    def test_json_record_and_reference_resource_limits(self):
+        later=self.append('second')
+        cases=(
+            (replace(LIMITS,max_json_depth=1),replace(write(),payload_json=b'{"summary":{"nested":"value"}}'),'invalid_state_payload'),
+            (replace(LIMITS,max_json_nodes=2),write(),'invalid_state_payload'),
+            (replace(LIMITS,max_record_bytes=80),write(),'state_record_limit'),
+            (replace(LIMITS,max_references=1),replace(write(),references=(SourceReference(1,0),SourceReference(2,0))),'invalid_source_reference'))
+        for limits,record,code in cases:
+            with self.subTest(code=code,limits=limits):
+                state=InMemoryDerivedState(history=self.history,limits=limits,profiles={'analysis':PROFILE})
+                self.addCleanup(state.close)
+                self.rejected(lambda:state.commit(ACCESS,later,channel='detector',expected_version=0,operation_id='limited',writes=(record,)),code)
+                self.assertEqual(state.stats['records'],0)

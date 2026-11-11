@@ -21,6 +21,10 @@ class AssetKey:
     def __post_init__(self):
         if any(type(getattr(self, f.name)) is not str or not getattr(self, f.name).strip() for f in fields(self)):
             raise AssetError("invalid_reference")
+        try:
+            for f in fields(self): getattr(self, f.name).encode('utf-8')
+        except UnicodeError:
+            raise AssetError('invalid_reference') from None
         if self.source != "demo":
             raise AssetError("unsupported_source")
 
