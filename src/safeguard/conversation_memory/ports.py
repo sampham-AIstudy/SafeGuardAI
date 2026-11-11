@@ -29,3 +29,16 @@ class ObservedHistory(ABC):
 
     @abstractmethod
     def close(self): ...
+
+
+class DerivedState(ABC):
+    """Atomic channel-scoped revisions with immutable records and retry identity."""
+
+    @abstractmethod
+    def snapshot(self, context, boundary, *, channel): ...
+
+    @abstractmethod
+    def commit(self, context, boundary, *, channel, expected_version, operation_id, writes): ...
+
+    @abstractmethod
+    def close(self): ...
