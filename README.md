@@ -15,7 +15,7 @@
 ## Scope
 
 Observe a conversation as messages arrive, assess scam risk in Scam Detection, and let separate
-Warning Policy decide whether and when to warn. The engine research will compare workflow and agent
+Warning Policy decide whether and when to warn. The research will compare workflow and agent
 control; neither has demonstrated superiority in this rebuild. Development now starts with the
 agent; the workflow alternative will be implemented on another branch.
 
@@ -70,8 +70,8 @@ this component grouping. Scam Detection and separate Warning Policy are adopted 
 | Gateway, inside Adapter | Receive source events and preserve source context and native payload |
 | Norm, inside Adapter | Interpret native data using its source mapping and produce the common internal message |
 | Scam Detection | Assess the observed conversation and return evidence/coverage or explicit failure; composed from host, controller, models and tools |
-| Warning policy | Decide whether/when to warn from the assessment and permitted warning history |
-| Interface | Present the policy's action to the user |
+| Warning Policy | Decide whether/when to warn from the assessment and permitted warning history |
+| Partner application | Supply permitted messages/originals and display the returned warning action |
 | Conversation Memory | Separate observed history, derived artifacts/results and warning history; concrete state APIs/persistence remain incomplete |
 | Original Assets | Store original bytes separately from messages and derived evidence; scoped retrieval uses source identities and size/hash |
 
@@ -79,18 +79,37 @@ Two input representations must stay distinct:
 
 - **Gateway envelope (version 1.0):** internal Adapter handoff metadata plus `payload`, the original source event data.
   A common wrapper does not make the source's content a common internal message.
-- **Internal message:** the provisional source-independent record produced by the one-message
-  demo normalizer. It is integrated with deterministic Engine intake below; the analysis contract remains provisional.
+- **Internal message (version 2.0):** the source-independent message produced by Norm, including
+  ordered text/media/file parts and original-asset descriptors. The current source mapping is demo-scoped.
 
 The [current handoff schema](src/safeguard/adapters/contract.schema.json) preserves native payloads. Adding a
 source therefore requires a Gateway **and** a compatible Norm mapping inside Adapter.
-The purpose is to keep platform field names out of the engine. Engine analysis and user-facing
+The purpose is to keep platform field names out of Scam Detection. Assessment and user-facing
 warning decisions remain separate. Concrete assessment fields, warning rules and production
 state/integration details remain unselected; adoption does not imply that the service is implemented.
 
 ---
 
 ## Current implementation
+
+The following status describes implemented and checked scope, as of November 11, 2026.
+The logical architecture includes responsibilities that are still design work.
+
+| Component | Implemented and checked | Remaining work |
+|---|---|---|
+| Adapter: Gateway + Norm | Demo receipt, ordered stream/handoff, native envelope v1 and common message v2; text/image/audio/video/file references | Real partner Gateway/mapping and transport integration |
+| Conversation ingress | Trusted scope, resource limits, sequential processing within each conversation, bounded concurrency across conversations and explicit failure/shutdown behavior | Real authentication, delivery protocol and replay/deduplication policy |
+| Original Assets | Scoped, size/hash-verified temporary local originals with upload/retrieval checks | Production backend/retention and selected content interpretation |
+| Conversation Memory | Observed-history admission, scoped detached prefixes and retention after analyzer failure | Derived evidence/results, warning records, general state ports and durable persistence |
+| Scam Detection: Execution Host | Intake, context preparation, registered capability brokerage, controller/result contracts and neutral substitution checks | Actual agent/workflow controllers, model client, reader-enriched context and validated state commits |
+| Tools/readers | Scoped original-byte access and evidence/provenance contracts with injected test readers | Actual OCR/ASR/video/document readers or selected direct multimodal model paths |
+| LLM boundary | Request/reply/failure/usage design checked with independent offline examples | Runtime call binding, selected provider/model, token/media handling and real inference checks |
+| Warning Policy / partner return flow | Logical responsibilities defined | Warning rules/state, API/SDK integration, application demo and verified warning display |
+
+The latest source revision passed **281 component tests / 788 subcases** after naming alignment.
+The LLM design separately passed **88 offline authoring checks**, including eight scripted Host
+scenarios. These checks establish covered contract behavior; no real model or detector quality
+was evaluated. Benchmark inputs were not used for development checks.
 
 Application code lives under `src/safeguard/`, with `adapters/gateways`, `adapters/norm`,
 `scam_detection`, `conversation_memory` and `original_assets` matching the implemented components.
@@ -104,7 +123,7 @@ The `src` directory is placed on the import path by the test command below. No p
 is needed for that command. Package metadata and schema-resource inclusion are in `pyproject.toml`.
 
 The rebuild starts with small, separately checked components. The deterministic
-[Engine intake](src/safeguard/scam_detection/intake.py) now connects normalized arrivals to
+[DetectionIntake](src/safeguard/scam_detection/intake.py) now connects normalized arrivals to
 [in-memory observed history](src/safeguard/conversation_memory/in_memory.py) and a substitute analyzer.
 It reuses the [observed-history boundary](src/safeguard/conversation_memory/history.py) to select detached prefixes.
 The [context preparer](src/safeguard/scam_detection/context.py) projects those prefixes into bounded,
@@ -123,7 +142,7 @@ object and explicit account context. It constructs a detached native-payload env
 `conversation_id(native)` inspection supplies routing identity before receipt/copying, so the
 coordinator can check permission and capacity without reading demo field names.
 The native-envelope schema and contract checker remain unchanged. Real source transport,
-partner authentication, the full engine, warning policy and interface integration are absent.
+partner authentication, complete Scam Detection, Warning Policy and application return integration are absent.
 
 DemoGateway requires `thread`, `id`, `author` (nonblank strings), plus either legacy `body`
 (nonempty text) or ordered `content_parts`. Supplying both is rejected. Parts support `text`,
@@ -148,7 +167,7 @@ Errors stop delivery without skip, retry or rollback; a failing callback may alr
 performed an effect. Tests use a schema-checking recorder, not a real normalizer. This establishes
 local handoff behavior; it does not establish durable delivery or successful normalization.
 
-The [one-message normalizer](src/safeguard/adapters/norm/core.py) implements the provisionally accepted
+The [Norm implementation](src/safeguard/adapters/norm/core.py) implements the provisionally accepted
 demo profile. `normalize(adapter_event)` validates the existing v1.0 envelope, reconciles native
 and envelope IDs, and returns a typed version-`2.0` `NormalizedMessage` dictionary. It preserves exact text,
 scoped IDs, observation time and a detached complete `raw_payload`. The sender flag compares
@@ -158,7 +177,7 @@ convert to UTC without dropping fractional digits. Malformed or unsupported inpu
 standard library, with no IO, clock read, history or model. Adapter invokes Norm per message, validates the common output and checks that source, account,
 conversation, message identity and native provenance remain consistent. ConversationIngress uses
 the Adapter result and applies common content limits before file/history admission. Production
-source support still requires its own mapping and integration checks; Engine history/context
+source support still requires its own mapping and integration checks; history/context validation
 remain demo-profile scoped.
 
 The composition increment passes 281 tests/788 subcases using neutral inputs, including a
@@ -261,13 +280,14 @@ using newly created neutral files.
 
 ---
 
-## Engine intake and observed history
+## Conversation Memory and detection intake
 
 `ConversationIngress(..., adapter=configured_adapter, intake=DetectionIntake(history))` connects the actual Adapter/Norm to an
 open `InMemoryConversationMemory` and a cooperative async analyzer callback. The callback receives
 a `HistorySnapshot` instead of the ordinary normalized-message dictionary. Omitting `intake`
-retains the earlier metadata-consumer behavior. This is the first Engine/state integration,
-not a workflow/agent detector or an analysis-output contract.
+retains normalized-message callback behavior. This is the observed-history connection to Scam
+Detection. The Execution Host below supplies the common analysis-output envelope; an actual
+workflow/agent detector is still absent.
 
 | Stage | Implemented behavior |
 |---|---|
@@ -301,14 +321,15 @@ The [state tests](tests/test_conversation_memory.py) and
 scope separation, exact prefix boundaries, mutation, capacity, failure/shutdown retention and
 real original-file retrieval. Structural snapshot checks do not establish model/tool information
 isolation outside the supplied callback interface, fraud accuracy or context-selection quality.
-Derived analysis, warning history and the Engine-to-Policy result remain design work.
+Derived-state storage and warning history remain design work. The common DetectionOutcome envelope
+exists; connecting it to Warning Policy and returning a warning action are not implemented.
 
 ---
 
 ## Analysis-context preparation
 
 [ContextPreparer](src/safeguard/scam_detection/context.py) accepts the scoped `HistorySnapshot` from
-Engine intake and the host's trusted `AccessContext`. It revalidates normalized v2 contents,
+DetectionIntake and the host's trusted `AccessContext`. It revalidates normalized v2 contents,
 retains the exact message/part order and produces `PreparedContext.json_bytes`. The bytes are
 immutable; `to_dict()` creates a fresh detached view. Preparation does not change observed history.
 
@@ -372,7 +393,7 @@ They do not establish OCR, ASR, document interpretation or scam-detection qualit
 
 ---
 
-## Common Engine execution boundary
+## Scam Detection: Execution Host
 
 [ExecutionHost](src/safeguard/scam_detection/execution_host.py) accepts an admitted `DetectionRequest` from intake,
 rechecks its scope/boundary, prepares immutable observed input and invokes a supplied async
@@ -407,22 +428,37 @@ agent, a completed workflow, semantic assessment quality or readiness for model 
 
 ---
 
-## Proposed workflow inside Engine
+## LLM call boundary: design status
 
-This is the earlier workflow proposal, retained as reference. Current development starts with
-the agent; the adopted shared architecture and controller comparison are shown above.
+The model-facing contract is designed but not implemented by ExecutionHost. A future trusted
+ModelClient will receive a call bound to the Host run, permitted observed context and allowed
+tools. The same boundary supports model-directed agent control and code-directed workflow calls.
 
-The following workflow design is approved for incremental implementation. Green marks implemented
-intake/history foundations; yellow marks workflow steps not yet fully implemented. Context
-preparation above is implemented before content readers; full evidence/context assembly still
-needs actual readers and merging. Their common byte/result boundary is implemented above.
-Models, concrete content readers, production budgets and the assessment-result schema are
-not selected by this diagram. The overall owner-supplied architecture above stays unchanged.
+| Designed boundary | Meaning |
+|---|---|
+| Trusted input binding | Separate instructions, permitted source context, explicitly visible state, tool/profile schemas, interaction trace and media presentation; source text does not grant permissions |
+| ModelRequest v1.0 | Required call ID, context/trace hashes, output-profile identity, allowed tool names, requested output kinds and positive output-token ceiling |
+| ModelReply v1.0 | Correlated call ID, trusted attempt/finish metadata and exactly one output variant: tool_requests, structured_result, no_result, refusal or failure |
+| Tool proposals | Validate the entire batch, arguments, scope and unique call IDs before execution; Controller requests actual calls through Host brokerage |
+| Interaction history | Keep model exchanges and correlated tool observations separate from the partner's observed conversation |
+| Media | Distinguish a metadata reference from verified original bytes actually presented to the model; reference-only content is not interpreted content |
+| Failures and usage | Operational failures are not benign assessments; refusal/no_result contains no business conclusion; reported tokens come from trusted provider metadata and unknown usage stays unknown |
 
-![Proposed Engine workflow](docs/assets/engine-workflow-proposal.png)
+The current Host does not yet assemble all per-call instructions/catalog/profile/trace/media
+bindings or validate this model-specific request/reply contract. Model/provider selection,
+business assessment fields, actual multimodal transmission and tokenizer limits remain unresolved.
+The offline authoring checks do not establish real-provider compatibility or content understanding.
 
-[Editable SVG](docs/assets/engine-workflow-proposal.svg). This drawing is not an implemented
-workflow or evidence of detector performance.
+<details>
+<summary>Earlier workflow design, retained as historical reference</summary>
+
+![Earlier workflow design](docs/assets/engine-workflow-proposal.png)
+
+[Editable SVG](docs/assets/engine-workflow-proposal.svg). Its names and colored progress marks
+reflect the earlier design stage. Use the current architecture/status above for implementation
+progress. Develop the agent first; implement the workflow later on a separate branch.
+
+</details>
 
 ---
 
