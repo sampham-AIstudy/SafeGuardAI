@@ -6,8 +6,8 @@ import inspect
 import json
 import re
 
-from safeguard.original_assets import AssetError, AssetKey, OriginalAssets, StoredAsset
-from safeguard.conversation_memory import ConversationKey
+from safeguard.memory.original_assets import AssetError, AssetKey, OriginalAssets, StoredAsset
+from safeguard.memory.conversation_status import ConversationKey
 from safeguard.scam_detection.context import PreparedContext
 
 

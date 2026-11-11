@@ -13,10 +13,10 @@ import unittest
 from unittest.mock import patch
 
 from safeguard.adapters.demo import create_demo_adapter
-from safeguard.conversation_memory import (ConversationMemory, HistoryBoundary, HistoryLimits, InMemoryConversationMemory, InMemoryDerivedState,
-    SqliteConversationMemory, SqliteDerivedState, StateLimits, StateProfile, StateWrite, SourceReference)
+from safeguard.memory.conversation_status import (ConversationStatus, HistoryBoundary, HistoryLimits, InMemoryConversationStatus, InMemoryDerivedState,
+    SqliteConversationStatus, SqliteDerivedState, StateLimits, StateProfile, StateWrite, SourceReference)
 from safeguard.ingress import AccessContext, ConversationIngress, IngressError, InputLimits, ProcessingLimits
-from safeguard.original_assets import AssetKey, AssetLimits, LocalAssetStore, PersistentAssetStore
+from safeguard.memory.original_assets import AssetKey, AssetLimits, LocalAssetStore, PersistentAssetStore
 from safeguard.scam_detection.context import ContextLimits, ContextPreparer
 from safeguard.scam_detection.intake import DetectionIntake, DetectionRequest
 from safeguard.scam_detection.execution_host import (AssessmentProfile, CapabilityReply, CapabilitySpec,
@@ -60,14 +60,14 @@ PROFILES={'analysis':StateProfile('neutral-detection-envelope','1.0',analysis_pr
 class StorageBlocksIntegrationTests(unittest.IsolatedAsyncioTestCase):
     def resources(self,parent,durable):
         if durable:
-            history=SqliteConversationMemory(root=parent/'memory',message_limits=INPUT,limits=HISTORY,storage_limits=DISK).__enter__()
+            history=SqliteConversationStatus(root=parent/'memory',message_limits=INPUT,limits=HISTORY,storage_limits=DISK).__enter__()
             assets=PersistentAssetStore(root=parent/'originals',limits=FILES,storage_limits=DISK).__enter__()
             derived=SqliteDerivedState(history=history,limits=STATE,profiles=PROFILES)
         else:
-            history=InMemoryConversationMemory(message_limits=INPUT,limits=HISTORY).__enter__()
+            history=InMemoryConversationStatus(message_limits=INPUT,limits=HISTORY).__enter__()
             assets=LocalAssetStore(parent=parent,limits=FILES).__enter__()
             derived=InMemoryDerivedState(history=history,limits=STATE,profiles=PROFILES)
-        return ConversationMemory(observations=history,derived=derived),assets,derived
+        return ConversationStatus(observations=history,derived=derived),assets,derived
 
     async def test_real_arrows_and_controller_substitution_for_both_backends(self):
         logical=[]

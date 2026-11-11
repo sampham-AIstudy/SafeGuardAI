@@ -8,7 +8,7 @@ import threading
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from safeguard.conversation_memory.history import build_observed_history
+from safeguard.memory.conversation_status.history import build_observed_history
 from safeguard.adapters.norm import NormalizationError, normalize
 
 if TYPE_CHECKING:
@@ -19,7 +19,7 @@ from .contracts import ConversationKey, HistoryBoundary, HistoryError, HistoryLi
 from .ports import ObservedHistory
 
 
-class InMemoryConversationMemory(ObservedHistory):
+class InMemoryConversationStatus(ObservedHistory):
     """One-thread-owned demo lifetime; JSON accounting is not a hard RSS bound.
 
     No deduplication, edits, sorting, eviction, replay, derived analysis or IO.

@@ -13,11 +13,11 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from safeguard.conversation_memory import (ConversationMemory, HistoryError, SqliteConversationMemory,
+from safeguard.memory.conversation_status import (ConversationStatus, HistoryError, SqliteConversationStatus,
     SqliteDerivedState, StateError, StateProfile)
-from safeguard.original_assets import AssetError, AssetKey, AssetLimits, PersistentAssetStore
+from safeguard.memory.original_assets import AssetError, AssetKey, AssetLimits, PersistentAssetStore
 from safeguard.storage.local import LocalDatabase, StorageError, StorageLimits
-from test_derived_memory import ACCESS, HISTORY, INPUT, LIMITS, PROFILE, write
+from test_derived_state import ACCESS, HISTORY, INPUT, LIMITS, PROFILE, write
 from test_storage_ports import DATA
 from safeguard.adapters.demo import create_demo_adapter
 
@@ -41,7 +41,7 @@ class PersistentStorageTests(unittest.TestCase):
         return PersistentAssetStore(root=self.root/'originals',limits=kwargs.get('limits',ASSETS),storage_limits=kwargs.get('storage_limits',DISK))
 
     def history(self,**kwargs):
-        return SqliteConversationMemory(root=self.root/'memory',message_limits=INPUT,limits=kwargs.get('limits',HISTORY),storage_limits=kwargs.get('storage_limits',DISK))
+        return SqliteConversationStatus(root=self.root/'memory',message_limits=INPUT,limits=kwargs.get('limits',HISTORY),storage_limits=kwargs.get('storage_limits',DISK))
 
     def child(self,code):
         root=Path(__file__).resolve().parents[1]
@@ -75,14 +75,14 @@ sys.addaudithook(deny)
         with self.history() as history:
             boundary=append(history)
             derived=SqliteDerivedState(history=history,limits=LIMITS,profiles={'analysis':PROFILE})
-            memory=ConversationMemory(observations=history,derived=derived)
+            memory=ConversationStatus(observations=history,derived=derived)
             receipt=memory.detector.commit(ACCESS,boundary,expected_version=0,operation_id='durable-analysis',writes=(write(),))
             derived.close()
         with self.history() as history:
             self.assertEqual(history.snapshot(ACCESS,boundary).observed_count,1)
             derived=SqliteDerivedState(history=history,limits=LIMITS,profiles={'analysis':PROFILE})
             self.addCleanup(derived.close)
-            memory=ConversationMemory(observations=history,derived=derived)
+            memory=ConversationStatus(observations=history,derived=derived)
             snapshot=memory.detector.snapshot(ACCESS,boundary)
             self.assertEqual(snapshot.version,1)
             self.assertEqual(snapshot.records[0].payload(),dict(summary='A neutral reading-room result.'))
@@ -153,7 +153,7 @@ sys.addaudithook(deny)
             with self.subTest(phase=phase):
                 directory=self.root/phase
                 code=f'''import os,io
-from safeguard.original_assets import PersistentAssetStore
+from safeguard.memory.original_assets import PersistentAssetStore
 from test_persistent_storage import ASSETS,DISK,ACCESS,KEY,DATA
 store=PersistentAssetStore(root={str(directory)!r},limits=ASSETS,storage_limits=DISK).__enter__()
 publish=store._commit_receipts
@@ -171,9 +171,9 @@ store.put(ACCESS,KEY,io.BytesIO(DATA))
     def test_crash_after_observation_commit_retains_exact_history(self):
         directory=self.root/'memory'
         code=f'''import os
-from safeguard.conversation_memory import SqliteConversationMemory
+from safeguard.memory.conversation_status import SqliteConversationStatus
 from test_persistent_storage import INPUT,HISTORY,DISK,append
-history=SqliteConversationMemory(root={str(directory)!r},message_limits=INPUT,limits=HISTORY,storage_limits=DISK).__enter__()
+history=SqliteConversationStatus(root={str(directory)!r},message_limits=INPUT,limits=HISTORY,storage_limits=DISK).__enter__()
 history._append_prepared=lambda *args:os._exit(23)
 append(history)
 '''
@@ -203,9 +203,9 @@ append(history)
                 directory=self.root/('derived-'+phase)
                 code=f'''import os
 from contextlib import contextmanager
-from safeguard.conversation_memory import SqliteConversationMemory,SqliteDerivedState
+from safeguard.memory.conversation_status import SqliteConversationStatus,SqliteDerivedState
 from test_persistent_storage import INPUT,HISTORY,DISK,LIMITS,PROFILE,ACCESS,append,write
-history=SqliteConversationMemory(root={str(directory)!r},message_limits=INPUT,limits=HISTORY,storage_limits=DISK).__enter__()
+history=SqliteConversationStatus(root={str(directory)!r},message_limits=INPUT,limits=HISTORY,storage_limits=DISK).__enter__()
 boundary=append(history)
 state=SqliteDerivedState(history=history,limits=LIMITS,profiles={{'analysis':PROFILE}})
 transaction=history._database.transaction
@@ -219,7 +219,7 @@ history._database.transaction=interrupted
 state.commit(ACCESS,boundary,channel='detector',expected_version=0,operation_id='interrupted-derived',writes=(write(),))
 '''
                 result=self.child(code);self.assertEqual(result.returncode,29,result.stderr)
-                with SqliteConversationMemory(root=directory,message_limits=INPUT,limits=HISTORY,storage_limits=DISK) as history:
+                with SqliteConversationStatus(root=directory,message_limits=INPUT,limits=HISTORY,storage_limits=DISK) as history:
                     state=SqliteDerivedState(history=history,limits=LIMITS,profiles={'analysis':PROFILE})
                     self.assertEqual(history.stats['messages'],1)
                     self.assertEqual(state.stats['records'],expected)

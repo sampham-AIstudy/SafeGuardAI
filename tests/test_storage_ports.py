@@ -7,10 +7,10 @@ import tempfile
 import unittest
 
 from safeguard.adapters.demo import create_demo_adapter
-from safeguard.conversation_memory import (ConversationKey, HistoryError, HistoryLimits,
-    InMemoryConversationMemory, ObservedHistory)
+from safeguard.memory.conversation_status import (ConversationKey, HistoryError, HistoryLimits,
+    InMemoryConversationStatus, ObservedHistory)
 from safeguard.ingress import AccessContext, ConversationIngress, InputLimits, ProcessingLimits
-from safeguard.original_assets import AssetError, AssetKey, AssetLimits, LocalAssetStore, OriginalAssets
+from safeguard.memory.original_assets import AssetError, AssetKey, AssetLimits, LocalAssetStore, OriginalAssets
 from safeguard.scam_detection.context import ContextLimits, ContextPreparer
 from safeguard.scam_detection.intake import DetectionIntake
 from safeguard.scam_detection.tools.evidence import (EvidenceLimits, EvidenceLocation, EvidencePreparer,
@@ -53,7 +53,7 @@ class StoragePortTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_ingress_intake_and_reader_accept_independent_port_implementations(self):
         with tempfile.TemporaryDirectory() as parent, LocalAssetStore(parent=parent,limits=ASSETS) as raw_assets, \
-                InMemoryConversationMemory(message_limits=INPUT,limits=HISTORY) as raw_history:
+                InMemoryConversationStatus(message_limits=INPUT,limits=HISTORY) as raw_history:
             assets, history = ForwardAssets(raw_assets), ForwardHistory(raw_history)
             intake=DetectionIntake(history); seen=[]
             event=dict(thread='port-room',id='catalogue-entry',author='librarian',

@@ -10,7 +10,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from safeguard.original_assets import AssetError, AssetKey, AssetLimits, LocalAssetStore
+from safeguard.memory.original_assets import AssetError, AssetKey, AssetLimits, LocalAssetStore
 from safeguard.ingress import AccessContext
 
 
@@ -205,7 +205,7 @@ class OriginalAssetStoreTests(unittest.TestCase):
 
     def test_disk_failure_removes_partial_and_does_not_leak_private_error(self):
         with tempfile.TemporaryDirectory() as parent, LocalAssetStore(parent=parent, limits=LIMITS) as store:
-            with patch("safeguard.original_assets.store.os.fsync", side_effect=OSError("PRIVATE_DISK_ERROR")):
+            with patch("safeguard.memory.original_assets.store.os.fsync", side_effect=OSError("PRIVATE_DISK_ERROR")):
                 self.rejected(lambda: store.put(CONTEXT, key(), io.BytesIO(b"Toy")), "storage_failed")
             self.assertEqual(store.stats["files"], 0)
             self.assertEqual(store.stats["bytes"], 0)
@@ -214,8 +214,8 @@ class OriginalAssetStoreTests(unittest.TestCase):
     def test_failed_cleanup_breaks_store_and_context_close_recovers_own_files(self):
         with tempfile.TemporaryDirectory() as parent:
             with LocalAssetStore(parent=parent, limits=LIMITS) as store:
-                with patch("safeguard.original_assets.store.os.fsync", side_effect=OSError("PRIVATE_DISK_ERROR")), \
-                     patch("safeguard.original_assets.store.os.unlink", side_effect=OSError("PRIVATE_CLEANUP_ERROR")):
+                with patch("safeguard.memory.original_assets.store.os.fsync", side_effect=OSError("PRIVATE_DISK_ERROR")), \
+                     patch("safeguard.memory.original_assets.store.os.unlink", side_effect=OSError("PRIVATE_CLEANUP_ERROR")):
                     self.rejected(lambda: store.put(CONTEXT, key(), io.BytesIO(b"Toy")), "cleanup_failed")
                 self.assertEqual(store.stats["state"], "broken")
                 self.rejected(lambda: store.put(CONTEXT, key(), io.BytesIO(b"Toy")), "storage_broken")
@@ -245,7 +245,7 @@ class OriginalAssetStoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as parent:
             store = LocalAssetStore(parent=parent, limits=LIMITS)
             try:
-                with patch("safeguard.original_assets.store.os.open", side_effect=OSError("PRIVATE_OPEN_ERROR")):
+                with patch("safeguard.memory.original_assets.store.os.open", side_effect=OSError("PRIVATE_OPEN_ERROR")):
                     with self.assertRaises(AssetError):
                         store.__enter__()
                 self.assertEqual(list(Path(parent).iterdir()), [])
@@ -261,8 +261,8 @@ class OriginalAssetStoreTests(unittest.TestCase):
                 opened.append(fd)
                 return fd
             try:
-                with patch("safeguard.original_assets.store.os.open", side_effect=tracked), \
-                     patch("safeguard.original_assets.store.os.fdopen", side_effect=OSError("PRIVATE_WRAPPER_ERROR")):
+                with patch("safeguard.memory.original_assets.store.os.open", side_effect=tracked), \
+                     patch("safeguard.memory.original_assets.store.os.fdopen", side_effect=OSError("PRIVATE_WRAPPER_ERROR")):
                     with self.assertRaises(AssetError):
                         store.put(CONTEXT, key(), io.BytesIO(b"Toy"))
                 for fd in opened:

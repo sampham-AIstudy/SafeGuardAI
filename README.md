@@ -38,14 +38,14 @@ The **Scam Detection** block returns a conversation assessment/evidence or expli
 failure. Its **Execution Host** provides admission/context, permission/resource enforcement and
 result validation. Its **Controller** determines the next operation: model-directed in the agent
 variant, code-directed in the workflow variant. Both use the same model/tool access contracts.
-**Warning Policy** chooses user-facing actions and owns warning-history updates. **Conversation
-Memory** keeps observed and derived state distinct; **Original Assets** holds source bytes behind
-scoped retrieval. Original uploads use integration/file-ingress coordination, separate from
+**Warning Policy** chooses user-facing actions and owns warning-history updates. **Memory** contains
+**Conversation Status**, which keeps observed and derived state distinct, and **Original Assets**,
+which holds source bytes behind scoped retrieval. Original uploads use integration/file-ingress coordination, separate from
 Adapter.receive(). The partner application supplies permitted input and renders returned actions.
 
 These are logical responsibilities, not mandatory separate servers. Real model/readers, complete
 controllers, controller-driven state updates, Warning Policy and production integration remain unimplemented.
-Code lives in safeguard.scam_detection, conversation_memory, original_assets and adapters;
+Code lives in safeguard.scam_detection, safeguard.memory and safeguard.adapters;
 existing serialized contracts remain unchanged.
 
 The internal LLM call contract is specified at the design level: trusted context/tool binding,
@@ -72,7 +72,8 @@ this component grouping. Scam Detection and separate Warning Policy are adopted 
 | Scam Detection | Assess the observed conversation and return evidence/coverage or explicit failure; composed from host, controller, models and tools |
 | Warning Policy | Decide whether/when to warn from the assessment and permitted warning history |
 | Partner application | Supply permitted messages/originals and display the returned warning action |
-| Conversation Memory | Separate observed history, derived artifacts/results and warning records behind scoped ports; local SQLite persistence is implemented |
+| Memory | Contain Conversation Status and Original Assets on the SafeGuard service side |
+| Conversation Status | Separate observed history, derived artifacts/results and warning records behind scoped ports; local SQLite persistence is implemented |
 | Original Assets | Store original bytes separately from messages and derived evidence; scoped retrieval uses source identities and size/hash |
 
 Two input representations must stay distinct:
@@ -100,7 +101,7 @@ The logical architecture includes responsibilities that are still design work.
 | Adapter: Gateway + Norm | Demo receipt, ordered stream/handoff, native envelope v1 and common message v2; text/image/audio/video/file references | Real partner Gateway/mapping and transport integration |
 | Conversation ingress | Trusted scope, resource limits, sequential processing within each conversation, bounded concurrency across conversations and explicit failure/shutdown behavior | Real authentication, delivery protocol and replay/deduplication policy |
 | Original Assets | Scoped store port, temporary backend and durable local SQLite catalog/files; integrity, recovery, limits and upload/retrieval checks | Production operations/retention; content interpretation belongs to selected readers/models |
-| Conversation Memory | Observed-history port, atomic derived-state channels, read/write views, revision/idempotency checks and local SQLite persistence | Production operations/retention, message edit/delete/replay policy and actual Detector/Policy integration |
+| Conversation Status | Observed-history port, atomic derived-state channels, read/write views, revision/idempotency checks and local SQLite persistence | Production operations/retention, message edit/delete/replay policy and actual Detector/Policy integration |
 | Scam Detection: Execution Host | Intake, context preparation, registered capability brokerage, controller/result contracts and neutral substitution checks | Actual agent/workflow controllers, model client, reader-enriched context and controller-driven state updates |
 | Tools/readers | Scoped original-byte access and evidence/provenance contracts with injected test readers | Actual OCR/ASR/video/document readers or selected direct multimodal model paths |
 | LLM boundary | Request/reply/failure/usage design checked with independent offline examples | Runtime call binding, selected provider/model, token/media handling and real inference checks |
@@ -111,14 +112,16 @@ The LLM design separately passed **88 offline authoring checks**, including eigh
 scenarios. These checks establish covered contract behavior; no real model or detector quality
 was evaluated. Benchmark inputs were not used for development checks.
 
-**Original Assets and Conversation Memory are complete for the selected local backend scope.**
+**Original Assets and Conversation Status are complete for the selected local backend scope.**
 This includes independent port tests, real Adapter/ingress/Host integration with test controllers,
 restart/crash checks and local resource probes. The durable backend uses SQLite metadata and local
 files; production hosting/retention is unselected. Warning Policy implementation remains deferred
 until Scam Detection is complete. No real model or production service is included in this closure.
 
 Application code lives under `src/safeguard/`, with `adapters/gateways`, `adapters/norm`,
-`scam_detection`, `conversation_memory` and `original_assets` matching the implemented components.
+`scam_detection`, `memory/conversation_status` and `memory/original_assets` matching the implemented components.
+The `memory` package is the enclosing namespace; its two children keep independent scoped ports
+and lifecycles. Shared SQLite/filesystem helpers remain in `storage`, a supporting package.
 `scam_detection/execution_host.py` supplies the shared Host; `scam_detection/tools/evidence.py`
 supplies the reader/evidence boundary. ControllerSpec/ControllerReply declare the controller slot;
 actual agent/workflow controllers and model clients remain unimplemented. No empty packages imply
@@ -130,8 +133,8 @@ is needed for that command. Package metadata and schema-resource inclusion are i
 
 The rebuild starts with small, separately checked components. The deterministic
 [DetectionIntake](src/safeguard/scam_detection/intake.py) now connects normalized arrivals to
-[in-memory observed history](src/safeguard/conversation_memory/in_memory.py) and a substitute analyzer.
-It reuses the [observed-history boundary](src/safeguard/conversation_memory/history.py) to select detached prefixes.
+[in-memory observed history](src/safeguard/memory/conversation_status/in_memory.py) and a substitute analyzer.
+It reuses the [observed-history boundary](src/safeguard/memory/conversation_status/history.py) to select detached prefixes.
 The [context preparer](src/safeguard/scam_detection/context.py) projects those prefixes into bounded,
 immutable analysis-input documents with positional source references and unprocessed attachment coverage.
 No workflow/agent fraud assessment or model invocation is implemented.
@@ -245,7 +248,7 @@ Consumer timeouts require cooperative async code; they cannot preempt blocking i
 consumer that suppresses cancellation. There is no real transport, fraud analyzer, durable acknowledgement,
 exactly-once guarantee or automatic retry policy in this implementation.
 
-The [local original-file store](src/safeguard/original_assets/store.py) supplies the optional demo byte
+The [local original-file store](src/safeguard/memory/original_assets/store.py) supplies the optional demo byte
 boundary. `LocalAssetStore(parent=..., limits=AssetLimits(...))` creates a private temporary
 directory on a trusted host-selected parent. Its context owns the catalog/files; close removes
 them and ends reference validity. There is no restart persistence or production storage choice.
@@ -284,8 +287,8 @@ safety or media validity. Keep the store alive until all consumers have finished
 The [file-ingress tests](tests/test_file_ingress.py) show actual Adapter/Norm/consumer retrieval
 using newly created neutral files.
 
-`OriginalAssets` in [ports.py](src/safeguard/original_assets/ports.py) is the backend contract used
-by ingress and EvidencePreparer. [PersistentAssetStore](src/safeguard/original_assets/persistent.py)
+`OriginalAssets` in [ports.py](src/safeguard/memory/original_assets/ports.py) is the backend contract used
+by ingress and EvidencePreparer. [PersistentAssetStore](src/safeguard/memory/original_assets/persistent.py)
 implements it with a private host-selected root, a SQLite catalog and generated original-file names.
 Use `PersistentAssetStore(root=..., limits=AssetLimits(...), storage_limits=StorageLimits(...))`.
 `StorageLimits` requires explicit `max_database_bytes` and `busy_timeout_seconds`; no deployment
@@ -304,10 +307,10 @@ Local runtime directories under `.safeguard-runtime/` are excluded from Git.
 
 ---
 
-## Conversation Memory and detection intake
+## Conversation Status and detection intake
 
 `ConversationIngress(..., adapter=configured_adapter, intake=DetectionIntake(history))` connects the actual Adapter/Norm to an
-open `InMemoryConversationMemory` and a cooperative async analyzer callback. The callback receives
+open `InMemoryConversationStatus` and a cooperative async analyzer callback. The callback receives
 a `HistorySnapshot` instead of the ordinary normalized-message dictionary. Omitting `intake`
 retains normalized-message callback behavior. This is the observed-history connection to Scam
 Detection. The Execution Host below supplies the common analysis-output envelope; an actual
@@ -340,20 +343,20 @@ is appended; if state admission fails after upload, newly stored originals are e
 back. State retains references, not original bytes: keep the asset store alive while they are
 needed. Later callback failure does not automatically delete originals or observations.
 
-The [state tests](tests/test_conversation_memory.py) and
+The [state tests](tests/test_conversation_status.py) and
 [integration tests](tests/test_detection_intake.py) use newly authored neutral examples, including
 scope separation, exact prefix boundaries, mutation, capacity, failure/shutdown retention and
 real original-file retrieval. Structural snapshot checks do not establish model/tool information
 isolation outside the supplied callback interface, fraud accuracy or context-selection quality.
-Observed history implements [ObservedHistory](src/safeguard/conversation_memory/ports.py), so
+Observed history implements [ObservedHistory](src/safeguard/memory/conversation_status/ports.py), so
 DetectionIntake accepts another conforming backend. The RAM implementation expires on close.
-[SqliteConversationMemory](src/safeguard/conversation_memory/sqlite.py) preserves observations and
+[SqliteConversationStatus](src/safeguard/memory/conversation_status/sqlite.py) preserves observations and
 boundary identity across reopen, checks configured limits on restore and commits an append before
 exposing it in RAM. A failed acknowledgement is reconciled against the committed row; an unresolved
 commit stops the backend and keeps originals that may already be referenced.
 
-[ConversationMemory](src/safeguard/conversation_memory/core.py) composes opened observed history
-with a conforming `DerivedState` backend. [InMemoryDerivedState](src/safeguard/conversation_memory/derived.py)
+[ConversationStatus](src/safeguard/memory/conversation_status/core.py) composes opened observed history
+with a conforming `DerivedState` backend. [InMemoryDerivedState](src/safeguard/memory/conversation_status/derived.py)
 and `SqliteDerivedState` provide the same versioned state behavior. The SQLite implementation
 shares the observation database and replays validated transactions on reopen. Changed profile
 identities, malformed transactions or invalid observed boundaries fail instead of silently

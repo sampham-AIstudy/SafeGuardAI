@@ -12,7 +12,7 @@ from safeguard.adapters.demo import create_demo_adapter
 import warnings
 
 from safeguard.adapters.gateways.demo import DemoGateway
-from safeguard.conversation_memory import HistoryBoundary, HistoryLimits, InMemoryConversationMemory
+from safeguard.memory.conversation_status import HistoryBoundary, HistoryLimits, InMemoryConversationStatus
 from safeguard.scam_detection.context import ContextLimits, ContextPreparer
 from safeguard.scam_detection.tools.evidence import PartReference
 from safeguard.scam_detection.execution_host import (AssessmentProfile, CapabilityReply, CapabilitySpec, DetectionCancelled,
@@ -61,7 +61,7 @@ async def echo(scope, arguments):
 
 class ExecutionHostTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.history = InMemoryConversationMemory(message_limits=INPUT, limits=HISTORY)
+        self.history = InMemoryConversationStatus(message_limits=INPUT, limits=HISTORY)
         self.history.__enter__()
         self.addCleanup(self.history.close)
         self.intake = DetectionIntake(self.history)
@@ -423,7 +423,7 @@ class ExecutionHostIngressTests(unittest.IsolatedAsyncioTestCase):
     async def test_same_ingress_adapter_runs_both_controllers_without_contract_changes(self):
         all_results = []
         for controller in (direct_controller, tool_controller):
-            with InMemoryConversationMemory(message_limits=INPUT, limits=HISTORY) as history:
+            with InMemoryConversationStatus(message_limits=INPUT, limits=HISTORY) as history:
                 intake = DetectionIntake(history)
                 host = ExecutionHost(intake=intake, preparer=ContextPreparer(message_limits=INPUT, limits=CONTEXT),
                                   limits=LIMITS, capabilities=(CapabilitySpec("echo", "1.0", "tool", echo),), profile=PROFILE)

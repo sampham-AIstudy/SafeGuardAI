@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from safeguard.conversation_memory import HistoryBoundary, HistoryError, ObservedHistory
+from safeguard.memory.conversation_status import HistoryBoundary, HistoryError, ObservedHistory
 
 
 @dataclass(frozen=True, slots=True)

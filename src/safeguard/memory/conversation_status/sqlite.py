@@ -5,11 +5,11 @@ import sqlite3
 
 from safeguard.storage.local import LocalDatabase, StorageError
 from .contracts import ConversationKey, HistoryBoundary, HistoryError
-from .in_memory import InMemoryConversationMemory
+from .in_memory import InMemoryConversationStatus
 from .derived import (InMemoryDerivedState, SourceReference, StateError, StateWrite, encoded)
 
 
-class SqliteConversationMemory(InMemoryConversationMemory):
+class SqliteConversationStatus(InMemoryConversationStatus):
     """Bounded RAM working set backed by SQLite; close preserves observations.
 
     One open owner per directory and one host thread. Persistent boundary identity
@@ -39,7 +39,7 @@ class SqliteConversationMemory(InMemoryConversationMemory):
                     raise HistoryError('invalid_stored_history')
                 document=self.message_limits.decode(payload)
                 context=AccessContext(document['account_id'],frozenset((document['conversation_id'],)))
-                InMemoryConversationMemory.append(self,context,document)
+                InMemoryConversationStatus.append(self,context,document)
             return self
         except BaseException as error:
             self.close()
@@ -72,7 +72,7 @@ class SqliteConversationMemory(InMemoryConversationMemory):
 class SqliteDerivedState(InMemoryDerivedState):
     """Replay canonical transactions; persistence precedes each RAM publication."""
     def __init__(self, *, history, limits, profiles):
-        if not isinstance(history,SqliteConversationMemory) or history._database is None:
+        if not isinstance(history,SqliteConversationStatus) or history._database is None:
             raise StateError('open_sqlite_history_required')
         if getattr(history,'_derived_owner',None) is not None:
             raise StateError('derived_store_busy')

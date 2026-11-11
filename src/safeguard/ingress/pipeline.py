@@ -9,8 +9,8 @@ import math
 from uuid import uuid4
 
 from safeguard.adapters import Adapter, AdapterError
-from safeguard.original_assets import AssetError, AssetKey, OriginalAssets
-from safeguard.conversation_memory import HistoryError
+from safeguard.memory.original_assets import AssetError, AssetKey, OriginalAssets
+from safeguard.memory.conversation_status import HistoryError
 from safeguard.scam_detection.intake import DetectionIntake
 from .limits import InputLimits, InputViolation
 

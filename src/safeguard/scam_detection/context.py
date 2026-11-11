@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field, fields
 import json
 
-from safeguard.conversation_memory import ConversationKey, HistorySnapshot
+from safeguard.memory.conversation_status import ConversationKey, HistorySnapshot
 from safeguard.adapters.norm import NormalizationError, normalize
 
 

@@ -14,8 +14,8 @@ from safeguard.adapters.demo import create_demo_adapter
 from unittest.mock import patch
 
 from safeguard.adapters.gateways.demo import DemoGateway
-from safeguard.original_assets import AssetKey, AssetLimits, LocalAssetStore
-from safeguard.conversation_memory import ConversationKey, HistoryLimits, HistorySnapshot, InMemoryConversationMemory
+from safeguard.memory.original_assets import AssetKey, AssetLimits, LocalAssetStore
+from safeguard.memory.conversation_status import ConversationKey, HistoryLimits, HistorySnapshot, InMemoryConversationStatus
 from safeguard.scam_detection.context import ContextLimits, ContextPreparer
 from safeguard.scam_detection.tools.evidence import (EvidenceError, EvidenceLimits, EvidenceLocation, EvidencePreparer,
     EvidenceSegment, PartReference, ReaderInput, ReaderOutput, ReaderSpec)
@@ -311,7 +311,7 @@ class EvidenceIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_actual_input_store_context_and_reader_handoff_retains_history_on_reader_failure(self):
         with tempfile.TemporaryDirectory() as parent, \
                 LocalAssetStore(parent=parent, limits=AssetLimits(4096, 16384, 8, 16384, 8, 64)) as store, \
-                InMemoryConversationMemory(message_limits=INPUT, limits=HistoryLimits(8, 16, 1048576, 16, 1048576, 16, 1048576)) as history:
+                InMemoryConversationStatus(message_limits=INPUT, limits=HistoryLimits(8, 16, 1048576, 16, 1048576, 16, 1048576)) as history:
             preparer = ContextPreparer(message_limits=INPUT, limits=CONTEXT_LIMITS)
             bridge = EvidencePreparer(store=store, limits=LIMITS)
             results = []

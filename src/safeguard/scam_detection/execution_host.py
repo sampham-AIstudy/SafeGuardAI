@@ -10,7 +10,7 @@ import re
 import time
 from uuid import uuid4
 
-from safeguard.conversation_memory import HistoryError
+from safeguard.memory.conversation_status import HistoryError
 from safeguard.scam_detection.context import ContextError, ContextPreparer, PreparedContext
 from safeguard.scam_detection.tools.evidence import PartReference
 from safeguard.scam_detection.intake import DetectionIntake, DetectionRequest

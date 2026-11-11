@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from safeguard.adapters.demo import create_demo_adapter
-from safeguard.conversation_memory import (ConversationMemory, HistoryLimits, InMemoryConversationMemory,
+from safeguard.memory.conversation_status import (ConversationStatus, HistoryLimits, InMemoryConversationStatus,
     InMemoryDerivedState, SourceReference, StateError, StateLimits, StateProfile, StateWrite)
 from safeguard.ingress import AccessContext, InputLimits
 
@@ -27,15 +27,15 @@ def write(summary='A neutral reading-room result.',namespace='analysis',record_i
     return StateWrite(namespace,record_id,json.dumps(dict(summary=summary)).encode(),(SourceReference(1,0),))
 
 
-class DerivedMemoryTests(unittest.TestCase):
+class DerivedStateTests(unittest.TestCase):
     def setUp(self):
-        self.history=InMemoryConversationMemory(message_limits=INPUT,limits=HISTORY).__enter__()
+        self.history=InMemoryConversationStatus(message_limits=INPUT,limits=HISTORY).__enter__()
         self.addCleanup(self.history.close)
         self.adapter=create_demo_adapter(clock=lambda:datetime(2026,11,11,tzinfo=timezone.utc))
         self.boundary=self.append()
         self.state=InMemoryDerivedState(history=self.history,limits=LIMITS,profiles={n:PROFILE for n in ('analysis','evidence','warnings')})
         self.addCleanup(self.state.close)
-        self.memory=ConversationMemory(observations=self.history,derived=self.state)
+        self.memory=ConversationStatus(observations=self.history,derived=self.state)
 
     def append(self,index='first',room='state-room'):
         event=dict(thread=room,id=index,author='librarian',body='A newly authored reading-room observation.')

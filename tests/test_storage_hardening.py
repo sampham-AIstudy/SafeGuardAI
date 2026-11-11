@@ -9,9 +9,9 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from safeguard.conversation_memory import (ConversationKey, HistoryError, SqliteConversationMemory,
+from safeguard.memory.conversation_status import (ConversationKey, HistoryError, SqliteConversationStatus,
     SqliteDerivedState, StateError, StateProfile)
-from safeguard.original_assets import AssetError, AssetKey, PersistentAssetStore
+from safeguard.memory.original_assets import AssetError, AssetKey, PersistentAssetStore
 from safeguard.storage.local import LocalDatabase, StorageError
 from test_persistent_storage import DISK, ASSETS, ACCESS, HISTORY, INPUT, LIMITS, PROFILE, write, append
 
@@ -22,7 +22,7 @@ class StorageHardeningTests(unittest.TestCase):
         self.root=Path(self.temp.name)
 
     def history(self):
-        return SqliteConversationMemory(root=self.root/'memory',message_limits=INPUT,limits=HISTORY,storage_limits=DISK)
+        return SqliteConversationStatus(root=self.root/'memory',message_limits=INPUT,limits=HISTORY,storage_limits=DISK)
 
     def test_history_startup_on_wrong_thread_rejects_before_opening_storage(self):
         history=self.history();errors=[]

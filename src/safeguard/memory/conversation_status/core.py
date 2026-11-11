@@ -1,10 +1,10 @@
-"""Conversation Memory composition and trusted channel-specific views."""
+"""Conversation Status composition and trusted channel-specific views."""
 
 from .ports import DerivedState, ObservedHistory
 from .derived import StateError
 
 
-class MemoryReader:
+class ConversationStatusReader:
     """Read-only interface handed to readers/tools; no commit method."""
     def __init__(self, state, channel):
         self._state, self._channel = state, channel
@@ -13,17 +13,17 @@ class MemoryReader:
         return self._state.snapshot(context, boundary, channel=self._channel)
 
 
-class MemoryWriter(MemoryReader):
+class ConversationStatusWriter(ConversationStatusReader):
     """Trusted host view; channel is selected by composition, never a model argument."""
     def commit(self, context, boundary, *, expected_version, operation_id, writes):
         return self._state.commit(context, boundary, channel=self._channel,
             expected_version=expected_version,operation_id=operation_id,writes=writes)
 
     def reader(self):
-        return MemoryReader(self._state,self._channel)
+        return ConversationStatusReader(self._state,self._channel)
 
 
-class ConversationMemory:
+class ConversationStatus:
     """Compose opened observations with derived state for the same history instance.
 
     Trusted assembly gives detector/warning views to their owners and only reader
@@ -34,8 +34,8 @@ class ConversationMemory:
         if not isinstance(observations,ObservedHistory) or not isinstance(derived,DerivedState) or getattr(derived,'history',None) is not observations:
             raise StateError('invalid_memory_configuration')
         self.observations, self._derived = observations, derived
-        self.detector = MemoryWriter(derived,'detector')
-        self.warning_history = MemoryWriter(derived,'warning_history')
+        self.detector = ConversationStatusWriter(derived,'detector')
+        self.warning_history = ConversationStatusWriter(derived,'warning_history')
 
     def close(self):
         self._derived.close()

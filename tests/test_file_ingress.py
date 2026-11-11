@@ -10,7 +10,7 @@ import unittest
 
 from safeguard.adapters.demo import create_demo_adapter
 
-from safeguard.original_assets import AssetError, AssetKey, AssetLimits, LocalAssetStore
+from safeguard.memory.original_assets import AssetError, AssetKey, AssetLimits, LocalAssetStore
 from safeguard.ingress import AccessContext, ConversationIngress, IngressError, InputLimits, ProcessingLimits
 
 INPUT = InputLimits(65536, 4096, 16, 4096, 16, 8)
@@ -157,7 +157,7 @@ class FileIngressTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_original_bytes_can_be_retrieved_from_normalized_reference(self):
         # Capability check before implementation; the existing entry does not take streams.
-        from safeguard.original_assets import AssetKey, AssetLimits, LocalAssetStore
+        from safeguard.memory.original_assets import AssetKey, AssetLimits, LocalAssetStore
         data = b"Independently authored toy reading list.\n"
         context = AccessContext("toy-account", frozenset(("toy-room",)))
         native = {"thread": "toy-room", "id": "toy-note", "author": "toy-reader",

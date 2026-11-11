@@ -16,8 +16,8 @@ from safeguard.adapters.demo import create_demo_adapter
 from unittest.mock import patch
 
 from safeguard.adapters.gateways.demo import DemoGateway
-from safeguard.original_assets import AssetLimits, LocalAssetStore
-from safeguard.conversation_memory import ConversationKey, HistoryLimits, HistorySnapshot, InMemoryConversationMemory
+from safeguard.memory.original_assets import AssetLimits, LocalAssetStore
+from safeguard.memory.conversation_status import ConversationKey, HistoryLimits, HistorySnapshot, InMemoryConversationStatus
 from safeguard.scam_detection.context import ContextError, ContextLimits, ContextPreparer
 from safeguard.scam_detection.intake import DetectionIntake
 from safeguard.ingress import AccessContext, ConversationIngress, IngressError, InputLimits, ProcessingLimits
@@ -247,7 +247,7 @@ class ContextPreparationTests(unittest.TestCase):
 class ContextIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_real_ingress_scoped_prefixes_exclude_future_arrivals_and_preserve_history(self):
         seen = {}
-        with InMemoryConversationMemory(message_limits=INPUT, limits=HISTORY) as history:
+        with InMemoryConversationStatus(message_limits=INPUT, limits=HISTORY) as history:
             preparer = ContextPreparer(message_limits=INPUT, limits=LIMITS)
 
             async def analyzer(value):
@@ -270,7 +270,7 @@ class ContextIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(original.messages[0]["content_parts"][0]["text"], native()["body"])
 
     async def test_context_failure_retains_accepted_history_and_is_not_a_benign_result(self):
-        with InMemoryConversationMemory(message_limits=INPUT, limits=HISTORY) as history:
+        with InMemoryConversationStatus(message_limits=INPUT, limits=HISTORY) as history:
             preparer = ContextPreparer(message_limits=INPUT, limits=replace(LIMITS, max_output_bytes=1))
 
             async def analyzer(value):
@@ -288,7 +288,7 @@ class ContextIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_uploaded_original_is_not_read_or_treated_as_interpreted_evidence(self):
         with tempfile.TemporaryDirectory() as parent, \
                 LocalAssetStore(parent=parent, limits=AssetLimits(4096, 16384, 8, 16384, 8, 64)) as store, \
-                InMemoryConversationMemory(message_limits=INPUT, limits=HISTORY) as history:
+                InMemoryConversationStatus(message_limits=INPUT, limits=HISTORY) as history:
             seen = []
 
             async def analyzer(value):
