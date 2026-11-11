@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from safeguard.conversation_memory import HistoryBoundary, HistoryError, InMemoryConversationMemory
+from safeguard.conversation_memory import HistoryBoundary, HistoryError, ObservedHistory
 
 
 @dataclass(frozen=True, slots=True)
@@ -12,8 +12,8 @@ class DetectionRequest:
 
 
 class DetectionIntake:
-    def __init__(self, history: InMemoryConversationMemory):
-        if type(history) is not InMemoryConversationMemory:
+    def __init__(self, history: ObservedHistory):
+        if not isinstance(history, ObservedHistory):
             raise HistoryError("invalid_history")
         self.history = history
 

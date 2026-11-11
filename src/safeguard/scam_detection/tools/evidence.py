@@ -6,7 +6,7 @@ import inspect
 import json
 import re
 
-from safeguard.original_assets import AssetError, AssetKey, LocalAssetStore, StoredAsset
+from safeguard.original_assets import AssetError, AssetKey, OriginalAssets, StoredAsset
 from safeguard.conversation_memory import ConversationKey
 from safeguard.scam_detection.context import PreparedContext
 
@@ -113,8 +113,8 @@ class EvidenceResult:
 class EvidencePreparer:
     """A cooperative same-thread bridge, not a hostile-code execution sandbox."""
 
-    def __init__(self, *, store: LocalAssetStore, limits: EvidenceLimits):
-        if type(store) is not LocalAssetStore or type(limits) is not EvidenceLimits:
+    def __init__(self, *, store: OriginalAssets, limits: EvidenceLimits):
+        if not isinstance(store, OriginalAssets) or type(limits) is not EvidenceLimits:
             raise EvidenceError("invalid_configuration")
         self.store, self.limits = store, limits
 

@@ -9,7 +9,7 @@ import math
 from uuid import uuid4
 
 from safeguard.adapters import Adapter, AdapterError
-from safeguard.original_assets import AssetError, AssetKey, LocalAssetStore
+from safeguard.original_assets import AssetError, AssetKey, OriginalAssets
 from safeguard.conversation_memory import HistoryError
 from safeguard.scam_detection.intake import DetectionIntake
 from .limits import InputLimits, InputViolation
@@ -160,7 +160,7 @@ class ConversationIngress:
     def submit_json(self, raw: bytes, context: AccessContext) -> Ticket:
         return self._submit(raw, context, raw=True)
 
-    def submit_files(self, native, uploads: dict, context: AccessContext, *, store: LocalAssetStore) -> Ticket:
+    def submit_files(self, native, uploads: dict, context: AccessContext, *, store: OriginalAssets) -> Ticket:
         """Admit metadata plus cooperative binary streams; disk IO is synchronous.
 
         New originals remain until explicit host deletion/store close, including
@@ -210,7 +210,7 @@ class ConversationIngress:
                 self._reject(trace, "engine_intake", error.code)
         stored = ()
         if files:
-            if type(store) is not LocalAssetStore or type(uploads) is not dict:
+            if not isinstance(store, OriginalAssets) or type(uploads) is not dict:
                 self._reject(trace, "assets", "invalid_uploads")
             ids = [a["asset_id"] for a in message["assets"]]
             if set(uploads) != set(ids) or not ids:
