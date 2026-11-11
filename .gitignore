@@ -5,6 +5,8 @@
 /REFERENCE.md
 /history/
 /logs/
+# Private generated original-file stores may live under a host-selected parent.
+safeguard-assets-*/
 __pycache__/
 *.py[cod]
 *.egg-info/

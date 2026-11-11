@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="850" viewBox="0 0 1500 850">
+<title>SafeGuard alternative controllers — adopted logical design</title>
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse"><path d="M1 1 L9 5 L1 9 Z" fill="#334155"/></marker></defs>
+<style>text{font-family:DejaVu Sans,sans-serif;fill:#172633}.muted{fill:#526477}</style>
+<rect width="1500" height="850" fill="white"/>
+<text x="35" y="49" text-anchor="start" font-size="30" font-weight="700">
+<tspan x="35" dy="0">One processing contract · two controller implementations</tspan>
+</text>
+<text x="35" y="87" text-anchor="start" font-size="19" class="muted">
+<tspan x="35" dy="0">ADOPTED DESIGN · only orchestration varies in a controlled comparison</tspan>
+</text>
+<rect x="35" y="125" width="675" height="540" rx="22" fill="#fbfcfe" stroke="#91a1b3" stroke-width="2.2"/>
+<text x="372" y="165" text-anchor="middle" font-size="23" font-weight="700">
+<tspan x="372" dy="0">Agent controller · implement first</tspan>
+</text>
+<text x="372" y="201" text-anchor="middle" font-size="16" class="muted">
+<tspan x="372" dy="0">Same input scope, capabilities and result contract</tspan>
+</text>
+<rect x="790" y="125" width="675" height="540" rx="22" fill="#fbfcfe" stroke="#91a1b3" stroke-width="2.2"/>
+<text x="1127" y="165" text-anchor="middle" font-size="23" font-weight="700">
+<tspan x="1127" dy="0">Workflow controller · another branch</tspan>
+</text>
+<text x="1127" y="201" text-anchor="middle" font-size="16" class="muted">
+<tspan x="1127" dy="0">Same input scope, capabilities and result contract</tspan>
+</text>
+<rect x="100" y="245" width="485" height="95" rx="16" fill="#fff0c4" stroke="#c6a247" stroke-width="2.2"/>
+<text x="342" y="281" text-anchor="middle" font-size="22" font-weight="700">
+<tspan x="342" dy="0">LLM selects the next action</tspan>
+</text>
+<text x="342" y="310" text-anchor="middle" font-size="17" class="muted">
+<tspan x="342" dy="0">Tool request or final assessment</tspan>
+</text>
+<rect x="100" y="415" width="485" height="110" rx="16" fill="#e1eff4" stroke="#749eaf" stroke-width="2.2"/>
+<text x="342" y="454" text-anchor="middle" font-size="22" font-weight="700">
+<tspan x="342" dy="0">Host validates and executes</tspan>
+</text>
+<text x="342" y="487" text-anchor="middle" font-size="16" class="muted">
+<tspan x="342" dy="0">Return tool/model result or failure observation</tspan>
+</text>
+<path d="M342 340 V414" fill="none" stroke="#334155" stroke-width="2.4" marker-end="url(#arrow)"/>
+<text x="416" y="384" text-anchor="middle" font-size="15" class="muted">
+<tspan x="416" dy="0">Requested action</tspan>
+</text>
+<path d="M585 470 H650 V290 H586" fill="none" stroke="#334155" stroke-width="2.4" marker-end="url(#arrow)"/>
+<text x="625" y="564" text-anchor="middle" font-size="16" class="muted">
+<tspan x="625" dy="0">Feedback informs</tspan>
+<tspan x="625" dy="21.6">the next LLM decision</tspan>
+</text>
+<text x="342" y="616" text-anchor="middle" font-size="16" class="muted">
+<tspan x="342" dy="0">Host enforces limits and a bounded stop condition</tspan>
+</text>
+<rect x="855" y="245" width="485" height="95" rx="16" fill="#eadff7" stroke="#a17abf" stroke-width="2.2"/>
+<text x="1097" y="281" text-anchor="middle" font-size="22" font-weight="700">
+<tspan x="1097" dy="0">Code selects the next step</tspan>
+</text>
+<text x="1097" y="310" text-anchor="middle" font-size="16" class="muted">
+<tspan x="1097" dy="0">Declared branches, loops and finish conditions</tspan>
+</text>
+<rect x="855" y="415" width="485" height="110" rx="16" fill="#e1eff4" stroke="#749eaf" stroke-width="2.2"/>
+<text x="1097" y="454" text-anchor="middle" font-size="22" font-weight="700">
+<tspan x="1097" dy="0">Host validates and executes</tspan>
+</text>
+<text x="1097" y="487" text-anchor="middle" font-size="17" class="muted">
+<tspan x="1097" dy="0">Same permitted model/tool capabilities</tspan>
+</text>
+<path d="M1097 340 V414" fill="none" stroke="#334155" stroke-width="2.4" marker-end="url(#arrow)"/>
+<text x="1176" y="384" text-anchor="middle" font-size="15" class="muted">
+<tspan x="1176" dy="0">Requested operation</tspan>
+</text>
+<path d="M1340 470 H1405 V290 H1341" fill="none" stroke="#334155" stroke-width="2.4" marker-end="url(#arrow)"/>
+<text x="1380" y="564" text-anchor="middle" font-size="16" class="muted">
+<tspan x="1380" dy="0">Result enters</tspan>
+<tspan x="1380" dy="21.6">the coded transition</tspan>
+</text>
+<text x="1097" y="616" text-anchor="middle" font-size="16" class="muted">
+<tspan x="1097" dy="0">LLMs may assess content; code owns stage transitions</tspan>
+</text>
+<rect x="35" y="705" width="1430" height="110" rx="18" fill="#f1f5f9" stroke="#91a1b3" stroke-width="2.2"/>
+<text x="750" y="741" text-anchor="middle" font-size="19" font-weight="700">
+<tspan x="750" dy="0">Shared: Adapter · Execution Host · LLM/model access · Tools · Memory · Original Assets · Warning Policy</tspan>
+</text>
+<text x="750" y="778" text-anchor="middle" font-size="16" class="muted">
+<tspan x="750" dy="0">For an orchestration comparison: fix versions, available input, permissions, initial state/cache and resource ceilings; record actual usage.</tspan>
+</text>
+</svg>

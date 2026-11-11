@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-from safeguard.adapters.demo import AdapterInputError, DemoAdapter
+from safeguard.adapters.gateways.demo import GatewayInputError, DemoGateway
 
 
 NOW = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
@@ -34,9 +34,9 @@ def toy_event():
             "body": "  Chào bạn!\nHẹn gặp ở thư viện.  ", "sent_at": None}
 
 
-class DemoAdapterTests(unittest.TestCase):
+class DemoGatewayTests(unittest.TestCase):
     def setUp(self):
-        self.adapter = DemoAdapter("toy-account", clock=lambda: NOW)
+        self.adapter = DemoGateway("toy-account", clock=lambda: NOW)
 
     def checked_receive(self, event, adapter=None):
         result = (adapter or self.adapter).receive(event)
@@ -44,7 +44,7 @@ class DemoAdapterTests(unittest.TestCase):
         return result
 
     def rejected(self, operation, field, code=None):
-        with self.assertRaises(AdapterInputError) as caught:
+        with self.assertRaises(GatewayInputError) as caught:
             operation()
         self.assertEqual(caught.exception.field, field)
         if code:
@@ -140,33 +140,33 @@ class DemoAdapterTests(unittest.TestCase):
     def test_invalid_account_context(self):
         for value in [None, 1, False, "", "  "]:
             with self.subTest(account=value):
-                self.rejected(lambda: DemoAdapter(value), "account_id")
+                self.rejected(lambda: DemoGateway(value), "account_id")
 
     def test_invalid_clock_context(self):
-        self.rejected(lambda: DemoAdapter("toy-account", clock=None), "observed_at", "clock_not_callable")
+        self.rejected(lambda: DemoGateway("toy-account", clock=None), "observed_at", "clock_not_callable")
         for value in [None, "2026-01-02T03:04:05Z", NOW.replace(tzinfo=None)]:
             with self.subTest(clock_return=value):
-                adapter = DemoAdapter("toy-account", clock=lambda: value)
+                adapter = DemoGateway("toy-account", clock=lambda: value)
                 self.rejected(lambda: adapter.receive(toy_event()), "observed_at", "expected_aware_datetime")
 
     def test_clock_failure_does_not_echo_private_exception(self):
         def broken_clock():
             raise RuntimeError("PRIVATE_ERROR_CANARY")
 
-        adapter = DemoAdapter("toy-account", clock=broken_clock)
-        with self.assertRaises(AdapterInputError) as caught:
+        adapter = DemoGateway("toy-account", clock=broken_clock)
+        with self.assertRaises(GatewayInputError) as caught:
             adapter.receive(toy_event())
         self.assertEqual(caught.exception.code, "clock_failed")
         self.assertNotIn("PRIVATE_ERROR_CANARY", str(caught.exception))
 
     def test_observation_clock_is_converted_to_utc(self):
         value = datetime(2026, 1, 2, 10, 4, 5, 125000, tzinfo=timezone(timedelta(hours=7)))
-        adapter = DemoAdapter("toy-account", clock=lambda: value)
+        adapter = DemoGateway("toy-account", clock=lambda: value)
         self.assertEqual(self.checked_receive(toy_event(), adapter)["observed_at"], "2026-01-02T03:04:05.125000Z")
 
     def test_default_clock_is_real_aware_utc(self):
         before = datetime.now(timezone.utc)
-        result = self.checked_receive(toy_event(), DemoAdapter("toy-account"))
+        result = self.checked_receive(toy_event(), DemoGateway("toy-account"))
         after = datetime.now(timezone.utc)
         timestamp = datetime.fromisoformat(result["observed_at"].replace("Z", "+00:00"))
         self.assertLessEqual(before, timestamp)
@@ -201,7 +201,7 @@ class DemoAdapterTests(unittest.TestCase):
         def unexpected_clock():
             self.fail("Invalid native input should fail before reading the clock")
 
-        adapter = DemoAdapter("toy-account", clock=unexpected_clock)
+        adapter = DemoGateway("toy-account", clock=unexpected_clock)
         self.rejected(lambda: adapter.receive({}), "payload.thread", "required")
 
     def test_receive_uses_no_file_or_network_access(self):
