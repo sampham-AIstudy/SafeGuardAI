@@ -236,6 +236,39 @@ class OfflineSdkChecks(unittest.IsolatedAsyncioTestCase):
         self.assert_native_body(self.requests[0], receipts)
         self.assert_closed()
 
+    async def test_durable_runtime_sends_persisted_media_only_when_selected(self):
+        from tempfile import TemporaryDirectory
+        from safeguard.demo import demo_limits
+        from safeguard.detection.tools.readers import Utf8TextReader
+        from safeguard.runtime import NativeMediaOptions, open_agent_runtime
+        from test_native_media import MEDIA_LIMITS, all_media, populate
+
+        settings = ModelSettings(GEMINI_PROVIDER, GEMINI_MODEL, self.client.configuration_sha256,
+                                 512, 131072, 65536)
+        options = dict(limits=demo_limits(), client=self.client, settings=settings,
+                       input_fit=lambda binding, request: True, reader=Utf8TextReader(8192, 8192))
+        access = agent.fixtures.ACCESS
+        with TemporaryDirectory() as directory:
+            with open_agent_runtime(root=directory, **options) as runtime:
+                request, receipts = populate(runtime.detection.host.intake, runtime.originals)
+                result_without_media = await runtime.detection.run(request)
+                self.assertEqual(result_without_media.status, "completed")
+                body = json.loads(self.requests[0].content)
+                parts = body["contents"][0]["parts"]
+                self.assertEqual(len(parts), 1)
+                self.assertTrue(all(row["mode"] == "reference_only" for row in json.loads(parts[0]["text"])["media"]))
+
+            with open_agent_runtime(root=directory, native_media=NativeMediaOptions(MEDIA_LIMITS, all_media),
+                                    **options) as runtime:
+                result_with_media = await runtime.detection.run(request)
+                self.assertEqual(result_with_media.status, "completed")
+                self.assertEqual(len(self.requests), 2)
+                self.assert_native_body(self.requests[1], receipts)
+                saved = runtime.memory.detector.snapshot(access, request.boundary)
+                self.assertEqual(saved.version, 2)
+                self.assertEqual(saved.records[0].payload(), result_with_media.to_dict())
+        self.assert_closed()
+
     async def test_native_media_snapshot_is_stable_after_original_changes_during_tool_round(self):
         import io
         request, receipts, store, preparer = self.native_request()
