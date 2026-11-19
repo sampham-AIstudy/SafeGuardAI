@@ -239,7 +239,7 @@ class ContextPreparationTests(unittest.TestCase):
 
     def test_direct_import_in_a_fresh_process(self):
         env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1] / "src"))
-        result = subprocess.run([sys.executable, "-c", "from safeguard.scam_detection.context import ContextPreparer"],
+        result = subprocess.run([sys.executable, "-B", "-c", "from safeguard.scam_detection.context import ContextPreparer"],
                                 env=env, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
 

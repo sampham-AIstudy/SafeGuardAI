@@ -50,11 +50,11 @@ project=pathlib.Path.cwd()
 def deny(event,args):
     if event in ('open','os.listdir','os.scandir') and args and isinstance(args[0],(str,bytes)):
         p=pathlib.Path(args[0].decode() if isinstance(args[0],bytes) else args[0]).resolve()
-        if any(p==project/x or project/x in p.parents for x in ('data/benchmarks','evaluation','testset','devset','.audit-private')):
+        if any(p==project/x or project/x in p.parents for x in ('data/benchmarks','data/development','evaluation','testset','devset','.audit-private')):
             raise RuntimeError('Benchmark access forbidden in crash fixture')
 sys.addaudithook(deny)
 '''
-        result=subprocess.run([sys.executable,'-c',guard+code],cwd=root,
+        result=subprocess.run([sys.executable,'-B','-c',guard+code],cwd=root,
             env=dict(os.environ,PYTHONPATH=str(root/'src')+os.pathsep+str(root/'tests')),
             capture_output=True,text=True,timeout=15)
         return result

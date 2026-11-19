@@ -3,25 +3,34 @@
 /STATUS.md
 /PLAN.md
 /REFERENCE.md
+/.local/
+safeguard-assets-*/
+
+# Protect historical paths when replaying archived runs.
+/.safeguard-runtime/
 /history/
 /logs/
-# Private generated original-file stores may live under a host-selected parent.
-safeguard-assets-*/
-/.safeguard-runtime/
+/devset/
+/testset
+
+# Python, Pixi, and locally installed tools.
 __pycache__/
 *.py[cod]
 *.egg-info/
 /build/
 /dist/
 .pixi/
+/.agents/skills/devflow/
+
+# Local credentials and environment overrides.
+/.aws/
 .env
 .env.*
 !.env.example
 
 # Evaluation inputs, authoring material and private review records stay local.
 /.audit-private/
-/devset/
-/testset
 /data/benchmarks/
+/data/development/
 /evaluation/private/
 /evaluation/runs/

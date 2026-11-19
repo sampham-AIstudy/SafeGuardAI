@@ -186,7 +186,7 @@ class ConversationStatusTests(unittest.TestCase):
         guard='''import os,sys
 from pathlib import Path
 root=Path.cwd()
-forbidden=[root/p for p in ('data/benchmarks','evaluation','testset','devset','.audit-private')]
+forbidden=[root/p for p in ('data/benchmarks','data/development','evaluation','testset','devset','.audit-private')]
 def audit(event,args):
  if event in ('open','os.listdir','os.scandir') and args and isinstance(args[0],(str,bytes,os.PathLike)):
   path=Path(os.path.abspath(os.fsdecode(args[0])))
@@ -195,6 +195,6 @@ sys.addaudithook(audit)
 '''
         for module in ("safeguard.memory.conversation_status","safeguard.scam_detection.intake"):
             with self.subTest(module=module):
-                result=subprocess.run([sys.executable,"-c",guard+"import "+module],cwd=root,
+                result=subprocess.run([sys.executable,"-B","-c",guard+"import "+module],cwd=root,
                     env={**os.environ,"PYTHONPATH":str(root/"src")},capture_output=True,text=True,timeout=5)
                 self.assertEqual(result.returncode,0,result.stderr)
