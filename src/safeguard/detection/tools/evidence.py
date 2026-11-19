@@ -8,7 +8,7 @@ import re
 
 from safeguard.memory.original_assets import AssetError, AssetKey, OriginalAssets, StoredAsset
 from safeguard.memory.conversation_status import ConversationKey
-from safeguard.scam_detection.context import PreparedContext
+from safeguard.detection.context import PreparedContext
 
 
 _KINDS = frozenset(("image", "audio", "video", "file"))

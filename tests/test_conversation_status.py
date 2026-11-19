@@ -193,7 +193,7 @@ def audit(event,args):
   if any(path==p or p in path.parents for p in forbidden):raise AssertionError('Benchmark access prohibited')
 sys.addaudithook(audit)
 '''
-        for module in ("safeguard.memory.conversation_status","safeguard.scam_detection.intake"):
+        for module in ("safeguard.memory.conversation_status","safeguard.detection.intake"):
             with self.subTest(module=module):
                 result=subprocess.run([sys.executable,"-B","-c",guard+"import "+module],cwd=root,
                     env={**os.environ,"PYTHONPATH":str(root/"src")},capture_output=True,text=True,timeout=5)

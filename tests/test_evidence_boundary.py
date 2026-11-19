@@ -16,10 +16,10 @@ from unittest.mock import patch
 from safeguard.adapters.gateways.demo import DemoGateway
 from safeguard.memory.original_assets import AssetKey, AssetLimits, LocalAssetStore
 from safeguard.memory.conversation_status import ConversationKey, HistoryLimits, HistorySnapshot, InMemoryConversationStatus
-from safeguard.scam_detection.context import ContextLimits, ContextPreparer
-from safeguard.scam_detection.tools.evidence import (EvidenceError, EvidenceLimits, EvidenceLocation, EvidencePreparer,
+from safeguard.detection.context import ContextLimits, ContextPreparer
+from safeguard.detection.tools.evidence import (EvidenceError, EvidenceLimits, EvidenceLocation, EvidencePreparer,
     EvidenceSegment, PartReference, ReaderInput, ReaderOutput, ReaderSpec)
-from safeguard.scam_detection.intake import DetectionIntake
+from safeguard.detection.intake import DetectionIntake
 from safeguard.ingress import AccessContext, ConversationIngress, InputLimits, ProcessingLimits
 from safeguard.adapters.norm import normalize
 

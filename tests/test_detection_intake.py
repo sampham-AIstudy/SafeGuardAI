@@ -12,7 +12,7 @@ from safeguard.adapters.demo import create_demo_adapter
 from safeguard.adapters.gateways.demo import DemoGateway
 from safeguard.memory.original_assets import AssetKey, AssetLimits, LocalAssetStore
 from safeguard.memory.conversation_status import ConversationKey, HistoryError, HistoryLimits, InMemoryConversationStatus
-from safeguard.scam_detection.intake import DetectionIntake
+from safeguard.detection.intake import DetectionIntake
 from safeguard.ingress import AccessContext, ConversationIngress, IngressError, InputLimits, ProcessingLimits
 from safeguard.adapters.norm import normalize
 
@@ -188,7 +188,7 @@ class DetectionIntakeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_queued_observations_survive_analyzer_failure(self):
         from safeguard.memory.conversation_status import ConversationKey, HistoryLimits, InMemoryConversationStatus
-        from safeguard.scam_detection.intake import DetectionIntake
+        from safeguard.detection.intake import DetectionIntake
         with InMemoryConversationStatus(message_limits=INPUT,limits=HistoryLimits(16,64,1048576,32,524288,64,1048576)) as history:
             seen=[]
             async def analyzer(snapshot):

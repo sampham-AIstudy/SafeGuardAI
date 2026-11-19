@@ -11,9 +11,9 @@ from safeguard.memory.conversation_status import (ConversationKey, HistoryError,
     InMemoryConversationStatus, ObservedHistory)
 from safeguard.ingress import AccessContext, ConversationIngress, InputLimits, ProcessingLimits
 from safeguard.memory.original_assets import AssetError, AssetKey, AssetLimits, LocalAssetStore, OriginalAssets
-from safeguard.scam_detection.context import ContextLimits, ContextPreparer
-from safeguard.scam_detection.intake import DetectionIntake
-from safeguard.scam_detection.tools.evidence import (EvidenceLimits, EvidenceLocation, EvidencePreparer,
+from safeguard.detection.context import ContextLimits, ContextPreparer
+from safeguard.detection.intake import DetectionIntake
+from safeguard.detection.tools.evidence import (EvidenceLimits, EvidenceLocation, EvidencePreparer,
     EvidenceSegment, PartReference, ReaderOutput, ReaderSpec)
 
 INPUT = InputLimits(65536, 4096, 20, 8192, 32, 16)

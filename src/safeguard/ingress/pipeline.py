@@ -11,7 +11,7 @@ from uuid import uuid4
 from safeguard.adapters import Adapter, AdapterError
 from safeguard.memory.original_assets import AssetError, AssetKey, OriginalAssets
 from safeguard.memory.conversation_status import HistoryError
-from safeguard.scam_detection.intake import DetectionIntake
+from safeguard.detection.intake import DetectionIntake
 from .limits import InputLimits, InputViolation
 
 

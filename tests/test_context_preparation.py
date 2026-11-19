@@ -18,8 +18,8 @@ from unittest.mock import patch
 from safeguard.adapters.gateways.demo import DemoGateway
 from safeguard.memory.original_assets import AssetLimits, LocalAssetStore
 from safeguard.memory.conversation_status import ConversationKey, HistoryLimits, HistorySnapshot, InMemoryConversationStatus
-from safeguard.scam_detection.context import ContextError, ContextLimits, ContextPreparer
-from safeguard.scam_detection.intake import DetectionIntake
+from safeguard.detection.context import ContextError, ContextLimits, ContextPreparer
+from safeguard.detection.intake import DetectionIntake
 from safeguard.ingress import AccessContext, ConversationIngress, IngressError, InputLimits, ProcessingLimits
 from safeguard.adapters.norm import normalize
 
@@ -192,7 +192,7 @@ class ContextPreparationTests(unittest.TestCase):
             self.rejected(lambda: ContextPreparer(**kwargs), "invalid_configuration")
 
     def test_preflight_budget_rejection_precedes_normalization_or_partial_output(self):
-        with patch("safeguard.scam_detection.context.normalize", side_effect=AssertionError("Must not normalize")):
+        with patch("safeguard.detection.context.normalize", side_effect=AssertionError("Must not normalize")):
             self.rejected(lambda: prepare(snapshot(message(), message(1)), limits=replace(LIMITS, max_messages=1)), "message_limit")
             self.rejected(lambda: prepare(snapshot(message()), limits=replace(LIMITS, max_input_bytes=1)), "input_byte_limit")
 
@@ -239,7 +239,7 @@ class ContextPreparationTests(unittest.TestCase):
 
     def test_direct_import_in_a_fresh_process(self):
         env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1] / "src"))
-        result = subprocess.run([sys.executable, "-B", "-c", "from safeguard.scam_detection.context import ContextPreparer"],
+        result = subprocess.run([sys.executable, "-B", "-c", "from safeguard.detection.context import ContextPreparer"],
                                 env=env, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
 

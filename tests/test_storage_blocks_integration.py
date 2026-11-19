@@ -17,11 +17,11 @@ from safeguard.memory.conversation_status import (ConversationStatus, HistoryBou
     SqliteConversationStatus, SqliteDerivedState, StateLimits, StateProfile, StateWrite, SourceReference)
 from safeguard.ingress import AccessContext, ConversationIngress, IngressError, InputLimits, ProcessingLimits
 from safeguard.memory.original_assets import AssetKey, AssetLimits, LocalAssetStore, PersistentAssetStore
-from safeguard.scam_detection.context import ContextLimits, ContextPreparer
-from safeguard.scam_detection.intake import DetectionIntake, DetectionRequest
-from safeguard.scam_detection.execution_host import (AssessmentProfile, CapabilityReply, CapabilitySpec,
+from safeguard.detection.context import ContextLimits, ContextPreparer
+from safeguard.detection.intake import DetectionIntake, DetectionRequest
+from safeguard.detection.execution_host import (AssessmentProfile, CapabilityReply, CapabilitySpec,
     ControllerReply, ControllerSpec, ExecutionHost, ExecutionLimits)
-from safeguard.scam_detection.tools.evidence import (EvidenceLimits, EvidenceLocation, EvidencePreparer,
+from safeguard.detection.tools.evidence import (EvidenceLimits, EvidenceLocation, EvidencePreparer,
     EvidenceSegment, PartReference, ReaderOutput, ReaderSpec)
 from safeguard.storage.local import StorageLimits
 

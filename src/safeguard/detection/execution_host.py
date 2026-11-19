@@ -11,9 +11,9 @@ import time
 from uuid import uuid4
 
 from safeguard.memory.conversation_status import HistoryError
-from safeguard.scam_detection.context import ContextError, ContextPreparer, PreparedContext
-from safeguard.scam_detection.tools.evidence import PartReference
-from safeguard.scam_detection.intake import DetectionIntake, DetectionRequest
+from safeguard.detection.context import ContextError, ContextPreparer, PreparedContext
+from safeguard.detection.tools.evidence import PartReference
+from safeguard.detection.intake import DetectionIntake, DetectionRequest
 
 
 _NAME = re.compile(r"[a-z][a-z0-9_.-]{0,63}")

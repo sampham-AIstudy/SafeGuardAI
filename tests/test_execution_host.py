@@ -13,11 +13,11 @@ import warnings
 
 from safeguard.adapters.gateways.demo import DemoGateway
 from safeguard.memory.conversation_status import HistoryBoundary, HistoryLimits, InMemoryConversationStatus
-from safeguard.scam_detection.context import ContextLimits, ContextPreparer
-from safeguard.scam_detection.tools.evidence import PartReference
-from safeguard.scam_detection.execution_host import (AssessmentProfile, CapabilityReply, CapabilitySpec, DetectionCancelled,
+from safeguard.detection.context import ContextLimits, ContextPreparer
+from safeguard.detection.tools.evidence import PartReference
+from safeguard.detection.execution_host import (AssessmentProfile, CapabilityReply, CapabilitySpec, DetectionCancelled,
     ExecutionHost, ExecutionError, ExecutionLimits, ControllerReply, ControllerSpec, TokenUsage)
-from safeguard.scam_detection.intake import DetectionIntake, DetectionRequest
+from safeguard.detection.intake import DetectionIntake, DetectionRequest
 from safeguard.ingress import AccessContext, ConversationIngress, InputLimits, ProcessingLimits
 from safeguard.adapters.norm import normalize
 
