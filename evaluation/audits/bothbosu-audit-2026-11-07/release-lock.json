@@ -1,0 +1,27 @@
+{
+  "dataset": "BothBosu/multi-agent-scam-conversation",
+  "revision": "709db2b6c37f424c3070f29138abb33971e21ab9",
+  "review_date": "2026-11-07",
+  "files": {
+    "README.md": {
+      "url": "https://huggingface.co/datasets/BothBosu/multi-agent-scam-conversation/resolve/709db2b6c37f424c3070f29138abb33971e21ab9/README.md",
+      "bytes": 4042,
+      "sha256": "bc21d47e5593ee298f4c457adee4aa281ff6913063e67cb5f2289c7b097526af"
+    },
+    "agent_conversation_all.csv": {
+      "url": "https://huggingface.co/datasets/BothBosu/multi-agent-scam-conversation/resolve/709db2b6c37f424c3070f29138abb33971e21ab9/agent_conversation_all.csv",
+      "bytes": 4828897,
+      "sha256": "e6db0f4a31efc56ffd20951039578e578c92d732d0ca1a50ad925fcc681bd7cf"
+    },
+    "agent_conversation_train.csv": {
+      "url": "https://huggingface.co/datasets/BothBosu/multi-agent-scam-conversation/resolve/709db2b6c37f424c3070f29138abb33971e21ab9/agent_conversation_train.csv",
+      "bytes": 3841211,
+      "sha256": "e1c89f4e252162f5a37c01d2ebe9e0cdcad3b22b7bcf01ef730877cef04612db"
+    },
+    "agent_conversation_test.csv": {
+      "url": "https://huggingface.co/datasets/BothBosu/multi-agent-scam-conversation/resolve/709db2b6c37f424c3070f29138abb33971e21ab9/agent_conversation_test.csv",
+      "bytes": 986115,
+      "sha256": "93d380c704e47d81028aa55c03a3f28cd6e23498c03cb70aad136a3762c0cc74"
+    }
+  }
+}

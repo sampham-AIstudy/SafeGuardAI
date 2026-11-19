@@ -1,0 +1,47 @@
+{
+  "cross_domain_batches": {
+    "batch_2025-10-15_04-59-55": "cross_domain_1",
+    "batch_2025-10-15_05-02-25": "cross_domain_2",
+    "batch_2025-10-15_05-04-26": "cross_domain_3",
+    "batch_2025-10-15_05-06-26": "cross_domain_4",
+    "batch_2025-10-15_05-08-27": "cross_domain_5"
+  },
+  "dataset": "ICFD-31k",
+  "main_batch_domains": {
+    "batch_2025-10-11_21-42-13": "bank_payment_fraud",
+    "batch_2025-10-12_19-54-00": "ecommerce_marketplace",
+    "batch_2025-10-12_22-36-40": "utility_bill_service",
+    "batch_2025-10-12_23-39-07": "job_employment",
+    "batch_2025-10-13_00-20-15": "loan_shark_harassment",
+    "batch_2025-10-13_01-02-16": "tech_support_account",
+    "batch_2025-10-13_01-36-50": "personal_emergency_extortion",
+    "batch_2025-10-13_02-01-52": "insurance_healthcare",
+    "batch_2025-10-13_02-35-27": "travel_lottery",
+    "batch_2025-10-13_02-53-33": "government_impersonation"
+  },
+  "source_counts": {
+    "cross_domain": 1000,
+    "test": 4500,
+    "train": 21000,
+    "validation": 4500
+  },
+  "source_shards": {
+    "cross_domain": 1,
+    "test": 2,
+    "train": 10,
+    "validation": 2
+  },
+  "streaming_counts": {
+    "cross_domain": 45115,
+    "test": 179827,
+    "train": 712316,
+    "validation": 173813
+  },
+  "streaming_shards": {
+    "cross_domain": 2,
+    "test": 8,
+    "train": 50,
+    "validation": 8
+  },
+  "version": "v1.0"
+}

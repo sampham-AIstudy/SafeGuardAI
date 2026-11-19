@@ -1,0 +1,18 @@
+{
+  "phishvn": {
+    "status": "complete",
+    "artifact": "phishvn.json"
+  },
+  "babilong": {
+    "status": "complete",
+    "artifact": "babilong.json"
+  },
+  "phishrewrite": {
+    "status": "complete",
+    "artifact": "phishrewrite.json"
+  },
+  "icfd": {
+    "status": "complete",
+    "artifact": "icfd.json"
+  }
+}

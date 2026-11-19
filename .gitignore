@@ -1,6 +1,27 @@
-.DS_Store
-node_modules/
-*.env
-data/
+# Local project state and execution artifacts.
+/CLAUDE.md
+/STATUS.md
+/PLAN.md
+/REFERENCE.md
+/history/
+/logs/
+# Private generated original-file stores may live under a host-selected parent.
+safeguard-assets-*/
+/.safeguard-runtime/
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+/build/
+/dist/
+.pixi/
+.env
+.env.*
+!.env.example
+
+# Evaluation inputs, authoring material and private review records stay local.
+/.audit-private/
+/devset/
+/testset
+/data/benchmarks/
+/evaluation/private/
+/evaluation/runs/

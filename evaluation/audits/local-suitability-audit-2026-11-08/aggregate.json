@@ -1,0 +1,613 @@
+{
+  "counts": {
+    "benign": 125,
+    "conversations": 250,
+    "pairs": 28,
+    "scam": 125
+  },
+  "date": "2026-11-08",
+  "existing_review": {
+    "agreement_interpretation": "Final gold incorporates review/adjudication; this is reconciliation, not fresh independent validity evidence.",
+    "current_input_review_vs_final": {
+      "boundary_exact": 125,
+      "boundary_within_one": 125,
+      "distinct_current_inputs": 250,
+      "joint_scam": 125,
+      "label_matches_final": 250,
+      "review_rows_on_current_input": 250
+    },
+    "current_input_reviews": {
+      "active_input_reviewers": {
+        "Claude": 24,
+        "OpenAI": 226
+      },
+      "active_input_reviews": 250,
+      "all_review_rows_including_revisions": 273,
+      "excluded_historical_versions_replaced": 11,
+      "historical_adjudication_rows": 11,
+      "initial_review_rows": 250
+    },
+    "human_spot_check": {
+      "conditional_requirement": "Guide8.6",
+      "passed": false,
+      "status": "not_done_no_suitable_independent_person_available"
+    },
+    "initial_agreement": {
+      "alert_within_one_on_joint_scams": {
+        "agree": 121,
+        "denominator": 122
+      },
+      "cohen_kappa": 0.976,
+      "conversations": 250,
+      "label_agreements": 247,
+      "provider_counts": {
+        "Claude": 25,
+        "OpenAI": 225
+      },
+      "provisional_acceptance": {
+        "alert_within_one_min": 0.8,
+        "kappa_min": 0.8
+      },
+      "unit": "historical original inputs before repairs/adjudication/replacements"
+    },
+    "semantic_qc": {
+      "benign_wrong_suspicion": 8,
+      "evidence_annotation_findings": 1,
+      "evidence_annotation_findings_resolved_by_independent_adjudication": 1,
+      "new_case_groups_independently_checked": 4,
+      "paired_near_miss_groups_checked": 28,
+      "pairwise_seed_comparisons_checked": 57,
+      "reconstructed_pairs_checked": 2,
+      "reused_seed_groups_checked": 49,
+      "scam_suspicion_before_alert": 12,
+      "supported_prior_benign_histories": 12,
+      "unresolved_seed_diversity_groups": 0
+    },
+    "unresolved_findings": 0
+  },
+  "identity": {
+    "dataset_sha256": "4a6c8bdb1f455b3d1e1316b66af7fd9ed46ce63023401cb1652237f25064b964",
+    "managed_files": [
+      {
+        "path": "testset/synthetic-v1/BENCHMARK_PROTOCOL.md",
+        "sha256": "d885b29152829c55197551e7c7519647b04f8efeaa364e503298945fbb6e5147"
+      },
+      {
+        "path": "testset/synthetic-v1/CHANGELOG.md",
+        "sha256": "230b0539feb91967f5311b8dd2f220cc8d8bb87521cbd59e31afe0881f02499f"
+      },
+      {
+        "path": "testset/synthetic-v1/LABELING_GUIDE.md",
+        "sha256": "d96e764729c39b1eadd899d0399c24fb38dd6c173a173444058e1ee94f2f5198"
+      },
+      {
+        "path": "testset/synthetic-v1/README.md",
+        "sha256": "09c40394d781b1bc8eff91ccc674f9e5021a6230b10086f02f0f8b098101c036"
+      },
+      {
+        "path": "testset/synthetic-v1/conversation.schema.json",
+        "sha256": "c794b438c4ba26677cf5e51056b0eb241eae2f306c7f3677901c24e8747b8cf7"
+      },
+      {
+        "path": "testset/synthetic-v1/conversations.jsonl",
+        "sha256": "4a6c8bdb1f455b3d1e1316b66af7fd9ed46ce63023401cb1652237f25064b964"
+      },
+      {
+        "path": "testset/synthetic-v1/excluded.jsonl",
+        "sha256": "d1c03d783d8c02f457fef41aa8432d09ad33b10c2313de7f5a47247d550147ee"
+      },
+      {
+        "path": "testset/synthetic-v1/manifest.json",
+        "sha256": "e91234201343c866c8bfecf9cb97ba14d8d7e58d8cf3c74556bb8b407ed2fcfd"
+      },
+      {
+        "path": "testset/synthetic-v1/qc/adjudication.jsonl",
+        "sha256": "e80a2b37aa4ac8508590908f14188b24eaa797d1d680d4dfa204c92aff33aed4"
+      },
+      {
+        "path": "testset/synthetic-v1/qc/annotation-changes-private.jsonl",
+        "sha256": "2388a963dead40e839d051bd2e624971d448730d54cdcb923cc97115cfee4a52"
+      },
+      {
+        "path": "testset/synthetic-v1/qc/changes-private.jsonl",
+        "sha256": "793f389eddd774cf848d434232d32e2c4189c2306d5b13a93e145d62651cbbb5"
+      },
+      {
+        "path": "testset/synthetic-v1/qc/coverage.json",
+        "sha256": "be06a1032a5298d010f5b0d1e74f9999410287dfbb952ba9c89fce4f89ce9239"
+      },
+      {
+        "path": "testset/synthetic-v1/qc/guide_rule_equivalence.json",
+        "sha256": "c5e8d239e6e509ef4900efd278a178209f04920f407ea69bc11f9648adf18d2a"
+      },
+      {
+        "path": "testset/synthetic-v1/qc/layer-changes-private.jsonl",
+        "sha256": "b9a647138625d78a44467aabfcdf8db242a7da19b03f7ac14af5b6cd4ed4aade"
+      },
+      {
+        "path": "testset/synthetic-v1/qc/metadata-changes-private.jsonl",
+        "sha256": "01cc4bf33d4d0d6fef130e3bc654fd9e2cd81b740ac2f40c031849ae3734eb2a"
+      },
+      {
+        "path": "testset/synthetic-v1/qc/qc_report.json",
+        "sha256": "cd2c91c0518106c714847677e4b16e2417ccc2c208afcbe94580b611e6de2715"
+      },
+      {
+        "path": "testset/synthetic-v1/qc/review_inventory.json",
+        "sha256": "368a030ec86f05f424d85640ed506939c8c97c837870afcbfae00146f0b52579"
+      },
+      {
+        "path": "testset/synthetic-v1/qc/second_pass.jsonl",
+        "sha256": "bdcf005d37509472814af92bf7218cd23dfc6b5cae2e0115632a6166e5750603"
+      },
+      {
+        "path": "testset/synthetic-v1/qc/source-changes-private.jsonl",
+        "sha256": "c927557ad321d8438e2dcb341d30f32d4477157b222d9db8ce537b4edf43a855"
+      },
+      {
+        "path": "testset/synthetic-v1/qc/source_coverage.json",
+        "sha256": "9d73646625a03933f4bdd340b1bf2074d3fdba7ab005df9080f8a6d8826732ec"
+      },
+      {
+        "path": "testset/synthetic-v1/seeds/seed_catalog.jsonl",
+        "sha256": "3d26d37f193cc0307f4a0f5d9938e7dd8b4005628b1d136304a1aceecff0ec31"
+      }
+    ],
+    "managed_files_verified": 21,
+    "scorer_sha256": "cc4b8312bc5097f86afa5d75cdaa48debad38e64f9ca01010e61a2cd797796db",
+    "script_sha256": "5da0c1cdd7484027f2ebbc2b655bcd3c919f458b423abc6011087e74ec4137a0"
+  },
+  "limits": [
+    "No new blinded prefix-only annotations; hindsight has not been empirically tested.",
+    "No semantic verification of every pair or independent human validation.",
+    "Synthetic balanced sample; no deployment, causal or benchmark-novelty claim.",
+    "Full-transcript surface associations do not prove an online warning shortcut.",
+    "Surface diagnostic fitting is audit-only; no learned rule, thresholds or case predictions enter detector development.",
+    "Existing developer-access incident remains disclosed; a strict never-seen claim is unavailable."
+  ],
+  "missing_prediction_withholds_metrics": true,
+  "pairs": {
+    "counts": {
+      "reciprocal_opposite_class": 28,
+      "same_channel": 28,
+      "same_first_message_role_and_normalized_text": 16,
+      "same_message_count": 28,
+      "same_resemblance_type": 27,
+      "same_saved_contact_status": 25,
+      "shared_prefix_includes_scam_boundary": 0
+    },
+    "interpretation": "Topic-matched diagnostics; lexical similarity does not validate deciding differences or establish minimal causal pairs.",
+    "shared_opening_message_count": {
+      "max": 10,
+      "mean": 0.9642857142857143,
+      "median": 1.0,
+      "min": 0,
+      "n": 28
+    },
+    "whole_text_whitespace_token_jaccard": {
+      "max": 0.6483050847457628,
+      "mean": 0.27585059464639355,
+      "median": 0.2674364248317128,
+      "min": 0.16470588235294117,
+      "n": 28
+    }
+  },
+  "prefix_conflicts": {
+    "full_input": {
+      "conflicting_groups": 0,
+      "duplicate_groups": 10,
+      "minimum_errors_for_deterministic_stateless_mapping": 0,
+      "prefix_rows": 2962,
+      "unique_prefixes": 2952
+    },
+    "normalized_text": {
+      "conflicting_groups": 0,
+      "duplicate_groups": 27,
+      "minimum_errors_for_deterministic_stateless_mapping": 0,
+      "prefix_rows": 2962,
+      "unique_prefixes": 2935
+    }
+  },
+  "scope": "Frozen-reference consistency, pair structure, surface diagnostics and scorer controls. No fresh semantic review or detector inference.",
+  "scorer_controls": {
+    "label_and_boundary_oracle": {
+      "metrics": {
+        "benign_false_alarm_rate": 0.0,
+        "conversation_accuracy": 1.0,
+        "conversation_f1": 1.0,
+        "conversation_precision": 1.0,
+        "conversation_recall": 1.0,
+        "evidence_respecting_detection_rate": 1.0,
+        "exact_boundary_detection_rate": 1.0,
+        "miss_rate": 0.0,
+        "paired_near_miss_success_rate": 1.0,
+        "premature_warning_rate": 0.0,
+        "warning_delay_denominator": 125,
+        "warning_delay_mean_messages": 0,
+        "warning_delay_median_messages": 0
+      },
+      "successful_pairs": 28
+    },
+    "never_warn": {
+      "metrics": {
+        "benign_false_alarm_rate": 0.0,
+        "conversation_accuracy": 0.5,
+        "conversation_f1": 0.0,
+        "conversation_precision": null,
+        "conversation_recall": 0.0,
+        "evidence_respecting_detection_rate": 0.0,
+        "exact_boundary_detection_rate": 0.0,
+        "miss_rate": 1.0,
+        "paired_near_miss_success_rate": 0.0,
+        "premature_warning_rate": 0.0,
+        "warning_delay_denominator": 0,
+        "warning_delay_mean_messages": null,
+        "warning_delay_median_messages": null
+      },
+      "successful_pairs": 0
+    },
+    "warn_on_final_message": {
+      "metrics": {
+        "benign_false_alarm_rate": 1.0,
+        "conversation_accuracy": 0.5,
+        "conversation_f1": 0.6666666666666666,
+        "conversation_precision": 0.5,
+        "conversation_recall": 1.0,
+        "evidence_respecting_detection_rate": 1.0,
+        "exact_boundary_detection_rate": 0.088,
+        "miss_rate": 0.0,
+        "paired_near_miss_success_rate": 0.0,
+        "premature_warning_rate": 0.0,
+        "warning_delay_denominator": 125,
+        "warning_delay_mean_messages": 4.816,
+        "warning_delay_median_messages": 4
+      },
+      "successful_pairs": 0
+    },
+    "warn_on_first_message": {
+      "metrics": {
+        "benign_false_alarm_rate": 1.0,
+        "conversation_accuracy": 0.5,
+        "conversation_f1": 0.6666666666666666,
+        "conversation_precision": 0.5,
+        "conversation_recall": 1.0,
+        "evidence_respecting_detection_rate": 0.104,
+        "exact_boundary_detection_rate": 0.104,
+        "miss_rate": 0.0,
+        "paired_near_miss_success_rate": 0.0,
+        "premature_warning_rate": 0.896,
+        "warning_delay_denominator": 13,
+        "warning_delay_mean_messages": 0,
+        "warning_delay_median_messages": 0
+      },
+      "successful_pairs": 0
+    }
+  },
+  "surface_associations": {
+    "attachment_count": {
+      "auc_higher_means_scam": 0.547392,
+      "benign": {
+        "max": 2,
+        "mean": 0.064,
+        "median": 0,
+        "min": 0,
+        "n": 125
+      },
+      "scam": {
+        "max": 1,
+        "mean": 0.152,
+        "median": 0,
+        "min": 0,
+        "n": 125
+      }
+    },
+    "channel_messenger": {
+      "auc_higher_means_scam": 0.5,
+      "benign": {
+        "max": 1,
+        "mean": 0.232,
+        "median": 0,
+        "min": 0,
+        "n": 125
+      },
+      "scam": {
+        "max": 1,
+        "mean": 0.232,
+        "median": 0,
+        "min": 0,
+        "n": 125
+      }
+    },
+    "channel_sms": {
+      "auc_higher_means_scam": 0.5,
+      "benign": {
+        "max": 1,
+        "mean": 0.272,
+        "median": 0,
+        "min": 0,
+        "n": 125
+      },
+      "scam": {
+        "max": 1,
+        "mean": 0.272,
+        "median": 0,
+        "min": 0,
+        "n": 125
+      }
+    },
+    "channel_telegram": {
+      "auc_higher_means_scam": 0.5,
+      "benign": {
+        "max": 1,
+        "mean": 0.088,
+        "median": 0,
+        "min": 0,
+        "n": 125
+      },
+      "scam": {
+        "max": 1,
+        "mean": 0.088,
+        "median": 0,
+        "min": 0,
+        "n": 125
+      }
+    },
+    "channel_zalo": {
+      "auc_higher_means_scam": 0.5,
+      "benign": {
+        "max": 1,
+        "mean": 0.408,
+        "median": 0,
+        "min": 0,
+        "n": 125
+      },
+      "scam": {
+        "max": 1,
+        "mean": 0.408,
+        "median": 0,
+        "min": 0,
+        "n": 125
+      }
+    },
+    "contact_message_share": {
+      "auc_higher_means_scam": 0.542944,
+      "benign": {
+        "max": 1.0,
+        "mean": 0.5658246962188138,
+        "median": 0.5,
+        "min": 0.4,
+        "n": 125
+      },
+      "scam": {
+        "max": 1.0,
+        "mean": 0.5542184025125202,
+        "median": 0.5294117647058824,
+        "min": 0.375,
+        "n": 125
+      }
+    },
+    "digit_share": {
+      "auc_higher_means_scam": 0.714912,
+      "benign": {
+        "max": 0.12610837438423644,
+        "mean": 0.007435677608991676,
+        "median": 0.0,
+        "min": 0.0,
+        "n": 125
+      },
+      "scam": {
+        "max": 0.04884318766066838,
+        "mean": 0.01367935567127666,
+        "median": 0.012149532710280374,
+        "min": 0.0,
+        "n": 125
+      }
+    },
+    "link_message_share": {
+      "auc_higher_means_scam": 0.581248,
+      "benign": {
+        "max": 0.3333333333333333,
+        "mean": 0.010403174603174603,
+        "median": 0.0,
+        "min": 0.0,
+        "n": 125
+      },
+      "scam": {
+        "max": 0.6666666666666666,
+        "mean": 0.03628815400285988,
+        "median": 0.0,
+        "min": 0.0,
+        "n": 125
+      }
+    },
+    "mean_text_characters": {
+      "auc_higher_means_scam": 0.571712,
+      "benign": {
+        "max": 156.33333333333334,
+        "mean": 78.96070122818358,
+        "median": 76.55555555555556,
+        "min": 40.1,
+        "n": 125
+      },
+      "scam": {
+        "max": 157.8,
+        "mean": 83.78149541014541,
+        "median": 80.58333333333333,
+        "min": 47.77777777777778,
+        "n": 125
+      }
+    },
+    "message_count": {
+      "auc_higher_means_scam": 0.5,
+      "benign": {
+        "max": 40,
+        "mean": 11.848,
+        "median": 10,
+        "min": 3,
+        "n": 125
+      },
+      "scam": {
+        "max": 40,
+        "mean": 11.848,
+        "median": 10,
+        "min": 3,
+        "n": 125
+      }
+    },
+    "nonascii_share": {
+      "auc_higher_means_scam": 0.435744,
+      "benign": {
+        "max": 0.24123422159887797,
+        "mean": 0.18147849694009888,
+        "median": 0.20961145194274028,
+        "min": 0.0,
+        "n": 125
+      },
+      "scam": {
+        "max": 0.24611398963730569,
+        "mean": 0.1799969759948983,
+        "median": 0.20659062103929024,
+        "min": 0.0,
+        "n": 125
+      }
+    },
+    "saved_contact": {
+      "auc_higher_means_scam": 0.316,
+      "benign": {
+        "max": 1,
+        "mean": 0.48,
+        "median": 0,
+        "min": 0,
+        "n": 125
+      },
+      "scam": {
+        "max": 1,
+        "mean": 0.112,
+        "median": 0,
+        "min": 0,
+        "n": 125
+      }
+    },
+    "text_characters": {
+      "auc_higher_means_scam": 0.541632,
+      "benign": {
+        "max": 2826,
+        "mean": 837.752,
+        "median": 754,
+        "min": 225,
+        "n": 125
+      },
+      "scam": {
+        "max": 2444,
+        "mean": 895.776,
+        "median": 796,
+        "min": 356,
+        "n": 125
+      }
+    },
+    "timestamp_share": {
+      "auc_higher_means_scam": 0.496,
+      "benign": {
+        "max": 1.0,
+        "mean": 0.008,
+        "median": 0.0,
+        "min": 0.0,
+        "n": 125
+      },
+      "scam": {
+        "max": 0.0,
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "n": 125
+      }
+    }
+  },
+  "surface_rule_group_cv": {
+    "folds": [
+      {
+        "test_correct": 33,
+        "test_positive": 28,
+        "test_rows": 51,
+        "train_errors": 61,
+        "train_rows": 199
+      },
+      {
+        "test_correct": 31,
+        "test_positive": 21,
+        "test_rows": 56,
+        "train_errors": 54,
+        "train_rows": 194
+      },
+      {
+        "test_correct": 30,
+        "test_positive": 27,
+        "test_rows": 50,
+        "train_errors": 60,
+        "train_rows": 200
+      },
+      {
+        "test_correct": 42,
+        "test_positive": 27,
+        "test_rows": 62,
+        "train_errors": 59,
+        "train_rows": 188
+      },
+      {
+        "test_correct": 21,
+        "test_positive": 22,
+        "test_rows": 31,
+        "train_errors": 69,
+        "train_rows": 219
+      }
+    ],
+    "group_count": 115,
+    "interpretation": "One fixed five-fold grouping; train-only surface rule. A diagnostic with task-relevant covariates, not an engine result or proof of shortcuts.",
+    "largest_group": 15,
+    "paired_both_classified_correctly": 5,
+    "paired_denominator": 28,
+    "surface_stump": {
+      "accuracy": 0.628,
+      "f1": 0.6736842105263158,
+      "fn": 29,
+      "fp": 64,
+      "fpr": 0.512,
+      "recall": 0.768,
+      "tn": 61,
+      "tp": 96
+    },
+    "train_majority": {
+      "accuracy": 0.412,
+      "f1": 0.3950617283950617,
+      "fn": 77,
+      "fp": 70,
+      "fpr": 0.56,
+      "recall": 0.384,
+      "tn": 55,
+      "tp": 48
+    }
+  },
+  "timing": {
+    "boundary_at_final_message": 11,
+    "boundary_at_zero": 13,
+    "boundary_message_index": {
+      "max": 28,
+      "mean": 6.032,
+      "median": 5,
+      "min": 0,
+      "n": 125
+    },
+    "interpretation": "Kind tags are gold, not detector inputs. Necessary-kind consistency cannot establish text meaning, common scheme, completeness of evidence annotations, or absence of annotator hindsight.",
+    "kind_completion": {
+      "boundary_message_has_annotation": 125,
+      "has_annotations_after_boundary": 106,
+      "pre_boundary_kind_condition_absent": 125,
+      "same": 125
+    },
+    "prefix_units": {
+      "at_or_after_reference": 727,
+      "before_reference": 754,
+      "benign": 1481
+    }
+  }
+}

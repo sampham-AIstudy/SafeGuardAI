@@ -1,0 +1,18 @@
+test_annotation_fault_does_not_discard_source (test_audit.AuditContractTests.test_annotation_fault_does_not_discard_source) ... ok
+test_future_and_unordered_text_are_rejected (test_audit.AuditContractTests.test_future_and_unordered_text_are_rejected) ... ok
+test_input_drops_gold_and_metadata (test_audit.AuditContractTests.test_input_drops_gold_and_metadata) ... ok
+test_known_confusion_matrix (test_audit.AuditContractTests.test_known_confusion_matrix) ... ok
+test_malformed_annotations_are_not_silently_repaired (test_audit.AuditContractTests.test_malformed_annotations_are_not_silently_repaired) ... ok
+test_missing_and_invalid_predictions (test_audit.AuditContractTests.test_missing_and_invalid_predictions) ... ok
+test_missing_timestamp_is_reported_without_aborting (test_audit.AuditContractTests.test_missing_timestamp_is_reported_without_aborting) ... ok
+test_native_fallback_is_sixty_percent_duration (test_audit.AuditContractTests.test_native_fallback_is_sixty_percent_duration) ... ok
+test_native_keyword_boundary_is_not_evidence_annotation (test_audit.AuditContractTests.test_native_keyword_boundary_is_not_evidence_annotation) ... ok
+test_native_never_includes_unfinished_utterance (test_audit.AuditContractTests.test_native_never_includes_unfinished_utterance) ... ok
+test_no_warning_is_not_failure (test_audit.AuditContractTests.test_no_warning_is_not_failure) ... ok
+test_undefined_denominators (test_audit.AuditContractTests.test_undefined_denominators) ... ok
+test_unknown_gold_is_rejected (test_audit.AuditContractTests.test_unknown_gold_is_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.016s
+
+OK
