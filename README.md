@@ -1,194 +1,94 @@
-<div align="center">
-
 # mini-safeguard
 
-![Python](https://img.shields.io/badge/Python-3.12%2B-498AF2?style=for-the-badge)
-![Status](https://img.shields.io/badge/Status-in_development-A19654?style=for-the-badge)
-![Tests](https://img.shields.io/badge/Tests-unittest-6B7F4E?style=for-the-badge)
-
-**Scam detection from conversation history, with interchangeable agent and workflow control.**
-
-</div>
-
----
-
-## Overview
-
-mini-safeguard is a research project for detecting scams in Vietnamese conversations as messages
-arrive. Each assessment uses the conversation observed through the current message. A separate
-policy decides whether and when to warn the protected user.
-
-The intended product is a service operated by the SafeGuard provider. Partner applications
-supply permitted messages and attachments, then display returned warning actions.
-
-The research compares agent and workflow control behind the same Detection boundary. Both
-will use the same message, storage and capability contracts. Development starts with the agent;
-the workflow will follow on a separate branch.
-
-> **Note:** The current code implements input handling, storage and the Detection execution
-> foundation. It does not yet run a scam-detection model or return warnings to an application.
-
----
+SafeGuard is a research project for detecting scams in Vietnamese conversations as messages arrive. Partner applications send permitted messages and attachments. SafeGuard assesses the observed conversation and returns a warning action for the partner to display.
 
 ## Architecture
 
-![Overall architecture](docs/assets/architecture.png)
+![Owner's SafeGuard architecture](docs/assets/architecture.png)
 
-Messages enter through Adapter, which produces a common message for Detection. Detection
-reads conversation state and original attachments from Memory, then produces assessment signals.
-Policy converts those signals into a warning action for the application.
+| Block | Responsibility |
+|---|---|
+| **Partner API and Ingress** | Admit scoped events and originals, enforce input limits, and preserve per-conversation order. |
+| **Adapter** | Receive source events through Gateway and convert them through Norm. Preserve identity, provenance, and attachment references. |
+| **Memory** | Keep scoped conversation state in Conversation Status and original bytes in Original Assets. The local backend uses SQLite and files. |
+| **Detection** | Bind the observed prefix, run the Agent Controller with permitted tools and models, and commit an assessment with source references. |
+| **Warning Policy** | Convert a committed assessment into a warning action and retain its own warning history. |
 
-These are logical responsibilities. Their boundaries do not require separate servers or processes.
-
-### Adapter
-
-![Adapter architecture](docs/assets/architecture-adapter.png)
-
-Adapter contains two components:
-
-- **Gateway** receives events in a source's native format and preserves source identity.
-- **Norm** maps those events to the common internal message while retaining provenance.
-
-The demo implementation handles individual messages and ordered streams. Common messages
-contain ordered text, image, audio, video and file parts. Attachments travel as references;
-their original bytes enter storage through the file-ingress path. Normalization does not decode
-or interpret media.
-
-The demo Adapter is complete for its agreed scope. Integration with real messaging sources
-is deferred.
-
-### Memory
-
-![Memory architecture](docs/assets/architecture-memory.png)
-
-Memory contains two independently accessible components:
-
-- **Conversation Status** stores observed messages, derived evidence, analysis results and
-  warning history in separate logical channels. Reads select an exact observed-history boundary;
-  updates check scope, source references and state versions.
-- **Original Assets** stores original attachment bytes with scoped identities, actual sizes
-  and hashes. Detection reads originals through a checked interface. Derived text and model
-  results remain separate from the originals.
-
-Both stores belong on infrastructure operated by the SafeGuard provider. The current durable
-backend uses SQLite and filesystem storage on the host running the service. "Local" describes
-that host's storage; it does not require storage on a customer or end-user device. Temporary
-file and in-memory backends are also available for development.
-
-> **Note:** Messages, attachments and derived evidence can contain personal data. Current
-> storage checks scope and filesystem permissions. Production authentication, staff access,
-> encryption/key management, retention, deletion, backups and external-model data sharing
-> still need a complete design. Functional storage checks do not establish production privacy readiness.
-
-### Detection and Policy
-
-Detection owns scam-risk assessment. Its current code provides intake, context preparation,
-an Execution Host and scoped capability calls. The Host runs an injected controller, enforces
-configured limits and validates result structure and source references.
-
-The LLM call contract is designed. A real model client, agent controller and content readers
-are not implemented. Reader and controller integration currently uses scripted test substitutes.
-
-Policy will choose warning actions from assessment signals and permitted warning history.
-Its implementation follows completion of Detection. The application return path is also future work.
-
----
+The owner's [Adapter drawing](docs/assets/architecture-adapter.png) and [Memory drawing](docs/assets/architecture-memory.png) show those blocks in detail. The [target architecture](docs/research/safeguard-target-architecture.html) is a research proposal for stateful, evidence-directed agent control.
 
 ## Current implementation
 
-| Component | Implemented and checked | Remaining scope |
-|---|---|---|
-| Adapter | Demo Gateway/Norm, common messages, ordered stream handoff and provenance checks | Real-source integration is deferred |
-| Ingress | Scoped admission, input limits, ordering within a conversation, bounded concurrency across conversations and explicit failure handling | Production authentication and transport/delivery policy |
-| Memory | Scoped ports, temporary and durable backends, original-byte integrity, observed-history snapshots, versioned derived state and restart/recovery checks | Production privacy and storage operations; message edit/delete/replay policy |
-| Detection | Intake, context preparation, scoped original reading, evidence contracts and Execution Host | Model client, real readers, agent controller and complete assessment flow |
-| Policy and application return | Logical boundaries defined | Warning decisions, result delivery and warning display |
+The local MVP has an agent loop, scoped reads, durable storage, warning delivery, and a messaging demo. Flash-Lite has returned an assessment and warning through the real demo API. Earlier Hydrogen functional checks covered text, tool feedback, output limits, and an authored PNG. Detector accuracy and the comparative value of new agent designs await an evaluation. Production authentication, partner delivery, and data-policy decisions remain open.
 
-Integration tests connect real Adapter, ingress, storage and Host components using independently
-authored messages/files and scripted readers/controllers. They cover scope isolation, exact history
-boundaries, storage failures, stale updates and reopening durable stores.
-
-The checked source passes **323 tests and 836 subcases**. The model-call design also passes
-**88 offline authoring checks**. These checks establish the covered component behavior, not
-scam-detection accuracy or real-model compatibility.
-
----
+Only incoming demo messages start Detection. Outgoing text and files stay local and are withheld from the model and tools. The model may return `scam`, `no_scam_evidence`, or `insufficient_evidence`. Operational failures use a separate outcome. Tracing a verdict to the cited source establishes where the evidence came from. The semantic support of that evidence is measured separately.
 
 ## Development
 
-Python **3.12+** is required; the current checks use Python **3.14.4**. Runtime components use
-the standard library. Tests additionally require **jsonschema 4.19.2**, declared in the
-`test` extra in [pyproject.toml](pyproject.toml).
-
-With those dependencies available in your project environment, run from the repository root:
+The package requires Python 3.12 or later. The [Linux environment](pixi.toml) and [lockfile](pixi.lock) pin Python and the checked dependencies. From the repository root:
 
 ```sh
-timeout 90s env PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_*.py' -v
+pixi install --locked
+pixi run --as-is checks
 ```
 
-The separate handoff-schema check uses newly authored toy envelopes:
+The guarded suite runs component and handoff-schema checks with independently authored inputs. It blocks access to benchmark and seed data and saves results and source hashes under `.local/runs/checks/`.
+
+Check the installed Google SDK with in-memory HTTP using a fresh output directory:
 
 ```sh
-timeout 90s python3 -I tests/contract_checks.py
+timeout 90s pixi run --as-is python -I -B tests/gemini_sdk_checks.py --output-dir .local/runs/checks/gemini-sdk-checks
 ```
 
-The durable backend targets Linux/WSL. The timeout is an operational limit. Resource limits
-are explicit configuration; test values are not production defaults.
-
-To exercise the demo Adapter without a model or server:
+To exercise offline agent execution and storage reopen with authored HTTP replies, use a fresh `--state-dir`:
 
 ```sh
-PYTHONPATH=src python3 - <<'PY'
-from safeguard.adapters.demo import create_demo_adapter
-
-adapter = create_demo_adapter()
-message = adapter.receive(
-    {
-        "thread": "library-room",
-        "id": "opening-hours",
-        "author": "librarian",
-        "body": "The library opens at nine.",
-    },
-    account_id="reader",
-    conversation_id="library-room",
-)
-print(message["content_parts"])
-PY
+mkdir -p .local/runtime
+timeout 90s env PYTHONPATH=src .pixi/envs/default/bin/python -B -m safeguard.demo --state-dir .local/runtime/agent-demo
 ```
 
----
+## Local partner messaging demo
+
+Run an authored-reply demo without provider access:
+
+```sh
+mkdir -p .local/runtime
+timeout 1800s env PYTHONPATH=src .pixi/envs/default/bin/python -B -m safeguard.partner_demo \
+  --state-dir .local/runtime/partner-demo --port 8765
+```
+
+Open `http://127.0.0.1:8765/`. Choose a conversation and use **Send as** to switch roles. Enter sends a message. Shift+Enter adds a line. Choose the verification-code sample to see a warning and follow its source link.
+
+**Clear messages** asks for confirmation before removing the selected conversation's local messages, attachments, analysis, and warnings. Other conversations and the Gemini usage ledger have separate lifecycles. Reuse the private state directory to retain history across restarts.
+
+### Live messaging demo
+
+Use the authorized nonbilled Gemini Developer API project and an owner-only key file. Use authored test data because incoming content and selected evidence can be sent to Gemini.
+
+```sh
+mkdir -p .local/runtime
+timeout --signal=INT 3600s env PYTHONPATH=src .pixi/envs/default/bin/python -B -m safeguard.partner_demo \
+  --state-dir .local/runtime/partner-demo-live --port 8766 --gemini-key-file .env.gemini-key
+```
+
+Open `http://127.0.0.1:8766/` and send a message as **Demo contact**. Live mode uses Gemini 3.1 Flash-Lite. The demo caps itself at 500 HTTP starts per Pacific quota day, five starts per rolling 61 seconds, and two model calls per message. The local daily counter tracks starts made through that demo store.
+
+The demo accepts up to 10 MiB per attachment and previews valid PNG and JPEG files. Detection can present the newest eligible incoming PNG, JPEG, or PDF to Gemini. The UTF-8 tool reads up to 16 KiB of a selected original. Other originals remain available as references. [Demo entry point](src/safeguard/partner_demo.py) · [Live limits](src/safeguard/partner/live.py)
 
 ## Evaluation
 
-The [benchmark catalog](evaluation/BENCHMARKS.md) records selected tasks, dataset versions,
-suitability audits and interpretation limits.
+The [benchmark catalog](evaluation/BENCHMARKS.md) lists the selected tasks, datasets, and interpretation limits. Corpus data stays separate from development tests. [Agent study](docs/research/agent-architecture.md) · [Agent evaluation protocol](docs/research/agent-evaluation.md)
 
-| Benchmark | Selected capability |
+## Documentation
+
+| Need | Start here |
 |---|---|
-| ICFD-31k | Full-conversation and released-prefix classification |
-| BABILong QA2/QA3 | Multi-fact question answering under distracting context |
-| PhishRewrite | Classification robustness across fixed-source rewrite levels |
-| SGC-250 | Reference-based first-warning timing and declared scam/benign pair checks, as an internal pilot |
+| Project rules | [AGENTS.md](AGENTS.md) |
+| Product overview, setup, and demo | This README |
+| Model and agent research | [Agent architecture study](docs/research/agent-architecture.md) |
+| Benchmark selection and evidence | [Benchmark catalog](evaluation/BENCHMARKS.md) |
+| Active scope in the owner checkout | Local `PLAN.md` |
+| Verified status in the owner checkout | Local `STATUS.md` |
+| Technical contracts in the owner checkout | Local `REFERENCE.md` |
+| Workspace layout, local runs, runtime data, and archives | [Workspace layout](docs/workspace-layout.md) |
 
-Dataset/scoring audits are complete for the selected scope. A detector-evaluation runner and
-rebuilt detector scores are not yet available. Raw benchmark inputs and private local benchmark
-material are excluded from this repository's published files.
-
-> **Note:** Keep benchmark examples out of development tests, debugging, fixtures and
-> prompt/threshold tuning. Component checks use separately authored toy data.
-
----
-
-## Project layout
-
-| Path | Purpose |
-|---|---|
-| [`src/safeguard/adapters/`](src/safeguard/adapters/) | Gateway/Norm composition and common-message handoff |
-| [`src/safeguard/ingress/`](src/safeguard/ingress/) | Admission, permissions context, limits and queue coordination |
-| [`src/safeguard/memory/conversation_status/`](src/safeguard/memory/conversation_status/) | Observed history and derived-state storage |
-| [`src/safeguard/memory/original_assets/`](src/safeguard/memory/original_assets/) | Scoped original-byte storage and retrieval |
-| [`src/safeguard/scam_detection/`](src/safeguard/scam_detection/) | Detection intake, context, execution and evidence boundaries |
-| [`src/safeguard/storage/`](src/safeguard/storage/) | Shared local SQLite/filesystem support |
-| [`tests/`](tests/) | Component and integration tests with independent toy inputs |
-| [`evaluation/`](evaluation/) | Benchmark catalog and dataset-audit evidence |
-| [`docs/assets/`](docs/assets/) | Architecture drawings |
+Application code is in [src/safeguard](src/safeguard/). The [partner package](src/safeguard/partner/) contains the partner service, demo stores, Gemini demo limits, and chat assets. Checks are in [tests](tests/), and documentation is in [docs](docs/).

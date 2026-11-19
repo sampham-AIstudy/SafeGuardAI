@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SafeGuard target architecture</title>
+  <style>
+    :root { color-scheme: light; background: #eff5f1; color: #16342c; font-family: system-ui, sans-serif; }
+    body { max-width: 76rem; margin: 0 auto; padding: clamp(1rem, 4vw, 3rem); }
+    h1 { margin: 0 0 .55rem; font-size: clamp(1.85rem, 5vw, 3.35rem); line-height: 1.12; }
+    h2 { margin: 0 0 .65rem; font-size: clamp(1.25rem, 3vw, 1.75rem); line-height: 1.2; }
+    h3 { margin: 0; font-size: 1rem; }
+    p, li, dd, figcaption { line-height: 1.55; }
+    .description { max-width: 72ch; margin: 0 0 2rem; color: #3e5b52; }
+    section { margin: 0 0 2.4rem; }
+    figure { margin: 0; }
+    .frame { background: #fff; border: 1px solid #b4cbbd; border-radius: .8rem; overflow-x: auto; }
+    .frame:focus-visible { outline: 3px solid #16765c; outline-offset: 3px; }
+    svg { display: block; width: 100%; min-width: 53rem; height: auto; }
+    .detail svg { min-width: 43rem; }
+    .zone { fill: #f2f7f3; stroke: #82aa99; stroke-width: 1.3; stroke-dasharray: 6 5; }
+    .node { fill: #fff; stroke: #8cae9f; stroke-width: 1.5; }
+    .decision { fill: #e2f2e9; stroke: #23755e; stroke-width: 1.7; }
+    .line { fill: none; stroke: #396456; stroke-width: 1.65; }
+    .box-title { font-size: 17px; font-weight: 700; fill: #193b31; }
+    .box-detail { font-size: 13px; fill: #345d50; }
+    .zone-title { font-size: 13px; font-weight: 750; letter-spacing: .1em; fill: #2b6150; }
+    figcaption { margin: .65rem 0 0; color: #3e5b52; }
+    dl, ol { max-width: 80ch; padding-inline-start: 0; }
+    ol { padding-inline-start: 1.4rem; }
+    dt { font-weight: 730; }
+    dd { margin: .25rem 0 .8rem; }
+    li + li { margin-top: .5rem; }
+    .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: .9rem; }
+    .notes > div { background: #fff; border: 1px solid #c6d8cc; border-radius: .65rem; padding: 1rem; }
+    .notes p { margin: .35rem 0 0; }
+    a { color: #0c5f49; text-underline-offset: .18em; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>SafeGuard target architecture</h1>
+    <p class="description">Proposed end-to-end architecture. One stateful Agent Controller decides which evidence to check. Detection assesses risk at the current observation boundary. Warning Policy converts that assessment into a partner-facing action.</p>
+
+    <section aria-labelledby="overview-heading">
+      <h2 id="overview-heading">System overview</h2>
+      <figure>
+        <div class="frame" tabindex="0" role="region" aria-label="Scrollable SafeGuard system overview">
+          <svg viewBox="0 0 1232 352" role="img" aria-labelledby="safeguard-target-architecture-title safeguard-target-architecture-desc">
+            <title id="safeguard-target-architecture-title">SafeGuard system overview</title>
+            <desc id="safeguard-target-architecture-desc">A partner submits permitted messages to the SafeGuard service, which normalizes and stores inputs, runs Detection, and returns a Warning Policy action.</desc>
+            <defs>
+              <marker id="system-arrow" viewBox="0 0 8 8" markerWidth="7" markerHeight="7" refX="7" refY="4" orient="auto-start-reverse">
+                <path d="M0 0 L8 4 L0 8 Z" fill="#396456"/>
+              </marker>
+            </defs>
+            <rect class="zone" x="222" y="24" width="788" height="304" rx="12"/>
+            <text class="zone-title" x="242" y="52">SAFEGUARD SERVICE</text>
+            <g class="line" marker-end="url(#system-arrow)">
+              <line x1="200" y1="116" x2="246" y2="116"/>
+              <line x1="446" y1="116" x2="494" y2="116"/>
+              <line x1="738" y1="116" x2="786" y2="116"/>
+              <line x1="986" y1="116" x2="1032" y2="116"/>
+              <path d="M346 164 V240 Q346 248 354 248 H494"/>
+              <line x1="616" y1="164" x2="616" y2="210" marker-start="url(#system-arrow)"/>
+              <path d="M886 164 V268 Q886 276 878 276 H738" marker-start="url(#system-arrow)"/>
+            </g>
+
+            <rect class="node" x="24" y="68" width="176" height="96" rx="8"/>
+            <text class="box-title" x="42" y="99">Partner app</text>
+            <text class="box-detail" x="42" y="123">Permitted events</text>
+            <text class="box-detail" x="42" y="143">and original uploads</text>
+
+            <rect class="node" x="246" y="68" width="200" height="96" rx="8"/>
+            <text class="box-title" x="264" y="99">API and Adapter</text>
+            <text class="box-detail" x="264" y="123">Ingress, Gateway, Norm</text>
+            <text class="box-detail" x="264" y="143">Scope, order, provenance</text>
+
+            <rect class="decision" x="494" y="68" width="244" height="96" rx="8"/>
+            <text class="box-title" x="514" y="99">Detection</text>
+            <text class="box-detail" x="514" y="123">Agent, Host, Model Access, tools</text>
+            <text class="box-detail" x="514" y="143">Assessment and evidence</text>
+
+            <rect class="node" x="786" y="68" width="200" height="96" rx="8"/>
+            <text class="box-title" x="804" y="99">Warning Policy</text>
+            <text class="box-detail" x="804" y="123">Versioned warning action</text>
+            <text class="box-detail" x="804" y="143">Warn, update, or no action</text>
+
+            <rect class="node" x="1032" y="68" width="176" height="96" rx="8"/>
+            <text class="box-title" x="1050" y="99">Partner app</text>
+            <text class="box-detail" x="1050" y="123">Displays warning</text>
+            <text class="box-detail" x="1050" y="143">and source links</text>
+
+            <rect class="node" x="494" y="210" width="244" height="96" rx="8"/>
+            <text class="box-title" x="514" y="241">Memory</text>
+            <text class="box-detail" x="514" y="265">Conversation Status</text>
+            <text class="box-detail" x="514" y="285">Original Assets</text>
+          </svg>
+        </div>
+        <figcaption>The partner app submits events and receives warning actions through the API. The boxes represent logical responsibilities. Scroll the figure horizontally on a narrow display.</figcaption>
+      </figure>
+      <dl>
+        <dt>Partner API, Ingress, and Adapter</dt>
+        <dd>Apply access and input limits, preserve ordering, and convert source events into the common message format. Gateway receives native events. Norm preserves the source identity and maps message parts. The file-ingress path stores originals by reference.</dd>
+        <dt>Memory</dt>
+        <dd>Conversation Status stores the observed prefix, derived evidence, analysis, and warning history in separate namespaces. Original Assets retains the uploaded bytes and their identities. Both live in SafeGuard's service boundary.</dd>
+        <dt>Detection and Warning Policy</dt>
+        <dd>Detection produces an assessment for the permitted prefix. Warning Policy reads the committed result and its own warning history. The Partner API returns the warning action and the application presents its source references.</dd>
+      </dl>
+    </section>
+
+    <section aria-labelledby="detection-heading">
+      <h2 id="detection-heading">Detection and the agent loop</h2>
+      <figure class="detail">
+        <div class="frame" tabindex="0" role="region" aria-label="Scrollable Detection agent diagram">
+          <svg viewBox="0 0 1008 412" role="img" aria-labelledby="target-detection-title target-detection-desc">
+            <title id="target-detection-title">Detection and model roles</title>
+            <desc id="target-detection-desc">The Host brokers all Agent Controller access to scoped Memory, evidence tools, and Model Access, then validates and commits the assessment.</desc>
+            <defs>
+              <marker id="detail-arrow" viewBox="0 0 8 8" markerWidth="7" markerHeight="7" refX="7" refY="4" orient="auto-start-reverse">
+                <path d="M0 0 L8 4 L0 8 Z" fill="#396456"/>
+              </marker>
+            </defs>
+            <rect class="zone" x="250" y="26" width="740" height="294" rx="12"/>
+            <text class="zone-title" x="270" y="52">DETECTION</text>
+            <g class="line" marker-end="url(#detail-arrow)">
+              <path d="M226 158 H266 Q274 158 274 150 V135 Q274 127 282 127 H306" marker-start="url(#detail-arrow)"/>
+              <line x1="402" y1="166" x2="402" y2="214"/>
+              <line x1="538" y1="214" x2="538" y2="166"/>
+              <line x1="634" y1="110" x2="706" y2="110" marker-start="url(#detail-arrow)"/>
+              <path d="M634 146 H654 Q662 146 662 154 V257 Q662 265 670 265 H706" marker-start="url(#detail-arrow)"/>
+              <path d="M306 150 H300 Q292 150 292 158 V357 Q292 365 300 365 H306"/>
+            </g>
+
+            <rect class="node" x="24" y="114" width="202" height="88" rx="8"/>
+            <text class="box-title" x="42" y="143">Scoped Memory</text>
+            <text class="box-detail" x="42" y="165">History and originals</text>
+            <text class="box-detail" x="42" y="184">Versioned analysis state</text>
+
+            <rect class="node" x="306" y="78" width="328" height="88" rx="8"/>
+            <text class="box-title" x="326" y="107">Execution Host</text>
+            <text class="box-detail" x="326" y="130">Binds the prefix and brokers permitted calls</text>
+            <text class="box-detail" x="326" y="149">Validates references, limits, and writes</text>
+
+            <rect class="decision" x="306" y="214" width="328" height="88" rx="8"/>
+            <text class="box-title" x="326" y="243">Agent Controller</text>
+            <text class="box-detail" x="326" y="266">Tracks claims and unresolved questions</text>
+            <text class="box-detail" x="326" y="285">Chooses a check or returns an assessment</text>
+
+            <rect class="node" x="706" y="72" width="258" height="112" rx="8"/>
+            <text class="box-title" x="724" y="101">Model Access</text>
+            <text class="box-detail" x="724" y="124">Jev candidate for typed verdicts</text>
+            <text class="box-detail" x="724" y="143">Optional LLM for open analysis</text>
+            <text class="box-detail" x="724" y="162">Approved providers and capabilities</text>
+
+            <rect class="node" x="706" y="222" width="258" height="86" rx="8"/>
+            <text class="box-title" x="724" y="251">Evidence tools</text>
+            <text class="box-detail" x="724" y="274">Read, extract, and compare</text>
+            <text class="box-detail" x="724" y="293">Return scoped observations</text>
+
+            <rect class="node" x="306" y="338" width="328" height="54" rx="8"/>
+            <text class="box-title" x="326" y="361">Detection result</text>
+            <text class="box-detail" x="326" y="380">Assessment or explicit execution outcome</text>
+          </svg>
+        </div>
+        <figcaption>Model Access and evidence tools are roles inside Detection. Approved inference services can run outside the SafeGuard process. The Host controls what each call receives.</figcaption>
+      </figure>
+      <ol>
+        <li>At each eligible observation, bind the exact permitted prefix and its scoped state. Treat a stored assessment as an earlier judgment with its own evidence and version.</li>
+        <li>Identify the uncertainties that could change the result. Choose among allowed lookups, content readers, and checks. Return each observation with its source and processing status. Keep sender claims, extracted observations, and verified facts distinct.</li>
+        <li>Use a compatible model for each decision. Jev is a candidate to choose a verdict or action from allowed options. An approved LLM or specialist can interpret an input or perform open-ended analysis when that capability is needed. A Jev-based assessment can assemble its explanation from typed reasons and validated source references.</li>
+        <li>Return the verdict and references when the evidence supports it. Return insufficient evidence for a material unresolved question. Preserve a separate outcome for execution failure. The Host validates the result. DetectionService commits the assessment against the bound version before Warning Policy acts.</li>
+      </ol>
+      <p>Source links identify where evidence came from. Semantic support still needs an evaluation of whether those sources justify the assessment. Jev's role remains conditional on an equal-evidence comparison. <a href="agent-architecture.md#model-shortlist-by-role">Model evidence and selection criteria</a></p>
+    </section>
+
+    <section aria-labelledby="operations-heading">
+      <h2 id="operations-heading">Data boundaries, reliability, and evaluation</h2>
+      <div class="notes">
+        <div>
+          <h3>Scoped data access</h3>
+          <p>Keep conversation state and originals within permitted account and conversation scope. Limit provider inputs to the authorized portions needed for a check. Carry forward the demo's incoming-only model boundary unless the source permissions and owner policy change.</p>
+        </div>
+        <div>
+          <h3>Versioned processing</h3>
+          <p>Preserve per-conversation order. Isolate scale-out work by conversation. Use stable event identities and reject stale commits. Reuse tool results only under the same source, processor version, and access scope.</p>
+        </div>
+        <div>
+          <h3>Separate evaluation</h3>
+          <p>Record versions, model and tool calls, failures, and latency. Keep evaluation labels outside live Detection. Compare warning quality and timing, evidence support, uncertainty, and resource use.</p>
+        </div>
+      </div>
+      <p class="description">Open product decisions include partner authentication and delivery, retention and deletion policies, provider data permissions, operating limits, and when additional evidence should revise an active warning.</p>
+      <p><a href="../../README.md#architecture">Adopted architecture and owner diagrams</a> · <a href="agent-architecture.md">Agent architecture study</a> · <a href="agent-evaluation.md">Evaluation protocol</a></p>
+    </section>
+  </main>
+</body>
+</html>
