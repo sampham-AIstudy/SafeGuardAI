@@ -1,0 +1,542 @@
+{
+  "snapshot_files_checked": 55,
+  "snapshot_mismatches": [],
+  "data_signature": "797854a820840af04706b068dea8ed33105ca5041a4743a7415dc05c8096529b",
+  "raw_data_signature": "797854a820840af04706b068dea8ed33105ca5041a4743a7415dc05c8096529b",
+  "existing_aggregate": {
+    "static": {
+      "cross_domain": {
+        "counts": {
+          "annotation_after_conversation": 17,
+          "annotation_yes_to_no_transitions": 18,
+          "fraud_boundary_finite": 961,
+          "fraud_sources": 961,
+          "fraud_without_positive_source_annotation": 0,
+          "native_threshold_equals_source_first_yes": 47,
+          "rows": 1000,
+          "unordered_transcript_timestamps": 2
+        },
+        "domains": {
+          "cross_domain_1": 200,
+          "cross_domain_2": 200,
+          "cross_domain_3": 200,
+          "cross_domain_4": 200,
+          "cross_domain_5": 200
+        },
+        "expected_rows": 1000,
+        "labels": {
+          "NO": 39,
+          "YES": 961
+        }
+      },
+      "test": {
+        "counts": {
+          "annotation_after_conversation": 217,
+          "annotation_yes_to_no_transitions": 31,
+          "fraud_boundary_finite": 4476,
+          "fraud_sources": 4477,
+          "fraud_without_positive_source_annotation": 2,
+          "invalid_annotation_timestamps": 2,
+          "invalid_transcript_timestamps": 1,
+          "native_threshold_equals_source_first_yes": 546,
+          "rows": 4500,
+          "unordered_transcript_timestamps": 1
+        },
+        "domains": {
+          "bank_payment_fraud": 450,
+          "ecommerce_marketplace": 450,
+          "government_impersonation": 450,
+          "insurance_healthcare": 450,
+          "job_employment": 450,
+          "loan_shark_harassment": 450,
+          "personal_emergency_extortion": 450,
+          "tech_support_account": 450,
+          "travel_lottery": 450,
+          "utility_bill_service": 450
+        },
+        "expected_rows": 4500,
+        "labels": {
+          "NO": 23,
+          "YES": 4477
+        }
+      },
+      "train": {
+        "counts": {
+          "annotation_after_conversation": 1066,
+          "annotation_yes_to_no_transitions": 117,
+          "fraud_boundary_finite": 5863,
+          "fraud_sources": 6481,
+          "fraud_without_positive_source_annotation": 0,
+          "invalid_annotation_timestamps": 14,
+          "invalid_transcript_timestamps": 5,
+          "native_threshold_equals_source_first_yes": 753,
+          "nonbinary_source_annotations": 3,
+          "rows": 21000,
+          "unordered_transcript_timestamps": 13
+        },
+        "domains": {
+          "bank_payment_fraud": 2100,
+          "ecommerce_marketplace": 2100,
+          "government_impersonation": 2100,
+          "insurance_healthcare": 2100,
+          "job_employment": 2100,
+          "loan_shark_harassment": 2100,
+          "personal_emergency_extortion": 2100,
+          "tech_support_account": 2100,
+          "travel_lottery": 2100,
+          "utility_bill_service": 2100
+        },
+        "expected_rows": 21000,
+        "labels": {
+          "NO": 14519,
+          "YES": 6481
+        }
+      },
+      "validation": {
+        "counts": {
+          "annotation_after_conversation": 152,
+          "annotation_yes_to_no_transitions": 31,
+          "fraud_boundary_finite": 4474,
+          "fraud_sources": 4474,
+          "fraud_without_positive_source_annotation": 1,
+          "invalid_annotation_timestamps": 5,
+          "invalid_transcript_timestamps": 1,
+          "native_threshold_equals_source_first_yes": 722,
+          "nonbinary_source_annotations": 1,
+          "rows": 4500,
+          "unordered_transcript_timestamps": 3
+        },
+        "domains": {
+          "bank_payment_fraud": 450,
+          "ecommerce_marketplace": 450,
+          "government_impersonation": 450,
+          "insurance_healthcare": 450,
+          "job_employment": 450,
+          "loan_shark_harassment": 450,
+          "personal_emergency_extortion": 450,
+          "tech_support_account": 450,
+          "travel_lottery": 450,
+          "utility_bill_service": 450
+        },
+        "expected_rows": 4500,
+        "labels": {
+          "NO": 26,
+          "YES": 4474
+        }
+      }
+    },
+    "streaming": {
+      "cross_domain": {
+        "counts": {
+          "checkable_native_rule_label": 45115,
+          "checkable_source_prefix": 45115,
+          "chunk_after_source_end": 0,
+          "cumulative_text_matches_newline_format": 45098,
+          "empty_prefix": 0,
+          "input_contract_rejected": 114,
+          "native_rule_label_match": 45115,
+          "off_three_second_grid": 0,
+          "prefix_content_source_match": 45115,
+          "prefix_exact_source_match": 45115,
+          "rows": 45115,
+          "same_as_conversation_label": 29970,
+          "source_annotation_label_match": 1166,
+          "source_annotation_time_overlap": 1512
+        },
+        "domains": {
+          "cross_domain_1": 9137,
+          "cross_domain_2": 9065,
+          "cross_domain_3": 9263,
+          "cross_domain_4": 8968,
+          "cross_domain_5": 8682
+        },
+        "expected_rows": 45115,
+        "labels": {
+          "NO": 17196,
+          "YES": 27919
+        }
+      },
+      "test": {
+        "counts": {
+          "checkable_native_rule_label": 179827,
+          "checkable_source_prefix": 179827,
+          "chunk_after_source_end": 0,
+          "cumulative_text_matches_newline_format": 179133,
+          "empty_prefix": 0,
+          "input_contract_rejected": 44,
+          "native_rule_label_match": 179827,
+          "off_three_second_grid": 0,
+          "prefix_content_source_match": 179827,
+          "prefix_exact_source_match": 179827,
+          "rows": 179827,
+          "same_as_conversation_label": 116214,
+          "source_annotation_label_match": 6502,
+          "source_annotation_time_overlap": 8096
+        },
+        "domains": {
+          "bank_payment_fraud": 23187,
+          "ecommerce_marketplace": 17938,
+          "government_impersonation": 17125,
+          "insurance_healthcare": 17906,
+          "job_employment": 16765,
+          "loan_shark_harassment": 16504,
+          "personal_emergency_extortion": 18123,
+          "tech_support_account": 17397,
+          "travel_lottery": 18978,
+          "utility_bill_service": 15904
+        },
+        "expected_rows": 179827,
+        "labels": {
+          "NO": 64670,
+          "YES": 115157
+        }
+      },
+      "train": {
+        "counts": {
+          "checkable_native_rule_label": 712316,
+          "checkable_source_prefix": 712283,
+          "chunk_after_source_end": 0,
+          "cumulative_text_matches_newline_format": 710087,
+          "empty_prefix": 0,
+          "input_contract_rejected": 333,
+          "native_rule_label_match": 712316,
+          "off_three_second_grid": 0,
+          "prefix_content_source_match": 712283,
+          "prefix_exact_source_match": 712283,
+          "rows": 712316,
+          "same_as_conversation_label": 613563,
+          "source_annotation_label_match": 32256,
+          "source_annotation_time_overlap": 34750,
+          "uncheckable_source_prefix": 33
+        },
+        "domains": {
+          "bank_payment_fraud": 96666,
+          "ecommerce_marketplace": 74933,
+          "government_impersonation": 64908,
+          "insurance_healthcare": 70617,
+          "job_employment": 68414,
+          "loan_shark_harassment": 69048,
+          "personal_emergency_extortion": 69929,
+          "tech_support_account": 68462,
+          "travel_lottery": 67741,
+          "utility_bill_service": 61598
+        },
+        "expected_rows": 712316,
+        "labels": {
+          "NO": 563251,
+          "YES": 149065
+        }
+      },
+      "validation": {
+        "counts": {
+          "checkable_native_rule_label": 173813,
+          "checkable_source_prefix": 173813,
+          "chunk_after_source_end": 0,
+          "cumulative_text_matches_newline_format": 173179,
+          "empty_prefix": 0,
+          "input_contract_rejected": 72,
+          "native_rule_label_match": 173813,
+          "off_three_second_grid": 0,
+          "prefix_content_source_match": 173813,
+          "prefix_exact_source_match": 173813,
+          "rows": 173813,
+          "same_as_conversation_label": 115652,
+          "source_annotation_label_match": 5976,
+          "source_annotation_time_overlap": 7316
+        },
+        "domains": {
+          "bank_payment_fraud": 20689,
+          "ecommerce_marketplace": 16647,
+          "government_impersonation": 17224,
+          "insurance_healthcare": 16827,
+          "job_employment": 17967,
+          "loan_shark_harassment": 16789,
+          "personal_emergency_extortion": 17439,
+          "tech_support_account": 16677,
+          "travel_lottery": 17974,
+          "utility_bill_service": 15580
+        },
+        "expected_rows": 173813,
+        "labels": {
+          "NO": 59512,
+          "YES": 114301
+        }
+      }
+    }
+  },
+  "existing_interpretation": {
+    "chunks": 1111071,
+    "class_balance": {
+      "cross_domain": {
+        "always_scam_accuracy_arithmetic": 0.961,
+        "always_scam_f1_arithmetic": 0.9801121876593575,
+        "benign": 39,
+        "scam": 961,
+        "scam_share": 0.961
+      },
+      "test": {
+        "always_scam_accuracy_arithmetic": 0.9948888888888889,
+        "always_scam_f1_arithmetic": 0.9974378968474992,
+        "benign": 23,
+        "scam": 4477,
+        "scam_share": 0.9948888888888889
+      },
+      "train": {
+        "always_scam_accuracy_arithmetic": 0.3086190476190476,
+        "always_scam_f1_arithmetic": 0.471671336559805,
+        "benign": 14519,
+        "scam": 6481,
+        "scam_share": 0.3086190476190476
+      },
+      "validation": {
+        "always_scam_accuracy_arithmetic": 0.9942222222222222,
+        "always_scam_f1_arithmetic": 0.9971027412525072,
+        "benign": 26,
+        "scam": 4474,
+        "scam_share": 0.9942222222222222
+      }
+    },
+    "interpretation_limits": [
+      "Constant-classifier arithmetic is not model inference.",
+      "Matching the pinned chunker does not validate its semantic labels.",
+      "Saved published results were inspected, not reproduced with models."
+    ],
+    "labels_matching_native_keyword_or_duration_rule": 1111071,
+    "matching_rule_share": 1.0,
+    "native_majority_denominator_consequences": {
+      "cross_domain": {
+        "source_benign_majority_positive_chunks": 0,
+        "source_fraud_conversations": 961,
+        "source_fraud_not_majority_positive_chunks": 407,
+        "source_fraud_without_positive_chunk": 12
+      },
+      "test": {
+        "source_benign_majority_positive_chunks": 0,
+        "source_fraud_conversations": 4476,
+        "source_fraud_not_majority_positive_chunks": 1809,
+        "source_fraud_without_positive_chunk": 26
+      },
+      "train": {
+        "source_benign_majority_positive_chunks": 0,
+        "source_fraud_conversations": 6480,
+        "source_fraud_not_majority_positive_chunks": 2700,
+        "source_fraud_without_positive_chunk": 662
+      },
+      "validation": {
+        "source_benign_majority_positive_chunks": 0,
+        "source_fraud_conversations": 4473,
+        "source_fraud_not_majority_positive_chunks": 1591,
+        "source_fraud_without_positive_chunk": 23
+      }
+    },
+    "saved_baseline_numeric_evidence": {
+      "baselines/gemma-0shot-a/results/metrics.json": {
+        "numeric_aggregates": {
+          "class_specific": {
+            "fraud_accuracy": 0.22157694884967613,
+            "fraud_samples": 4477,
+            "legit_accuracy": 0.869980879541109,
+            "legit_samples": 523
+          },
+          "overall_metrics": {
+            "accuracy": 0.2894,
+            "error_rate": 0.0,
+            "f1": 0.3583167780386491,
+            "precision": 0.9358490566037736,
+            "recall": 0.22157694884967613,
+            "total_errors": 0,
+            "total_samples": 5000
+          },
+          "performance": {
+            "avg_confidence": 0.7999999999999999,
+            "avg_processing_time": 2.9159017922878268,
+            "total_processing_time": 14579.508961439133
+          }
+        },
+        "sha256": "4e89fe7ce058091adba2d2bf000c91b0a261decd3c27f554c5e7e30037f0084c"
+      },
+      "baselines/gemma-0shot-a/results/summary.json": {
+        "numeric_aggregates": {
+          "key_metrics": {
+            "accuracy": 0.2894,
+            "error_rate": 0.0,
+            "f1": 0.3583167780386491,
+            "precision": 0.9358490566037736,
+            "recall": 0.22157694884967613,
+            "total_errors": 0,
+            "total_samples": 5000
+          },
+          "successful_predictions": 5000,
+          "total_samples": 5000
+        },
+        "sha256": "29f644de19ef87ab213e593c8098a45865b209735a1f8c28f27a6abd46a3d376"
+      },
+      "baselines/roberta-2a/full_dataset_results/full_dataset_results.json": {
+        "numeric_aggregates": {
+          "accuracy": 0.9938333333333333,
+          "elapsed_time": 1616.776184797287,
+          "f1": 0.9940170110927848,
+          "precision": 0.9921880043902124,
+          "recall": 0.9958527734577501,
+          "total_samples": 30000
+        },
+        "sha256": "a9efae2cc095a7c14a82939c8052917ed178b2643ccb5415016d6cd7fe72c554"
+      },
+      "baselines/roberta-2a/test_results/retest_results.json": {
+        "numeric_aggregates": {
+          "accuracy": 0.9962222222222222,
+          "f1": 0.9963354171157577,
+          "precision": 0.9944061962134251,
+          "recall": 0.9982721382289417,
+          "total_samples": 4500
+        },
+        "sha256": "4f1c602b19e8e9e144e8c7fcc928b7651a705751a52c86a520dd03b2858e75ec"
+      },
+      "baselines/roberta-2b/final_model/results/data_splits.json": {
+        "numeric_aggregates": {
+          "test_chunks": 129116,
+          "test_sessions": 4746,
+          "train_chunks": 604752,
+          "train_sessions": 22145,
+          "val_chunks": 130951,
+          "val_sessions": 4745
+        },
+        "sha256": "a2f4b31ac0cbfb0e7befa4d041dd6b6e01038a4fbab34c50920f5c38880cd655"
+      },
+      "baselines/roberta-2b/final_model/results/test_results.json": {
+        "numeric_aggregates": {
+          "early_detection": {
+            "avg_detection_time": 32.2318401937046,
+            "detected_fraud_sessions": 1652,
+            "detection_rate": 0.9981873111782478,
+            "max_detection_time": 147.0,
+            "median_detection_time": 30.0,
+            "min_detection_time": 6.0,
+            "total_fraud_sessions": 1655
+          },
+          "overall_metrics": {
+            "accuracy": 0.9540645620991977,
+            "f1": 0.9558800556427557,
+            "precision": 0.9550346344798882,
+            "recall": 0.9567269749087931,
+            "total_samples": 129116
+          },
+          "per_conversation_accuracy": 0.9574378423935946,
+          "performance_by_timestamp": {
+            "0-30s (Early)": {
+              "accuracy": 0.9880837494230689,
+              "f1": 0.9578259578259578,
+              "precision": 0.9549896357713947,
+              "recall": 0.9606791778373548,
+              "sample_count": 23833
+            },
+            "120s+ (Very Late)": {
+              "accuracy": 0.9545763525130952,
+              "f1": 0.9712273947621701,
+              "precision": 0.9628383468086175,
+              "recall": 0.9797639123102867,
+              "sample_count": 25009
+            },
+            "30-60s (Mid)": {
+              "accuracy": 0.9633993182225944,
+              "f1": 0.9557067380762828,
+              "precision": 0.9734611131588647,
+              "recall": 0.9385883858127799,
+              "sample_count": 33442
+            },
+            "60-120s (Late)": {
+              "accuracy": 0.9298129484113427,
+              "f1": 0.9457402730319088,
+              "precision": 0.9417140602912654,
+              "recall": 0.9498010610079576,
+              "sample_count": 46832
+            }
+          }
+        },
+        "sha256": "d6e7b0819b8c2ce27736c94ffd7ac9cff8fd5e45d9c6809e8c3f8a814bbcba50"
+      },
+      "baselines/roberta-2b/final_model/results/training_metrics.json": {
+        "numeric_aggregates": {
+          "epoch": 0.7937137868084768,
+          "train_loss": 0.1653382685661316,
+          "train_runtime": 28232.8464,
+          "train_samples_per_second": 107.101
+        },
+        "sha256": "7448512f2b22550f9d4efbbd8a3d17019b13f0b4c47eb19ef407cf89b444bc02"
+      }
+    },
+    "source_annotation_exact_time_disagreement_share": 0.11173897898362813,
+    "source_annotation_exact_time_disagreements": 5774,
+    "source_annotation_exact_time_overlap": 51674,
+    "source_data_audit_signature": "797854a820840af04706b068dea8ed33105ca5041a4743a7415dc05c8096529b"
+  },
+  "capability_reference_calculations": {
+    "static/test": {
+      "positive": 4477,
+      "negative": 23,
+      "constant_yes_accuracy": 0.9948888888888889,
+      "constant_yes_positive_f1": 0.9974378968474992,
+      "constant_yes_macro_f1": 0.4987189484237496,
+      "constant_yes_balanced_accuracy": 0.5,
+      "constant_yes_fpr": 1,
+      "fpr_increment_percentage_points": 4.3478260869565215,
+      "majority_excluded_source_scams_with_chunks": 1809,
+      "majority_source_scams_with_chunks": 4476,
+      "majority_exclusion_share": 0.40415549597855227
+    },
+    "static/cross_domain": {
+      "positive": 961,
+      "negative": 39,
+      "constant_yes_accuracy": 0.961,
+      "constant_yes_positive_f1": 0.9801121876593575,
+      "constant_yes_macro_f1": 0.49005609382967874,
+      "constant_yes_balanced_accuracy": 0.5,
+      "constant_yes_fpr": 1,
+      "fpr_increment_percentage_points": 2.5641025641025643,
+      "majority_excluded_source_scams_with_chunks": 407,
+      "majority_source_scams_with_chunks": 961,
+      "majority_exclusion_share": 0.42351716961498437
+    },
+    "streaming/test": {
+      "positive": 115157,
+      "negative": 64670,
+      "constant_yes_accuracy": 0.640376584161444,
+      "constant_yes_positive_f1": 0.7807677704553467,
+      "constant_yes_macro_f1": 0.39038388522767337,
+      "constant_yes_balanced_accuracy": 0.5,
+      "constant_yes_fpr": 1,
+      "fpr_increment_percentage_points": 0.0015463120457708365,
+      "majority_excluded_source_scams_with_chunks": 1809,
+      "majority_source_scams_with_chunks": 4476,
+      "majority_exclusion_share": 0.40415549597855227
+    },
+    "streaming/cross_domain": {
+      "positive": 27919,
+      "negative": 17196,
+      "constant_yes_accuracy": 0.6188407403302671,
+      "constant_yes_positive_f1": 0.764548018731002,
+      "constant_yes_macro_f1": 0.382274009365501,
+      "constant_yes_balanced_accuracy": 0.5,
+      "constant_yes_fpr": 1,
+      "fpr_increment_percentage_points": 0.005815305885089556,
+      "majority_excluded_source_scams_with_chunks": 407,
+      "majority_source_scams_with_chunks": 961,
+      "majority_exclusion_share": 0.42351716961498437
+    }
+  },
+  "scope": "Verified unchanged audit snapshot; raw shards and checkpoint were checked in the earlier recorded direct-shard pass. No new detector run.",
+  "audit_script_sha256": "5c3118f08fdd24a553f212271a50454b8e172ffec6e4b0d0a122360bc4b0ff95",
+  "release_lock_sha256": "7a199f0cc19aaf40e0701fcca59d2c57e6364e8e6d38cbb7556b938df708e0f2",
+  "source_sha256": {
+    "babilong-hf-metadata.json": "2d59625e274c3614dc56b97f15f8de982a6e13f02ec958e89a8f0c3302e9f099",
+    "babilong-tree-metadata.json": "e3027c72258a71970cc302825ca91b8fc08b394d0ad59b64875a071e6bffe4e4",
+    "babilong_metrics.py": "f77c139809690588f85ed29c1c93f22394c6b48b1fdc8afeaaa5d0969d973daf",
+    "phishrewrite-code-identity.json": "7b343d5a8a7b49c6bda4252a1be4d68418dfaac8855a33b55a7b0e2e11baf2e7",
+    "phishrewrite-release-metadata.json": "ed2fc66a8809c2dd1a964e2a60504f0e2c42edf98fd16c2b12caa05663935a31",
+    "phishrewrite_ablation.py": "49dcc53d97e864f87ab3cbe6ada7a6b6a7ad487736a04faa864cf7e0edcb08b4",
+    "phishrewrite_attack.py": "046ceb31650b1d505a76e0e84625cd8e89225b06f29784f16cb7c9361c97c8d4",
+    "phishrewrite_evaluate.py": "36cbbc7faadb058948449f43507e7790fed0a19d13e4cc12d0df346ecd3d6e8b",
+    "phishrewrite_features.py": "2959c3776eec5fe7e463c74fb9a1406258fe4c3ed68267a17a63b58d354a1f79",
+    "phishvn-content-metadata.json": "16348b542edef6394d7ab6fb87bd3e6d4e7f88a6ca7eeca29d1a56feba911e1c"
+  }
+}

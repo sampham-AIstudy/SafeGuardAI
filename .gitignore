@@ -1,6 +1,36 @@
-.DS_Store
-node_modules/
-*.env
-data/
+# Local project state and execution artifacts.
+/CLAUDE.md
+/STATUS.md
+/PLAN.md
+/REFERENCE.md
+/.local/
+safeguard-assets-*/
+
+# Protect historical paths when replaying archived runs.
+/.safeguard-runtime/
+/history/
+/logs/
+/devset/
+/testset
+
+# Python, Pixi, and locally installed tools.
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+/build/
+/dist/
+.pixi/
+/.agents/skills/devflow/
+
+# Local credentials and environment overrides.
+/.aws/
+.env
+.env.*
+!.env.example
+
+# Evaluation inputs, authoring material and private review records stay local.
+/.audit-private/
+/data/benchmarks/
+/data/development/
+/evaluation/private/
+/evaluation/runs/

@@ -1,0 +1,7 @@
+[
+  {
+    "path": "baselines/gemma-0shot-a/test_setup.py",
+    "line": 19,
+    "reason": "f-string: single '}' is not allowed"
+  }
+]

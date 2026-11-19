@@ -1,0 +1,8 @@
+Starting phishvn
+{"phishvn": {"status": "complete", "artifact": "phishvn.json"}}
+Starting babilong
+{"babilong": {"status": "complete", "artifact": "babilong.json"}}
+Starting phishrewrite
+{"phishrewrite": {"status": "complete", "artifact": "phishrewrite.json"}}
+Starting icfd
+{"icfd": {"status": "complete", "artifact": "icfd.json"}}

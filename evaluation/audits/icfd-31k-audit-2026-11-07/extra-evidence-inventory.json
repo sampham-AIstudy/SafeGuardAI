@@ -1,0 +1,65 @@
+[
+  {
+    "bytes": 6199,
+    "contains_private_results": false,
+    "path": "/home/geminitt/projects/mini-safeguard/evaluation/icfd-31k-audit-2026-11-07/upstream/src/generators/chunk_expander.py",
+    "sha256": "c958f3a85ba1b9deb6163191c79c5f77fb7e70b2d518d3c3d14c74d78c419496",
+    "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/src/generators/chunk_expander.py"
+  },
+  {
+    "bytes": 8629,
+    "contains_private_results": false,
+    "path": "/home/geminitt/projects/mini-safeguard/evaluation/icfd-31k-audit-2026-11-07/upstream/src/core/models.py",
+    "sha256": "6889bcf2f5156704f1f58dc87780ca38a0e06ea4ae966615d4b0ab2d0bcf70f0",
+    "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/src/core/models.py"
+  },
+  {
+    "bytes": 668,
+    "contains_private_results": true,
+    "path": "/home/geminitt/projects/mini-safeguard/.audit-private/icfd-31k-audit-2026-11-07/upstream-results/baselines/gemma-0shot-a/results/metrics.json",
+    "sha256": "4e89fe7ce058091adba2d2bf000c91b0a261decd3c27f554c5e7e30037f0084c",
+    "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/gemma-0shot-a/results/metrics.json"
+  },
+  {
+    "bytes": 515,
+    "contains_private_results": true,
+    "path": "/home/geminitt/projects/mini-safeguard/.audit-private/icfd-31k-audit-2026-11-07/upstream-results/baselines/gemma-0shot-a/results/summary.json",
+    "sha256": "29f644de19ef87ab213e593c8098a45865b209735a1f8c28f27a6abd46a3d376",
+    "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/gemma-0shot-a/results/summary.json"
+  },
+  {
+    "bytes": 293,
+    "contains_private_results": true,
+    "path": "/home/geminitt/projects/mini-safeguard/.audit-private/icfd-31k-audit-2026-11-07/upstream-results/baselines/roberta-2a/full_dataset_results/full_dataset_results.json",
+    "sha256": "a9efae2cc095a7c14a82939c8052917ed178b2643ccb5415016d6cd7fe72c554",
+    "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2a/full_dataset_results/full_dataset_results.json"
+  },
+  {
+    "bytes": 251,
+    "contains_private_results": true,
+    "path": "/home/geminitt/projects/mini-safeguard/.audit-private/icfd-31k-audit-2026-11-07/upstream-results/baselines/roberta-2a/test_results/retest_results.json",
+    "sha256": "4f1c602b19e8e9e144e8c7fcc928b7651a705751a52c86a520dd03b2858e75ec",
+    "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2a/test_results/retest_results.json"
+  },
+  {
+    "bytes": 204,
+    "contains_private_results": true,
+    "path": "/home/geminitt/projects/mini-safeguard/.audit-private/icfd-31k-audit-2026-11-07/upstream-results/baselines/roberta-2b/final_model/results/data_splits.json",
+    "sha256": "a2f4b31ac0cbfb0e7befa4d041dd6b6e01038a4fbab34c50920f5c38880cd655",
+    "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2b/final_model/results/data_splits.json"
+  },
+  {
+    "bytes": 1503,
+    "contains_private_results": true,
+    "path": "/home/geminitt/projects/mini-safeguard/.audit-private/icfd-31k-audit-2026-11-07/upstream-results/baselines/roberta-2b/final_model/results/test_results.json",
+    "sha256": "d6e7b0819b8c2ce27736c94ffd7ac9cff8fd5e45d9c6809e8c3f8a814bbcba50",
+    "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2b/final_model/results/test_results.json"
+  },
+  {
+    "bytes": 139,
+    "contains_private_results": true,
+    "path": "/home/geminitt/projects/mini-safeguard/.audit-private/icfd-31k-audit-2026-11-07/upstream-results/baselines/roberta-2b/final_model/results/training_metrics.json",
+    "sha256": "7448512f2b22550f9d4efbbd8a3d17019b13f0b4c47eb19ef407cf89b444bc02",
+    "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2b/final_model/results/training_metrics.json"
+  }
+]

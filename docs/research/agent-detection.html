@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Proposed SafeGuard Detection architecture</title>
+  <style>
+    :root { color-scheme: light; background: #f0f5f2; color: #17362d; font-family: system-ui, sans-serif; }
+    body { max-width: 70rem; margin: 0 auto; padding: clamp(1rem, 4vw, 3rem); }
+    h1 { margin: 0 0 .55rem; font-size: clamp(1.65rem, 4vw, 2.65rem); line-height: 1.15; }
+    p, li { line-height: 1.55; }
+    .intro { max-width: 67ch; margin: 0 0 1.25rem; color: #39584e; }
+    figure { margin: 0; }
+    .canvas { background: #fff; border: 1px solid #b8ccbf; border-radius: .75rem; overflow-x: auto; }
+    .canvas:focus-visible { outline: 3px solid #146951; outline-offset: 3px; }
+    svg { display: block; width: 100%; min-width: 48rem; height: auto; }
+    .zone { fill: #f1f7f3; stroke: #8aafa0; stroke-width: 1.3; stroke-dasharray: 6 5; }
+    .node { fill: #fff; stroke: #8daea0; stroke-width: 1.5; }
+    .decision { fill: #e0f2e9; stroke: #1c755d; stroke-width: 1.7; }
+    .line { fill: none; stroke: #3c6457; stroke-width: 1.7; marker-end: url(#arrow); }
+    .both { marker-start: url(#arrow); }
+    .box-title { font-size: 18px; font-weight: 690; fill: #193c32; }
+    .box-detail { font-size: 12.5px; fill: #315b50; }
+    .zone-title { font-size: 13px; font-weight: 750; letter-spacing: .1em; fill: #2d6251; }
+    figcaption { margin: .65rem 0 1.35rem; color: #38564e; line-height: 1.5; }
+    h2 { font-size: 1.15rem; }
+    ol { max-width: 72ch; padding-inline-start: 1.4rem; }
+    li + li { margin-top: .55rem; }
+    a { color: #0d604a; text-underline-offset: .18em; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Proposed SafeGuard Detection architecture</h1>
+    <p class="intro">Research design. The Agent Controller chooses the next check. The Execution Host controls which data, tools, and models the controller can use.</p>
+    <figure>
+      <div class="canvas" tabindex="0" role="region" aria-label="Scrollable architecture diagram">
+        <svg viewBox="0 0 992 504" role="img" aria-labelledby="agent-detection-title agent-detection-desc">
+          <title id="agent-detection-title">Proposed SafeGuard Detection architecture</title>
+          <desc id="agent-detection-desc">One Agent Controller uses the Execution Host to access models, tools, and scoped Memory before returning an assessment to Warning Policy.</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 8 8" markerWidth="7" markerHeight="7" refX="7" refY="4" orient="auto-start-reverse">
+              <path d="M0 0 L8 4 L0 8 Z" fill="#3c6457"/>
+            </marker>
+          </defs>
+
+          <rect class="zone" x="256" y="108" width="728" height="276" rx="12"/>
+          <text class="zone-title" x="272" y="136">DETECTION</text>
+
+          <line class="line" x1="480" y1="80" x2="480" y2="156"/>
+          <path class="line both" d="M240 248 H272 Q280 248 280 240 V198 Q280 190 288 190 H320"/>
+          <line class="line" x1="424" y1="236" x2="424" y2="272"/>
+          <line class="line" x1="536" y1="272" x2="536" y2="236"/>
+          <path class="line both" d="M640 180 H728 Q736 180 736 188 V204 Q736 212 744 212 H760"/>
+          <path class="line both" d="M640 212 H694 Q702 212 702 220 V316 Q702 324 710 324 H760"/>
+          <path class="line" d="M320 214 H308 Q300 214 300 222 V436 Q300 444 308 444 H320"/>
+
+          <rect class="node" x="320" y="20" width="320" height="60" rx="8"/>
+          <text class="box-title" x="344" y="46">Observed input boundary</text>
+          <text class="box-detail" x="344" y="65">Permitted messages and file references</text>
+
+          <rect class="node" x="24" y="204" width="216" height="88" rx="8"/>
+          <text class="box-title" x="44" y="233">Memory</text>
+          <text class="box-detail" x="44" y="254">Originals and history</text>
+          <text class="box-detail" x="44" y="273">Versioned analysis state</text>
+
+          <rect class="node" x="320" y="156" width="320" height="80" rx="8"/>
+          <text class="box-title" x="344" y="184">Execution Host</text>
+          <text class="box-detail" x="344" y="204">Binds scope and validates actions</text>
+          <text class="box-detail" x="344" y="221">Enforces limits and commits results</text>
+
+          <rect class="decision" x="320" y="272" width="320" height="80" rx="8"/>
+          <text class="box-title" x="344" y="300">Agent Controller</text>
+          <text class="box-detail" x="344" y="321">Chooses a check or returns an assessment</text>
+          <text class="box-detail" x="344" y="338">Tracks facts and open questions</text>
+
+          <rect class="node" x="760" y="172" width="208" height="80" rx="8"/>
+          <text class="box-title" x="780" y="202">Model Access</text>
+          <text class="box-detail" x="780" y="223">Approved model interfaces</text>
+          <text class="box-detail" x="780" y="240">Fixed model before routing</text>
+
+          <rect class="node" x="760" y="284" width="208" height="80" rx="8"/>
+          <text class="box-title" x="780" y="314">Evidence tools</text>
+          <text class="box-detail" x="780" y="335">Scoped readers and retrieval</text>
+          <text class="box-detail" x="780" y="352">Source-linked observations</text>
+
+          <rect class="node" x="320" y="412" width="320" height="64" rx="8"/>
+          <text class="box-title" x="344" y="440">Warning Policy</text>
+          <text class="box-detail" x="344" y="461">Uses the committed Detection result</text>
+        </svg>
+      </div>
+      <figcaption>Read the diagram horizontally on narrow screens. The text description below follows the same data flow.</figcaption>
+    </figure>
+    <h2>Data flow</h2>
+    <ol>
+      <li>The Host binds the observed boundary and reads the applicable version of conversation state from Memory.</li>
+      <li>The controller proposes the next check. The Host validates it and brokers the model or tool call. The controller receives the result and can choose another check within the same boundary.</li>
+      <li>The Host validates the final assessment and commits the applicable state. A material gap can produce an insufficient-evidence result. Execution failures retain their separate outcome.</li>
+      <li>Warning Policy acts on the Detection result. A later message establishes a new boundary for the next assessment.</li>
+    </ol>
+    <p><a href="agent-architecture.md">Architecture study</a> · <a href="agent-evaluation.md">Evaluation protocol</a></p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,506 @@
+{
+  "files": {
+    "synthetic_sms.csv": {
+      "columns": [
+        "channel",
+        "label",
+        "source",
+        "is_llm",
+        "lang",
+        "scenario",
+        "impersonated_org",
+        "collected_at",
+        "scraped_at",
+        "label_source",
+        "split",
+        "url",
+        "url_norm",
+        "domain",
+        "tld",
+        "url_len",
+        "num_dots",
+        "num_subdomains",
+        "has_ip",
+        "has_at",
+        "suspicious_tld",
+        "status",
+        "tier",
+        "rank",
+        "text",
+        "msg_len",
+        "gen_model",
+        "has_url",
+        "id"
+      ],
+      "rows": 209
+    },
+    "paraphrase.csv": {
+      "columns": [
+        "src_id",
+        "variant",
+        "role",
+        "channel",
+        "scenario",
+        "label",
+        "is_llm",
+        "attack",
+        "gen_model",
+        "text"
+      ],
+      "rows": 386
+    },
+    "paraphrase_band.csv": {
+      "columns": [
+        "src_id",
+        "variant",
+        "role",
+        "channel",
+        "scenario",
+        "label",
+        "is_llm",
+        "attack",
+        "gen_model",
+        "jaccard",
+        "text"
+      ],
+      "rows": 386
+    },
+    "human_eval_pairs.csv": {
+      "columns": [
+        "pair_id",
+        "source",
+        "rewrite",
+        "jaccard",
+        "meaning_preserved_A",
+        "lure_intact_A",
+        "meaning_preserved_B",
+        "lure_intact_B",
+        "more_persuasive_A",
+        "more_persuasive_B"
+      ],
+      "rows": 50
+    },
+    "human_eval_ratings.csv": {
+      "columns": [
+        "pair_id",
+        "jaccard",
+        "meaning_preserved_A",
+        "lure_intact_A",
+        "more_persuasive_A",
+        "meaning_preserved_B",
+        "lure_intact_B",
+        "more_persuasive_B"
+      ],
+      "rows": 50
+    },
+    "paraphrase_pilot_ids.csv": {
+      "columns": [
+        "src_id"
+      ],
+      "rows": 73
+    },
+    "synthetic_email.csv": {
+      "columns": [
+        "channel",
+        "label",
+        "source",
+        "is_llm",
+        "lang",
+        "scenario",
+        "impersonated_org",
+        "collected_at",
+        "scraped_at",
+        "label_source",
+        "split",
+        "url",
+        "url_norm",
+        "domain",
+        "tld",
+        "url_len",
+        "num_dots",
+        "num_subdomains",
+        "has_ip",
+        "has_at",
+        "suspicious_tld",
+        "status",
+        "tier",
+        "rank",
+        "text",
+        "msg_len",
+        "gen_model",
+        "has_url",
+        "id"
+      ],
+      "rows": 127
+    }
+  },
+  "originals": {
+    "rows": 336,
+    "labels": {
+      "0": 143,
+      "1": 193
+    },
+    "empty_text": 0,
+    "normalized_duplicate_excess": 0,
+    "normalized_conflicting_groups": 0,
+    "words_by_label": {
+      "0": {
+        "count": 143,
+        "min": 8,
+        "median": 18,
+        "mean": 17.86013986013986,
+        "max": 30
+      },
+      "1": {
+        "count": 193,
+        "min": 14,
+        "median": 23,
+        "mean": 24.4559585492228,
+        "max": 53
+      }
+    },
+    "length_auc_longer_is_phishing": 0.7867676365085692,
+    "always_positive": {
+      "tp": 193,
+      "fp": 143,
+      "tn": 0,
+      "fn": 0,
+      "accuracy": 0.5744047619047619,
+      "recall": 1.0,
+      "precision": 0.5744047619047619,
+      "positive_f1": 0.7296786389413988,
+      "fpr": 1.0
+    },
+    "always_negative": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 143,
+      "fn": 193,
+      "accuracy": 0.4255952380952381,
+      "recall": 0.0,
+      "precision": null,
+      "positive_f1": 0.0,
+      "fpr": 0.0
+    }
+  },
+  "by_channel": {
+    "synthetic_sms.csv": {
+      "rows": 209,
+      "labels": {
+        "0": 86,
+        "1": 123
+      },
+      "empty_text": 0,
+      "normalized_duplicate_excess": 0,
+      "normalized_conflicting_groups": 0,
+      "words_by_label": {
+        "0": {
+          "count": 86,
+          "min": 8,
+          "median": 15.5,
+          "mean": 15.395348837209303,
+          "max": 25
+        },
+        "1": {
+          "count": 123,
+          "min": 14,
+          "median": 20,
+          "mean": 20.463414634146343,
+          "max": 35
+        }
+      },
+      "length_auc_longer_is_phishing": 0.8607014558517678,
+      "always_positive": {
+        "tp": 123,
+        "fp": 86,
+        "tn": 0,
+        "fn": 0,
+        "accuracy": 0.5885167464114832,
+        "recall": 1.0,
+        "precision": 0.5885167464114832,
+        "positive_f1": 0.7409638554216867,
+        "fpr": 1.0
+      },
+      "always_negative": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 86,
+        "fn": 123,
+        "accuracy": 0.41148325358851673,
+        "recall": 0.0,
+        "precision": null,
+        "positive_f1": 0.0,
+        "fpr": 0.0
+      }
+    },
+    "synthetic_email.csv": {
+      "rows": 127,
+      "labels": {
+        "0": 57,
+        "1": 70
+      },
+      "empty_text": 0,
+      "normalized_duplicate_excess": 0,
+      "normalized_conflicting_groups": 0,
+      "words_by_label": {
+        "0": {
+          "count": 57,
+          "min": 15,
+          "median": 21,
+          "mean": 21.57894736842105,
+          "max": 30
+        },
+        "1": {
+          "count": 70,
+          "min": 23,
+          "median": 30.0,
+          "mean": 31.47142857142857,
+          "max": 53
+        }
+      },
+      "length_auc_longer_is_phishing": 0.950250626566416,
+      "always_positive": {
+        "tp": 70,
+        "fp": 57,
+        "tn": 0,
+        "fn": 0,
+        "accuracy": 0.5511811023622047,
+        "recall": 1.0,
+        "precision": 0.5511811023622047,
+        "positive_f1": 0.7106598984771574,
+        "fpr": 1.0
+      },
+      "always_negative": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 57,
+        "fn": 70,
+        "accuracy": 0.44881889763779526,
+        "recall": 0.0,
+        "precision": null,
+        "positive_f1": 0.0,
+        "fpr": 0.0
+      }
+    }
+  },
+  "split_counts": {
+    "train": 336
+  },
+  "metadata_associations": {
+    "gen_model": {
+      "groups": 2,
+      "pure_groups": 2,
+      "oracle_group_majority_accuracy": 1.0,
+      "interpretation": "In-sample metadata association; not text-only performance"
+    },
+    "scenario": {
+      "groups": 7,
+      "pure_groups": 0,
+      "oracle_group_majority_accuracy": 0.5744047619047619,
+      "interpretation": "In-sample metadata association; not text-only performance"
+    },
+    "channel": {
+      "groups": 2,
+      "pure_groups": 0,
+      "oracle_group_majority_accuracy": 0.5744047619047619,
+      "interpretation": "In-sample metadata association; not text-only performance"
+    },
+    "source": {
+      "groups": 2,
+      "pure_groups": 2,
+      "oracle_group_majority_accuracy": 1.0,
+      "interpretation": "In-sample metadata association; not text-only performance"
+    },
+    "label_source": {
+      "groups": 2,
+      "pure_groups": 2,
+      "oracle_group_majority_accuracy": 1.0,
+      "interpretation": "In-sample metadata association; not text-only performance"
+    }
+  },
+  "unique_original_url_field_values": 1,
+  "language_scope": {
+    "lang_metadata": {
+      "vi": 336
+    },
+    "original_rows_with_nonascii_text": 0,
+    "interpretation": "ASCII-only texts do not test accented Vietnamese orthography; no semantic language validation is claimed"
+  },
+  "same_topic_controls": {
+    "bank": {
+      "benign": 27,
+      "phishing": 39
+    },
+    "delivery": {
+      "benign": 19,
+      "phishing": 24
+    },
+    "ecommerce": {
+      "benign": 21,
+      "phishing": 29
+    },
+    "gov": {
+      "benign": 21,
+      "phishing": 32
+    },
+    "social": {
+      "benign": 18,
+      "phishing": 21
+    },
+    "tax": {
+      "benign": 19,
+      "phishing": 27
+    },
+    "telecom": {
+      "benign": 18,
+      "phishing": 21
+    }
+  },
+  "additional_sha256sum_checks": {
+    "checked": 8,
+    "all_match": true
+  },
+  "rewrites": {
+    "paraphrase.csv": {
+      "rows": 386,
+      "linked_rows": 386,
+      "unique_sources": 193,
+      "variants_per_source": {
+        "2": 193
+      },
+      "role_counts": {
+        "train": 193,
+        "test": 193
+      },
+      "train_test_shared_source_ids": 193,
+      "test_rows_with_original_marked_train": 193,
+      "source_label_disagreements": 0,
+      "empty_rewrites": 0,
+      "rewrites_identical_to_source_normalized": 0,
+      "normalized_unique_rewrite_texts": 386,
+      "recomputed_word_set_jaccard": {
+        "count": 386,
+        "min": 0.1568627450980392,
+        "median": 0.5454545454545454,
+        "mean": 0.553150739925806,
+        "max": 0.8947368421052632
+      }
+    },
+    "paraphrase_band.csv": {
+      "rows": 386,
+      "linked_rows": 386,
+      "unique_sources": 193,
+      "variants_per_source": {
+        "2": 193
+      },
+      "role_counts": {
+        "train": 193,
+        "test": 193
+      },
+      "train_test_shared_source_ids": 193,
+      "test_rows_with_original_marked_train": 193,
+      "source_label_disagreements": 0,
+      "empty_rewrites": 0,
+      "rewrites_identical_to_source_normalized": 0,
+      "normalized_unique_rewrite_texts": 386,
+      "recomputed_word_set_jaccard": {
+        "count": 386,
+        "min": 0.2876712328767123,
+        "median": 0.3829787234042553,
+        "mean": 0.3911043785245508,
+        "max": 0.6190476190476191
+      },
+      "declared_jaccard": {
+        "count": 386,
+        "min": 0.2,
+        "median": 0.25,
+        "mean": 0.2469958549222798,
+        "max": 0.3
+      },
+      "declared_outside_band": 0,
+      "max_recomputed_difference": 0.3249476190476191,
+      "url_removed_whitespace_jaccard": {
+        "definition": "Lowercase, remove http(s) URLs, then set of whitespace-separated tokens",
+        "values": {
+          "count": 386,
+          "min": 0.2,
+          "median": 0.25,
+          "mean": 0.2469950172858939,
+          "max": 0.3
+        },
+        "match_declared_within_rounding": 386,
+        "outside_band_with_rounding_tolerance": 0
+      }
+    }
+  },
+  "human_review": {
+    "pairs": 50,
+    "ratings": 50,
+    "common_nonempty_field_conflicts": {
+      "jaccard": 0,
+      "meaning_preserved_A": 0,
+      "lure_intact_A": 0,
+      "more_persuasive_A": 0,
+      "meaning_preserved_B": 0,
+      "lure_intact_B": 0,
+      "more_persuasive_B": 0
+    },
+    "pair_template_empty_rating_cells": 300,
+    "meaning": {
+      "n": 50,
+      "rater_a": {
+        "1": 49,
+        "0": 1
+      },
+      "rater_b": {
+        "1": 50
+      },
+      "agreement": 0.98,
+      "kappa": 0.0
+    },
+    "lure_intact": {
+      "n": 50,
+      "rater_a": {
+        "1": 46,
+        "0": 4
+      },
+      "rater_b": {
+        "1": 49,
+        "0": 1
+      },
+      "agreement": 0.9,
+      "kappa": -0.03305785123966922
+    },
+    "persuasion": {
+      "n": 50,
+      "rater_a": {
+        "ngang": 13,
+        "A": 18,
+        "B": 19
+      },
+      "rater_b": {
+        "A": 24,
+        "ngang": 25,
+        "B": 1
+      },
+      "agreement": 0.32,
+      "kappa": 0.013921113689095124
+    },
+    "both_raters_accept_meaning_and_lure": 44,
+    "reviewed_pair_texts_found_in_releases": 50
+  },
+  "audit_script_sha256": "5c3118f08fdd24a553f212271a50454b8e172ffec6e4b0d0a122360bc4b0ff95",
+  "release_lock_sha256": "7a199f0cc19aaf40e0701fcca59d2c57e6364e8e6d38cbb7556b938df708e0f2",
+  "source_sha256": {
+    "babilong-hf-metadata.json": "2d59625e274c3614dc56b97f15f8de982a6e13f02ec958e89a8f0c3302e9f099",
+    "babilong-tree-metadata.json": "e3027c72258a71970cc302825ca91b8fc08b394d0ad59b64875a071e6bffe4e4",
+    "babilong_metrics.py": "f77c139809690588f85ed29c1c93f22394c6b48b1fdc8afeaaa5d0969d973daf",
+    "phishrewrite-code-identity.json": "7b343d5a8a7b49c6bda4252a1be4d68418dfaac8855a33b55a7b0e2e11baf2e7",
+    "phishrewrite-release-metadata.json": "ed2fc66a8809c2dd1a964e2a60504f0e2c42edf98fd16c2b12caa05663935a31",
+    "phishrewrite_ablation.py": "49dcc53d97e864f87ab3cbe6ada7a6b6a7ad487736a04faa864cf7e0edcb08b4",
+    "phishrewrite_attack.py": "046ceb31650b1d505a76e0e84625cd8e89225b06f29784f16cb7c9361c97c8d4",
+    "phishrewrite_evaluate.py": "36cbbc7faadb058948449f43507e7790fed0a19d13e4cc12d0df346ecd3d6e8b",
+    "phishrewrite_features.py": "2959c3776eec5fe7e463c74fb9a1406258fe4c3ed68267a17a63b58d354a1f79",
+    "phishvn-content-metadata.json": "16348b542edef6394d7ab6fb87bd3e6d4e7f88a6ca7eeca29d1a56feba911e1c"
+  }
+}

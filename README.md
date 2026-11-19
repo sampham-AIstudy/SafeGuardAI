@@ -1,82 +1,94 @@
-# SafeGuard AI - Scam/Phishing Message Copilot
+# mini-safeguard
 
-> Do an ca nhan - He thong phat hien tin nhan lua dao/phishing dua tren LLM
+SafeGuard is a research project for detecting scams in Vietnamese conversations as messages arrive. Partner applications send permitted messages and attachments. SafeGuard assesses the observed conversation and returns a warning action for the partner to display.
 
-SafeGuard AI la tro ly ho tro nguoi dung tre kiem tra tin nhan, email, duong link, ma QR va anh bill chuyen khoan dang nghi. San pham khong quyet dinh thay nguoi dung; AI phan tich rui ro, chi ra red flags, uoc luong confidence va goi y hanh dong kiem chung an toan trong duoi 30 giay.
+## Architecture
 
-## Lat cat san pham
-Mot sinh vien dan tin nhan/email/link/QR dang nghi vao prototype; AI phan loai muc rui ro, chi ra red flags va goi y hanh dong kiem chung an toan; ket qua la nguoi dung biet nen bam, bo qua hay xac minh trong duoi 30 giay.
+![Owner's SafeGuard architecture](docs/assets/architecture.png)
 
-## Kien truc Multi-Agent
-```text
-Browser UI / Streamlit UI
-  -> REST API / Orchestrator
-  -> PromptGuard
-  -> OCRAgent
-  -> RAGAgent + ThreatIntelAgent
-  -> MemoryAgent
-  -> ExplainableAgent
-  -> ConfidenceAgent
-  -> EmergencyAgent
-  -> DecisionAgent
-  -> Risk score + reasons + next actions
-```
-
-### Agent chinh
-- **PromptGuard**: chan prompt injection va yeu cau nguy hiem.
-- **OCRAgent**: trich xuat chu tu screenshot, bill, QR/image input.
-- **RAGAgent**: doi soat PhishVN 51.362 ban ghi, knowledge base scam tactics va blacklist noi dia.
-- **ThreatIntelAgent**: bo sung tin hieu domain/URL va dau hieu phishing.
-- **MemoryAgent**: luu ngu canh phien de nhan ra chuoi lua dao leo thang.
-- **ExplainableAgent**: tinh Risk Breakdown theo red flags.
-- **ConfidenceAgent**: tach biet muc rui ro va do tin cay cua AI.
-- **EmergencyAgent**: kich hoat quy trinh 1'-3'-5'-10'-30' khi nguoi dung da chuyen tien/lo OTP.
-- **DecisionAgent**: tong hop ket qua, dua khuyen nghi va disclaimer Human-in-the-Loop.
-
-## Cau truc repo
-| File / thu muc | Noi dung |
+| Block | Responsibility |
 |---|---|
-| `spec.md` | AI Product Specification |
-| `demo-slides.md` | Kich ban slide va demo live 5 phut |
-| `validation/user_feedback.md` | Log validation voi nguoi dung ben ngoai |
-| `codebase/` | Prototype backend, agent va web server |
-| `eval/` | Golden set va script danh gia |
-| `tham-khao/` | Tai lieu tham khao JTBD (Strategyn playbook) |
+| **Partner API and Ingress** | Admit scoped events and originals, enforce input limits, and preserve per-conversation order. |
+| **Adapter** | Receive source events through Gateway and convert them through Norm. Preserve identity, provenance, and attachment references. |
+| **Memory** | Keep scoped conversation state in Conversation Status and original bytes in Original Assets. The local backend uses SQLite and files. |
+| **Detection** | Bind the observed prefix, run the Agent Controller with permitted tools and models, and commit an assessment with source references. |
+| **Warning Policy** | Convert a committed assessment into a warning action and retain its own warning history. |
 
-## Cai dat
-Yeu cau: Python 3.10+ va pip.
+The owner's [Adapter drawing](docs/assets/architecture-adapter.png) and [Memory drawing](docs/assets/architecture-memory.png) show those blocks in detail. The [target architecture](docs/research/safeguard-target-architecture.html) is a research proposal for stateful, evidence-directed agent control.
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-copy .env.example .env
+## Current implementation
+
+The local MVP has an agent loop, scoped reads, durable storage, warning delivery, and a messaging demo. Flash-Lite has returned an assessment and warning through the real demo API. Earlier Hydrogen functional checks covered text, tool feedback, output limits, and an authored PNG. Detector accuracy and the comparative value of new agent designs await an evaluation. Production authentication, partner delivery, and data-policy decisions remain open.
+
+Only incoming demo messages start Detection. Outgoing text and files stay local and are withheld from the model and tools. The model may return `scam`, `no_scam_evidence`, or `insufficient_evidence`. Operational failures use a separate outcome. Tracing a verdict to the cited source establishes where the evidence came from. The semantic support of that evidence is measured separately.
+
+## Development
+
+The package requires Python 3.12 or later. The [Linux environment](pixi.toml) and [lockfile](pixi.lock) pin Python and the checked dependencies. From the repository root:
+
+```sh
+pixi install --locked
+pixi run --as-is checks
 ```
 
-Neu dung MySQL/XAMPP, import `ai-anti-scam.sql` vao database local va cap nhat bien moi truong trong `.env`. Neu khong co MySQL/API key, prototype van co the chay mot phan bang fallback/offline tuy theo agent.
+The guarded suite runs component and handoff-schema checks with independently authored inputs. It blocks access to benchmark and seed data and saves results and source hashes under `.local/runs/checks/`.
 
-## Chay prototype hien tai
-Ban web hien tai duoc phuc vu qua REST API server va static HTML:
+Check the installed Google SDK with in-memory HTTP using a fresh output directory:
 
-```cmd
-.\.venv\Scripts\activate
-python codebase/server.py
+```sh
+timeout 90s pixi run --as-is python -I -B tests/gemini_sdk_checks.py --output-dir .local/runs/checks/gemini-sdk-checks
 ```
 
-Mo trinh duyet tai:
+To exercise offline agent execution and storage reopen with authored HTTP replies, use a fresh `--state-dir`:
 
-```text
-http://localhost:8000
+```sh
+mkdir -p .local/runtime
+timeout 90s env PYTHONPATH=src .pixi/envs/default/bin/python -B -m safeguard.demo --state-dir .local/runtime/agent-demo
 ```
 
+## Local partner messaging demo
 
+Run an authored-reply demo without provider access:
 
-## Kiem thu
-Chay golden set:
-
-```cmd
-.\.venv\Scripts\activate
-python eval/run_eval.py
+```sh
+mkdir -p .local/runtime
+timeout 1800s env PYTHONPATH=src .pixi/envs/default/bin/python -B -m safeguard.partner_demo \
+  --state-dir .local/runtime/partner-demo --port 8765
 ```
 
-Quality bar trong `spec.md`: Risk Accuracy >=85%, Critical Pass =100%, va High/Critical case phai co bang chung/red flags ro rang.
+Open `http://127.0.0.1:8765/`. Choose a conversation and use **Send as** to switch roles. Enter sends a message. Shift+Enter adds a line. Choose the verification-code sample to see a warning and follow its source link.
+
+**Clear messages** asks for confirmation before removing the selected conversation's local messages, attachments, analysis, and warnings. Other conversations and the Gemini usage ledger have separate lifecycles. Reuse the private state directory to retain history across restarts.
+
+### Live messaging demo
+
+Use the authorized nonbilled Gemini Developer API project and an owner-only key file. Use authored test data because incoming content and selected evidence can be sent to Gemini.
+
+```sh
+mkdir -p .local/runtime
+timeout --signal=INT 3600s env PYTHONPATH=src .pixi/envs/default/bin/python -B -m safeguard.partner_demo \
+  --state-dir .local/runtime/partner-demo-live --port 8766 --gemini-key-file .env.gemini-key
+```
+
+Open `http://127.0.0.1:8766/` and send a message as **Demo contact**. Live mode uses Gemini 3.1 Flash-Lite. The demo caps itself at 500 HTTP starts per Pacific quota day, five starts per rolling 61 seconds, and two model calls per message. The local daily counter tracks starts made through that demo store.
+
+The demo accepts up to 10 MiB per attachment and previews valid PNG and JPEG files. Detection can present the newest eligible incoming PNG, JPEG, or PDF to Gemini. The UTF-8 tool reads up to 16 KiB of a selected original. Other originals remain available as references. [Demo entry point](src/safeguard/partner_demo.py) · [Live limits](src/safeguard/partner/live.py)
+
+## Evaluation
+
+The [benchmark catalog](evaluation/BENCHMARKS.md) lists the selected tasks, datasets, and interpretation limits. Corpus data stays separate from development tests. [Agent study](docs/research/agent-architecture.md) · [Agent evaluation protocol](docs/research/agent-evaluation.md)
+
+## Documentation
+
+| Need | Start here |
+|---|---|
+| Project rules | [AGENTS.md](AGENTS.md) |
+| Product overview, setup, and demo | This README |
+| Model and agent research | [Agent architecture study](docs/research/agent-architecture.md) |
+| Benchmark selection and evidence | [Benchmark catalog](evaluation/BENCHMARKS.md) |
+| Active scope in the owner checkout | Local `PLAN.md` |
+| Verified status in the owner checkout | Local `STATUS.md` |
+| Technical contracts in the owner checkout | Local `REFERENCE.md` |
+| Workspace layout, local runs, runtime data, and archives | [Workspace layout](docs/workspace-layout.md) |
+
+Application code is in [src/safeguard](src/safeguard/). The [partner package](src/safeguard/partner/) contains the partner service, demo stores, Gemini demo limits, and chat assets. Checks are in [tests](tests/), and documentation is in [docs](docs/).

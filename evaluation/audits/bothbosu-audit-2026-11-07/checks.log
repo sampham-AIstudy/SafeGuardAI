@@ -1,0 +1,7 @@
+PASS: script, lock and all four downloaded file identities.
+PASS: independent CSV-reader recount of all 3,200 file rows and per-class length statistics.
+PASS: split separation, multiset identity and test length AUC from all 25,600 pairs.
+PASS: public AUC, schema-alias regression, multiline CSV, duplicate, invalid-label and ragged-row fixtures.
+PASS: complete final execution log, local catalog links and current audit status.
+Resolved checks: singular-label parser assumption; independent check initially omitted the all-file UTF-8 BOM. Final parser and cross-check handle both.
+Scope: aggregate CPU/data checks, not semantic validity or detector performance.

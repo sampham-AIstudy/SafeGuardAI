@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "safeguard"
+version = "0.1.0"
+description = "Conversation-observation components for scam-risk assessment research"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["jsonschema==4.19.2"]
+gemini = ["google-genai==2.34.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"safeguard.adapters" = ["*.schema.json"]
+"safeguard.partner" = ["ui/*.html", "ui/*.js"]

@@ -1,0 +1,178 @@
+{
+  "artifacts": [
+    {
+      "bytes": 2970,
+      "path": "upstream/DATASET_CARD.md",
+      "sha256": "55407327b9fe9fcc9539ae9d996f712a1fc02fee7d01a2f168f2158a5858844e",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/DATASET_CARD.md"
+    },
+    {
+      "bytes": 1774,
+      "path": "upstream/DATA_ACCESS.md",
+      "sha256": "acf9a13458af1a0d38e09d105278120604a3d07afb3285134356af783b54efba",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/DATA_ACCESS.md"
+    },
+    {
+      "bytes": 1150,
+      "path": "upstream/LICENSE-DATA.md",
+      "sha256": "9d98599248b72fe34a1d3f148ff7f97001ce9aa29eb0d5f1e0534a26ca862e28",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/LICENSE-DATA.md"
+    },
+    {
+      "bytes": 4180,
+      "path": "upstream/README.md",
+      "sha256": "837331ccbd259495a5b7e6f111426da4e16ad3ffbcdf4b7f68116bdf9008c8fe",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/README.md"
+    },
+    {
+      "bytes": 1774,
+      "path": "upstream/REPRODUCIBILITY.md",
+      "sha256": "e4ba8dd2ac2ecdde12ff0b04be392da5260c507805d7e24d8d91cade30b6f5cf",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/REPRODUCIBILITY.md"
+    },
+    {
+      "bytes": 1594,
+      "path": "upstream/baselines/README.md",
+      "sha256": "f864eafc82890b9819a8dbc20e03a2b1efcc4a19d833842672ea5917d95fbb97",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/README.md"
+    },
+    {
+      "bytes": 1343,
+      "path": "upstream/baselines/gemma-0shot-a/README.md",
+      "sha256": "d22fbfe09aaa4005fdc009aaf166a5f148012caf25a800f66ec7cacbb880e805",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/gemma-0shot-a/README.md"
+    },
+    {
+      "bytes": 8748,
+      "path": "upstream/baselines/gemma-0shot-a/analyze_results.py",
+      "sha256": "ba4bbcb67d87cdc1104d83fcd0f326b0351fb9a7750b1f8d4e4ce48e045c2ac4",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/gemma-0shot-a/analyze_results.py"
+    },
+    {
+      "bytes": 16254,
+      "path": "upstream/baselines/gemma-0shot-a/test_gemma_0shot.py",
+      "sha256": "8184efc0115fd0c314f7e38b136370fcca17537b4db5520b8d13c1e6b316b640",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/gemma-0shot-a/test_gemma_0shot.py"
+    },
+    {
+      "bytes": 4267,
+      "path": "upstream/baselines/gemma-0shot-a/test_setup.py",
+      "sha256": "12b0b9d3de978149ed684313891da330527824b5249e26a0b1cea83738ebe13a",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/gemma-0shot-a/test_setup.py"
+    },
+    {
+      "bytes": 10004,
+      "path": "upstream/baselines/gemma-0shot-a/tui_display.py",
+      "sha256": "c49b8d68115f4c873ad467c189ddafcc3dd893633ebcd04c4b7db0f335ee8258",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/gemma-0shot-a/tui_display.py"
+    },
+    {
+      "bytes": 12605,
+      "path": "upstream/baselines/gemma-0shot-a/worker_manager.py",
+      "sha256": "0182dde63d695af93fe37efd5bb34c105eb3059d791304b70760a053c6544346",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/gemma-0shot-a/worker_manager.py"
+    },
+    {
+      "bytes": 1636,
+      "path": "upstream/baselines/roberta-2a/README.md",
+      "sha256": "67c64dd9ab2c570658d7dfff52bf6b0c91467342fcce779442d7d7e227ba539b",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2a/README.md"
+    },
+    {
+      "bytes": 11919,
+      "path": "upstream/baselines/roberta-2a/test_cross_domain.py",
+      "sha256": "d4691750beffbe6d160947257e2650d5bb100d304e2276b05c341fe1110bf6b6",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2a/test_cross_domain.py"
+    },
+    {
+      "bytes": 11708,
+      "path": "upstream/baselines/roberta-2a/test_full_dataset.py",
+      "sha256": "c429cd2e5fba218a58073ad25d8970ed1c92636ba20218789eb848098392802a",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2a/test_full_dataset.py"
+    },
+    {
+      "bytes": 12321,
+      "path": "upstream/baselines/roberta-2a/test_kfold_validation.py",
+      "sha256": "92fd4e454a1b9cc89a98eebc4d00322cf149c78725bd6c0af740f0592ccdd0f4",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2a/test_kfold_validation.py"
+    },
+    {
+      "bytes": 10795,
+      "path": "upstream/baselines/roberta-2a/test_roberta_2a_model.py",
+      "sha256": "896eb0f44d865c131f5200552dd737e3d8344933eaba2c1722f77936753b9ffb",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2a/test_roberta_2a_model.py"
+    },
+    {
+      "bytes": 13303,
+      "path": "upstream/baselines/roberta-2a/train_roberta_full_transcript.py",
+      "sha256": "54ee288ff5d293249cbe7d24b851edd898089e8ed7f6086d45f12ab9199f134b",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2a/train_roberta_full_transcript.py"
+    },
+    {
+      "bytes": 1777,
+      "path": "upstream/baselines/roberta-2b/README.md",
+      "sha256": "d6c3797f8b6ee3bfaca5d8b6732c3721b52c1490cdf30eff4965a8d71dd33cf0",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2b/README.md"
+    },
+    {
+      "bytes": 20122,
+      "path": "upstream/baselines/roberta-2b/test_cross_domain.py",
+      "sha256": "42e568d06da650bb53e9a96a4d8ce05cef3ea0e00062d4e74beb9d65e0366238",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2b/test_cross_domain.py"
+    },
+    {
+      "bytes": 11960,
+      "path": "upstream/baselines/roberta-2b/test_environment.py",
+      "sha256": "db27fb99167e4c0baeb0575782ace5ea440c5790a5b2bcf956151e3912f26c95",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2b/test_environment.py"
+    },
+    {
+      "bytes": 28006,
+      "path": "upstream/baselines/roberta-2b/train_roberta_streaming.py",
+      "sha256": "ffc2e0386b15e3f8e53bdbadc473ec4f7754246d123f9a9ae2bc093d9d33b9f8",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/baselines/roberta-2b/train_roberta_streaming.py"
+    },
+    {
+      "bytes": 1129,
+      "path": "upstream/scripts/download_data.py",
+      "sha256": "3d3044e37c14eaf2843d3afff9c990f69c4a797e4b432811088e3a31d81aa819",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/scripts/download_data.py"
+    },
+    {
+      "bytes": 1291,
+      "path": "upstream/scripts/verify_checksums.py",
+      "sha256": "7be060fa033823d6428fc936532a6f3df1167e39ce39571da8081d796a9c64ea",
+      "url": "https://raw.githubusercontent.com/SPELLAILab/ICFD-31k/5d02311657b2ca6454b5fb1c67bcdeb056b589c3/scripts/verify_checksums.py"
+    },
+    {
+      "bytes": 1968,
+      "path": "release-metadata/README.md",
+      "sha256": "f0ae48f8f0f5cfc932dccd632ce4634044844180d1292d34f3fcc6453ed320fd",
+      "url": "https://huggingface.co/datasets/rishia2220/icfd-31k/resolve/e91937a718b4cec97b8c06820225a9bdc30dd84a/README.md"
+    },
+    {
+      "bytes": 21090,
+      "path": "release-metadata/dataset_manifest.jsonl",
+      "sha256": "ba9a00508b9df6f4b5a89c92880992386ccffbfb8ad3579ca5ef6411d86403a5",
+      "url": "https://huggingface.co/datasets/rishia2220/icfd-31k/resolve/e91937a718b4cec97b8c06820225a9bdc30dd84a/dataset_manifest.jsonl"
+    },
+    {
+      "bytes": 9447,
+      "path": "release-metadata/checksums.sha256",
+      "sha256": "1dbb347dc89cc7335fb71c40e2870d30756eae2abd175c5e9f0e7093fcbb8664",
+      "url": "https://huggingface.co/datasets/rishia2220/icfd-31k/resolve/e91937a718b4cec97b8c06820225a9bdc30dd84a/checksums.sha256"
+    },
+    {
+      "bytes": 1376,
+      "path": "release-metadata/release_summary.json",
+      "sha256": "0fb2a19ba03b406374815c214cbaa5709832da0946f42918d84546df6b82058c",
+      "url": "https://huggingface.co/datasets/rishia2220/icfd-31k/resolve/e91937a718b4cec97b8c06820225a9bdc30dd84a/release_summary.json"
+    }
+  ],
+  "author_repository": "SPELLAILab/ICFD-31k",
+  "author_revision": "5d02311657b2ca6454b5fb1c67bcdeb056b589c3",
+  "dataset": "rishia2220/icfd-31k",
+  "dataset_revision": "e91937a718b4cec97b8c06820225a9bdc30dd84a",
+  "private_data_root": "/home/geminitt/projects/mini-safeguard/.audit-private/icfd-31k-audit-2026-11-07/data",
+  "retrieved_at_utc": "2026-11-06T19:03:00Z"
+}

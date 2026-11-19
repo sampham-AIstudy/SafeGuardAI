@@ -1,0 +1,12 @@
+[workspace]
+name = "mini-safeguard"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+python = "==3.14.4"
+jsonschema = "==4.19.2"
+google-genai = "==2.34.0"
+
+[tasks]
+checks = "timeout 90s python -I -B tests/run_checks.py"
