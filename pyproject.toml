@@ -18,3 +18,4 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "safeguard.adapters" = ["*.schema.json"]
+"safeguard.partner" = ["ui/*.html", "ui/*.js"]

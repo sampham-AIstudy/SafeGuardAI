@@ -111,6 +111,51 @@ class OfflineSdkChecks(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.transports)
         self.assertTrue(all(transport.closed for transport in self.transports))
 
+    async def test_flash_lite_demo_counts_actual_send_and_stops_after_rate_limit(self):
+        from tempfile import TemporaryDirectory
+        from safeguard.detection.gemini import FLASH_LITE_MODEL
+        from safeguard.partner.live import GeminiDemoUsage
+        from safeguard.storage.local import LocalDatabase, StorageLimits
+
+        root = Path(self.enterContext(TemporaryDirectory()))
+        database = LocalDatabase(root=root, kind="partner-demo", limits=StorageLimits(1048576, 0.1))
+        self.addCleanup(database.close)
+        usage = GeminiDemoUsage(database)
+        self.client, settings = usage.client_and_settings(DUMMY_KEY)
+        self.assertEqual(settings.model, FLASH_LITE_MODEL)
+        completed = await self.execute()
+        self.assertEqual(completed.status, "completed")
+        self.assertTrue(self.requests[0].url.path.endswith(f"/{FLASH_LITE_MODEL}:generateContent"))
+        self.assertEqual(usage.summary()["used"], 1)
+        self.action = lambda _: httpx.Response(429, json={"error": {"code": 429, "status": "RESOURCE_EXHAUSTED"}})
+        failed = await self.execute()
+        self.assertEqual(failed.status, "failed")
+        self.assertTrue(usage.summary()["blocked"])
+        self.assertEqual(usage.summary()["used"], 2)
+        await self.execute()
+        self.assertEqual(len(self.requests), 2)
+        self.assert_closed()
+
+    async def test_flash_lite_demo_allows_request_500_and_blocks_501(self):
+        from tempfile import TemporaryDirectory
+        from safeguard.partner.live import GeminiDemoUsage
+        from safeguard.storage.local import LocalDatabase, StorageLimits
+
+        root = Path(self.enterContext(TemporaryDirectory()))
+        database = LocalDatabase(root=root, kind="partner-demo", limits=StorageLimits(1048576, 0.1))
+        self.addCleanup(database.close)
+        now = 1795086000.0
+        usage = GeminiDemoUsage(database, clock=lambda: now)
+        with database.transaction() as db:
+            db.executemany("INSERT INTO gemini_demo_requests(started, quota_day, status) VALUES (?, ?, 200)",
+                           [(now - 120, usage.summary()["quota_day"])] * 499)
+        self.client, _ = usage.client_and_settings(DUMMY_KEY)
+        self.assertEqual((usage.summary()["used"], usage.summary()["limit"]), (499, 500))
+        self.assertEqual((await self.execute()).status, "completed")
+        self.assertEqual((await self.execute()).status, "failed")
+        self.assertEqual(usage.summary()["used"], 500)
+        self.assertEqual(len(self.requests), 1)
+
     def utf8_request(self, data):
         import tempfile
         from safeguard.memory.original_assets import AssetLimits, LocalAssetStore
@@ -227,6 +272,37 @@ class OfflineSdkChecks(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(body.get("tools"))
         self.assertFalse(body["store"])
         self.assertEqual(request.url.path, "/v1beta/models/gemini-4-hydrogen:generateContent")
+
+    async def test_flash_lite_partner_jpeg_can_be_cited_in_a_warning(self):
+        from tempfile import TemporaryDirectory
+
+        from safeguard.detection.gemini import FLASH_LITE_MODEL
+        from safeguard.partner_demo import DEMO_ACCESS, partner_demo_limits
+        from safeguard.partner.live import native_media_options
+        from safeguard.partner.rooms import DemoRooms
+        from test_native_media import toy_jpeg
+        from test_partner import event
+
+        client = GeminiClient(api_key=DUMMY_KEY, config=GeminiConfig(262144, 65536, model=FLASH_LITE_MODEL))
+        settings = ModelSettings(GEMINI_PROVIDER, FLASH_LITE_MODEL, client.configuration_sha256, 512, 131072, 65536)
+        self.action = lambda request: httpx.Response(200, json=response(result("scam")))
+        data = toy_jpeg()
+        with TemporaryDirectory() as directory:
+            demo = DemoRooms(root=directory, context=DEMO_ACCESS, limits=partner_demo_limits(live=True),
+                client=client, settings=settings, text_file_bytes=16384, native_media=native_media_options())
+            receipt = await demo.submit(DEMO_ACCESS, "library", event(1, body="", data=data, filename="payment.jpg"))
+            self.assertEqual(receipt.warning.action, "warn")
+            self.assertEqual(demo.conversation(DEMO_ACCESS, "library")["active_warning"]["supporting"],
+                             ({"observation_number": 1, "part_index": 0},))
+        self.assertEqual(len(self.requests), 1)
+        self.assertEqual(self.requests[0].url.path, "/v1beta/models/gemini-3.1-flash-lite:generateContent")
+        wire = json.loads(self.requests[0].content)
+        _, label, inline = wire["contents"][0]["parts"]
+        self.assertEqual(json.loads(label["text"])["source_ref"], {"observation_number": 1, "part_index": 0})
+        image = inline["inlineData"]
+        self.assertEqual(image["mime_type"], "image/jpeg")
+        self.assertEqual(base64.b64decode(image["data"], altchars=b"-_", validate=True), data)
+        self.assert_closed()
 
     async def test_native_media_exact_inline_bytes_and_source_order_use_one_sdk_request(self):
         request, receipts, store, preparer = self.native_request()
