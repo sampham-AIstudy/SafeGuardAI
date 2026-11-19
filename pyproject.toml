@@ -11,6 +11,7 @@ dependencies = []
 
 [project.optional-dependencies]
 test = ["jsonschema==4.19.2"]
+gemini = ["google-genai==2.34.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

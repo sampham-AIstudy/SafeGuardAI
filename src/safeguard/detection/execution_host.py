@@ -1,7 +1,7 @@
-"""Common scoped execution envelope; no workflow, agent or model implementation."""
+"""Common scoped execution envelope, capability brokerage and result finalization."""
 
 import asyncio
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields, replace
 import hashlib
 import inspect
 import json
@@ -125,10 +125,13 @@ class AssessmentProfile:
     name: str
     version: str
     validate: object = field(repr=False, compare=False)
+    validate_result: object = field(default=None, repr=False, compare=False)
 
     def __post_init__(self):
         _identity(self.name, self.version)
         if not callable(self.validate) or _async_callable(self.validate):
+            raise ExecutionError("invalid_profile")
+        if self.validate_result is not None and (not callable(self.validate_result) or _async_callable(self.validate_result)):
             raise ExecutionError("invalid_profile")
 
 
@@ -141,6 +144,11 @@ class ControllerReply:
     unavailable_code: str | None = None
 
 
+@dataclass(slots=True)
+class _ModelJournalState:
+    claimed: bool = False
+
+
 @dataclass(frozen=True, slots=True)
 class DetectionInvocation:
     run_id: str
@@ -148,6 +156,9 @@ class DetectionInvocation:
     initial_state_json: bytes = field(repr=False)
     capabilities: tuple[CapabilityIdentity, ...]
     limits: ExecutionLimits
+    profile: AssessmentProfile | None = field(default=None, repr=False)
+    _model_journal: _ModelJournalState = field(default_factory=_ModelJournalState,
+        init=False, repr=False, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,6 +166,9 @@ class CapabilityScope:
     prepared: PreparedContext
     access: object = field(repr=False)
     initial_state_json: bytes = field(repr=False)
+    invocation: DetectionInvocation | None = field(default=None, repr=False)
+    deadline: float | None = None
+    model_binding: object = field(default=None, repr=False, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,7 +201,36 @@ class CapabilitySession:
         self._attempts = self._calls = self._model_calls = 0
         self._limit_code = None
 
-    async def call(self, name: str, arguments_json: bytes) -> bytes:
+    def validate_tool_batch(self, calls, definitions):
+        """Check the complete proposed batch before the controller issues its first call."""
+        from safeguard.detection.model_contract import ToolDefinition, encoded
+
+        if not self._open:
+            raise ExecutionError("session_closed")
+        if type(definitions) is not tuple or any(type(t) is not ToolDefinition for t in definitions):
+            raise ExecutionError("invalid_tool_batch")
+        catalog = {t.name: t for t in definitions}
+        if type(calls) is not list or not calls or len(catalog) != len(definitions):
+            raise ExecutionError("invalid_tool_batch")
+        seen = set()
+        try:
+            for call in calls:
+                if type(call) is not dict or set(call) != {"tool_call_id", "name", "arguments"}:
+                    raise ValueError()
+                ident, name = call["tool_call_id"], call["name"]
+                if type(ident) is not str or not ident.strip() or ident in seen or type(name) is not str:
+                    raise ValueError()
+                ident.encode("utf-8")
+                seen.add(ident)
+                definition, registered = catalog.get(name), self._capabilities.get(name)
+                if definition is None or registered is None or registered.kind != "tool" or registered.version != definition.version:
+                    raise ValueError()
+                arguments = self._decode(encoded(call["arguments"]), self._limits.max_argument_bytes, "invalid_arguments")
+                definition.check(self._scope.prepared, arguments)
+        except Exception:
+            raise ExecutionError("invalid_tool_batch") from None
+
+    async def call(self, name: str, arguments_json: bytes, *, model_binding=None) -> bytes:
         if not self._open:
             raise ExecutionError("session_closed")
         self._attempts += 1
@@ -202,6 +245,9 @@ class CapabilitySession:
         self._events.append(event)
         if spec is None:
             raise ExecutionError("capability_not_allowed")
+        if model_binding is not None and spec.kind != "model":
+            event["code"] = "invalid_model_binding"
+            raise ExecutionError("invalid_model_binding")
         if type(arguments_json) is bytes and len(arguments_json) > self._limits.max_argument_bytes:
             self._limit_code = event["code"] = "argument_limit"
             raise ExecutionError("argument_limit")
@@ -212,7 +258,8 @@ class CapabilitySession:
             raise
         caller = asyncio.current_task()
         self._callers.add(caller)
-        task = asyncio.create_task(self._invoke(spec, arguments, event))
+        scope = replace(self._scope, model_binding=model_binding)
+        task = asyncio.create_task(self._invoke(spec, arguments, event, scope))
         self._tasks.add(task)
         try:
             return await task
@@ -220,7 +267,7 @@ class CapabilitySession:
             self._tasks.discard(task)
             self._callers.discard(caller)
 
-    async def _invoke(self, spec, arguments, event):
+    async def _invoke(self, spec, arguments, event, scope):
         started = time.perf_counter_ns()
         try:
             async with self._slots:
@@ -235,7 +282,7 @@ class CapabilitySession:
                 self._model_calls += spec.kind == "model"
                 event["invoked"] = True
                 try:
-                    reply = await spec.execute(self._scope, arguments)
+                    reply = await spec.execute(scope, arguments)
                 except Exception:
                     raise ExecutionError("capability_failed") from None
                 if inspect.iscoroutine(reply):
@@ -309,11 +356,13 @@ class ExecutionHost:
         return document
 
     async def run(self, request: DetectionRequest, *, strategy: ControllerSpec, allowed_capabilities: frozenset[str],
-                  initial_state_json: bytes) -> DetectionOutcome:
+                  initial_state_json: bytes, finalizer=None) -> DetectionOutcome:
         if type(request) is not DetectionRequest or type(strategy) is not ControllerSpec:
             raise ExecutionError("invalid_request")
         if type(allowed_capabilities) is not frozenset or not allowed_capabilities <= self._capabilities.keys():
             raise ExecutionError("invalid_capability_grants")
+        if finalizer is not None and not _async_callable(finalizer):
+            raise ExecutionError("invalid_finalizer")
         self._decode(initial_state_json, self.limits.max_state_bytes, "invalid_initial_state")
         try:
             prepared = self.preparer.prepare(self.intake.snapshot(request), request.context)
@@ -323,12 +372,13 @@ class ExecutionHost:
             raise ExecutionError("context_limit")
         identities = tuple(CapabilityIdentity(c.name, c.version, c.kind) for c in
                            (self._capabilities[name] for name in sorted(allowed_capabilities)))
-        invocation = DetectionInvocation(uuid4().hex, prepared, initial_state_json, identities, self.limits)
-        session = CapabilitySession(CapabilityScope(prepared, request.context, initial_state_json),
+        invocation = DetectionInvocation(uuid4().hex, prepared, initial_state_json, identities, self.limits, self.profile)
+        deadline = asyncio.get_running_loop().time() + self.limits.timeout_seconds
+        session = CapabilitySession(CapabilityScope(prepared, request.context, initial_state_json, invocation, deadline),
                                     {name: self._capabilities[name] for name in allowed_capabilities}, self.limits, self._decode)
         status, code, validated = "failed", "strategy_failed", None
         started = time.perf_counter_ns()
-        timer = asyncio.timeout(self.limits.timeout_seconds)
+        timer = asyncio.timeout_at(deadline)
         try:
             async with timer:
                 reply = await strategy.execute(invocation, session)
@@ -349,7 +399,7 @@ class ExecutionHost:
             status, code = "failed", "strategy_failed"
         finally:
             await session.close()
-        if timer.expired() and status != "cancelled":
+        if (timer.expired() or asyncio.get_running_loop().time() >= deadline) and status != "cancelled":
             status, code = "timeout", "deadline_exceeded"
         elif session._limit_code and status != "cancelled":
             status, code = "limited", session._limit_code
@@ -364,6 +414,29 @@ class ExecutionHost:
             outcome = self._outcome(invocation, strategy, "limited", "result_byte_limit", None, usage)
         if status == "cancelled":
             raise DetectionCancelled(outcome) from None
+        # Size/profile/source checks and broker cleanup precede any derived-state write.
+        # A trusted finalizer receives immutable bytes, never an unvalidated candidate.
+        if outcome.status == "completed" and finalizer is not None:
+            finalization_timer = asyncio.timeout_at(deadline)
+            try:
+                async with finalization_timer:
+                    if asyncio.get_running_loop().time() >= deadline:
+                        raise TimeoutError()
+                    await finalizer(invocation, outcome)
+                    if asyncio.get_running_loop().time() >= deadline:
+                        raise TimeoutError()
+            except asyncio.CancelledError:
+                try:
+                    cancelled = self._outcome(invocation, strategy, "cancelled", "cancelled", None, usage)
+                except ExecutionError as error:
+                    raise DetectionCancelled(None, error.code) from None
+                raise DetectionCancelled(cancelled) from None
+            except TimeoutError:
+                expired = finalization_timer.expired() or asyncio.get_running_loop().time() >= deadline
+                final_status, final_code = ("timeout", "deadline_exceeded") if expired else ("failed", "state_commit_failed")
+                outcome = self._outcome(invocation, strategy, final_status, final_code, None, usage)
+            except Exception:
+                outcome = self._outcome(invocation, strategy, "failed", "state_commit_failed", None, usage)
         return outcome
 
     def _validate_reply(self, reply, prepared):
@@ -403,8 +476,19 @@ class ExecutionHost:
                     raise ValueError()
             except Exception:
                 raise ExecutionError("invalid_assessment") from None
-        return dict(assessment=assessment, supporting=[asdict(r) for r in reply.supporting],
-                    counter=[asdict(r) for r in reply.counter], unresolved=[asdict(r) for r in reply.unresolved])
+        validated = dict(assessment=assessment, supporting=[asdict(r) for r in reply.supporting],
+                         counter=[asdict(r) for r in reply.counter], unresolved=[asdict(r) for r in reply.unresolved])
+        if assessment is not None and self.profile.validate_result is not None:
+            view = json.loads(json.dumps(validated))
+            try:
+                returned = self.profile.validate_result(view)
+                if inspect.iscoroutine(returned):
+                    returned.close()
+                if returned is not None or not _same_json(view, validated):
+                    raise ValueError()
+            except Exception:
+                raise ExecutionError("invalid_assessment") from None
+        return validated
 
     def _outcome(self, invocation, strategy, status, code, validated, usage):
         prepared = invocation.prepared

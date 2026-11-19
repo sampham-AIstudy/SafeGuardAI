@@ -78,13 +78,20 @@ class ContextPreparer:
     Permission snapshots do not implement login, revocation or tenant isolation.
     """
 
-    def __init__(self, *, message_limits, limits: ContextLimits):
+    def __init__(self, *, message_limits, limits: ContextLimits, private_outgoing_sender: str | None = None):
         # Avoid the ingress -> Engine intake -> state import cycle.
         from safeguard.ingress.limits import InputLimits
 
         if type(message_limits) is not InputLimits or type(limits) is not ContextLimits:
             raise ContextError("invalid_configuration")
+        if private_outgoing_sender is not None and (type(private_outgoing_sender) is not str or not private_outgoing_sender):
+            raise ContextError("invalid_configuration")
         self.message_limits, self.limits = message_limits, limits
+        self.private_outgoing_sender = private_outgoing_sender
+
+    def _withheld(self, message):
+        return self.private_outgoing_sender is not None and (
+            message.get("is_from_observed_account") is True or message.get("sender_id") == self.private_outgoing_sender)
 
     def prepare(self, snapshot: HistorySnapshot, context) -> PreparedContext:
         from safeguard.ingress import AccessContext
@@ -118,6 +125,8 @@ class ContextPreparer:
             parts, assets = message.get("content_parts"), message.get("assets")
             if type(parts) is not list or type(assets) is not list:
                 raise ContextError("invalid_normalized_message")
+            if self._withheld(message):
+                continue
             part_count += len(parts)
             asset_count += len(assets)
             text_chars += sum(len(p["text"]) for p in parts
@@ -133,9 +142,12 @@ class ContextPreparer:
         messages, attachments = [], []
         for number, message in enumerate(snapshot.messages, 1):
             canonical = self._canonical(message)
+            withheld = self._withheld(canonical)
             parts = []
-            catalogue = {asset["asset_id"]: asset for asset in canonical["assets"]}
-            for index, part in enumerate(canonical["content_parts"]):
+            visible_assets = [] if withheld else canonical["assets"]
+            visible_parts = [] if withheld else canonical["content_parts"]
+            catalogue = {asset["asset_id"]: asset for asset in visible_assets}
+            for index, part in enumerate(visible_parts):
                 ref = dict(observation_number=number, part_index=index)
                 parts.append(dict(part, source_ref=ref))
                 if part["kind"] != "text":
@@ -145,9 +157,12 @@ class ContextPreparer:
                     attachments.append(dict(source_ref=ref, kind=part["kind"], asset_id=part["asset_id"],
                                             source_status=status, processing_status="not_requested", gap_reason=gap))
             messages.append(dict(
-                observation_number=number, message_id=canonical["message_id"], sender_id=canonical["sender_id"],
-                is_from_observed_account=canonical["is_from_observed_account"], observed_at=canonical["observed_at"],
-                sent_at=canonical["sent_at"], content_parts=parts, assets=canonical["assets"],
+                observation_number=number,
+                message_id=f"withheld-{number}" if withheld else canonical["message_id"],
+                sender_id=key.account_id if withheld else canonical["sender_id"],
+                is_from_observed_account=withheld or canonical["is_from_observed_account"],
+                observed_at=canonical["observed_at"], sent_at=None if withheld else canonical["sent_at"],
+                content_parts=parts, assets=visible_assets,
             ))
         document = dict(context_schema_version="1.0", source=key.source, account_id=key.account_id,
                         conversation_id=key.conversation_id, observed_count=count, messages=messages,

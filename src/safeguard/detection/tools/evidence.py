@@ -14,12 +14,29 @@ from safeguard.detection.context import PreparedContext
 _KINDS = frozenset(("image", "audio", "video", "file"))
 _LOCATIONS = frozenset(("whole_asset", "page", "time_range_ms"))
 _SHA256 = re.compile("[0-9a-f]{64}")
+_READER_REJECTION_STATUS = {
+    "unsupported_kind": "unsupported",
+    "unsupported_encoding": "unsupported",
+    "nul_content": "unsupported",
+    "input_byte_limit": "limited",
+    "text_limit": "limited",
+}
 
 
 class EvidenceError(ValueError):
     """Fixed public reasons, without source values or callback exception text."""
 
     def __init__(self, code):
+        self.code = code
+        super().__init__(code)
+
+
+class ReaderRejection(ValueError):
+    """A reader's fixed non-success reason, without source or exception details."""
+
+    def __init__(self, code):
+        if type(code) is not str or code not in _READER_REJECTION_STATUS:
+            raise ValueError("invalid_reader_rejection")
         self.code = code
         super().__init__(code)
 
@@ -110,6 +127,54 @@ class EvidenceResult:
         return json.loads(self.json_bytes)
 
 
+def resolve_original_part(prepared, access, ref, *, max_context_bytes):
+    from safeguard.ingress import AccessContext
+
+    if type(access) is not AccessContext:
+        raise EvidenceError("trusted_context_required")
+    if type(prepared) is not PreparedContext or type(prepared.key) is not ConversationKey or type(prepared.json_bytes) is not bytes:
+        raise EvidenceError("invalid_context")
+    key = prepared.key
+    if key.account_id != access.account_id or key.conversation_id not in access.conversations:
+        raise EvidenceError("conversation_not_allowed")
+    if type(ref) is not PartReference:
+        raise EvidenceError("invalid_reference")
+    if len(prepared.json_bytes) > max_context_bytes:
+        raise EvidenceError("context_byte_limit")
+    try:
+        document = prepared.to_dict()
+        if (type(document) is not dict or document.get("context_schema_version") != "1.0"
+                or type(prepared.observed_count) is not int or type(document.get("observed_count")) is not int
+                or document["observed_count"] != prepared.observed_count
+                or any(document.get(name) != getattr(key, name) for name in ("source", "account_id", "conversation_id"))
+                or type(document.get("messages")) is not list or len(document["messages"]) != prepared.observed_count):
+            raise EvidenceError("invalid_context")
+        if ref.observation_number > prepared.observed_count:
+            raise EvidenceError("invalid_reference")
+        message = document["messages"][ref.observation_number - 1]
+        if type(message) is not dict or message.get("observation_number") != ref.observation_number or type(message.get("content_parts")) is not list:
+            raise EvidenceError("invalid_context")
+        if ref.part_index >= len(message["content_parts"]):
+            raise EvidenceError("invalid_reference")
+        part = message["content_parts"][ref.part_index]
+        if type(part) is not dict or part.get("source_ref") != asdict(ref):
+            raise EvidenceError("invalid_context")
+        if part.get("kind") == "text":
+            raise EvidenceError("attachment_required")
+        if part.get("kind") not in _KINDS or type(message.get("assets")) is not list:
+            raise EvidenceError("invalid_context")
+        matches = [a for a in message["assets"] if type(a) is dict and a.get("asset_id") == part.get("asset_id")]
+        if len(matches) != 1 or any(matches[0].get(name) is not None and type(matches[0].get(name)) is not str
+                                    for name in ("filename", "declared_media_type")):
+            raise EvidenceError("invalid_context")
+        asset_key = AssetKey(key.source, key.account_id, key.conversation_id, message.get("message_id"), part.get("asset_id"))
+    except (KeyError, TypeError, ValueError, RecursionError, UnicodeError) as error:
+        if type(error) is EvidenceError:
+            raise
+        raise EvidenceError("invalid_context") from None
+    return part, matches[0], asset_key
+
+
 class EvidencePreparer:
     """A cooperative same-thread bridge, not a hostile-code execution sandbox."""
 
@@ -120,7 +185,7 @@ class EvidencePreparer:
 
     def process(self, prepared: PreparedContext, access, source_ref: PartReference, *, spec: ReaderSpec, reader,
                 expected_original: StoredAsset | None = None) -> EvidenceResult:
-        part, descriptor, asset_key = self._resolve(prepared, access, source_ref)
+        part, descriptor, asset_key = resolve_original_part(prepared, access, source_ref, max_context_bytes=self.limits.max_context_bytes)
         if expected_original is not None and (type(expected_original) is not StoredAsset or expected_original.key != asset_key):
             raise EvidenceError("invalid_original_binding")
         if type(spec) is not ReaderSpec or not callable(reader) or inspect.iscoroutinefunction(reader) or inspect.iscoroutinefunction(getattr(reader, "__call__", None)):
@@ -155,6 +220,13 @@ class EvidencePreparer:
         request = ReaderInput(part["kind"], data, descriptor.get("filename"), descriptor.get("declared_media_type"))
         try:
             output = reader(request)
+        except ReaderRejection as error:
+            code = getattr(error, "code", None)
+            if (type(error) is not ReaderRejection or type(code) is not str
+                    or code not in _READER_REJECTION_STATUS or len(error.args) != 1
+                    or type(error.args[0]) is not str or error.args[0] != code):
+                return emit("failed", "invalid_reader_output", original)
+            return emit(_READER_REJECTION_STATUS[code], code, original)
         except Exception:
             return emit("failed", "reader_failed", original)
         if inspect.iscoroutine(output):
@@ -184,53 +256,6 @@ class EvidencePreparer:
             if error.code != "result_byte_limit":
                 raise
             return emit("limited", "result_byte_limit", original)
-
-    def _resolve(self, prepared, access, ref):
-        from safeguard.ingress import AccessContext
-
-        if type(access) is not AccessContext:
-            raise EvidenceError("trusted_context_required")
-        if type(prepared) is not PreparedContext or type(prepared.key) is not ConversationKey or type(prepared.json_bytes) is not bytes:
-            raise EvidenceError("invalid_context")
-        key = prepared.key
-        if key.account_id != access.account_id or key.conversation_id not in access.conversations:
-            raise EvidenceError("conversation_not_allowed")
-        if type(ref) is not PartReference:
-            raise EvidenceError("invalid_reference")
-        if len(prepared.json_bytes) > self.limits.max_context_bytes:
-            raise EvidenceError("context_byte_limit")
-        try:
-            document = prepared.to_dict()
-            if (type(document) is not dict or document.get("context_schema_version") != "1.0"
-                    or type(prepared.observed_count) is not int or type(document.get("observed_count")) is not int
-                    or document["observed_count"] != prepared.observed_count
-                    or any(document.get(name) != getattr(key, name) for name in ("source", "account_id", "conversation_id"))
-                    or type(document.get("messages")) is not list or len(document["messages"]) != prepared.observed_count):
-                raise EvidenceError("invalid_context")
-            if ref.observation_number > prepared.observed_count:
-                raise EvidenceError("invalid_reference")
-            message = document["messages"][ref.observation_number - 1]
-            if type(message) is not dict or message.get("observation_number") != ref.observation_number or type(message.get("content_parts")) is not list:
-                raise EvidenceError("invalid_context")
-            if ref.part_index >= len(message["content_parts"]):
-                raise EvidenceError("invalid_reference")
-            part = message["content_parts"][ref.part_index]
-            if type(part) is not dict or part.get("source_ref") != asdict(ref):
-                raise EvidenceError("invalid_context")
-            if part.get("kind") == "text":
-                raise EvidenceError("attachment_required")
-            if part.get("kind") not in _KINDS or type(message.get("assets")) is not list:
-                raise EvidenceError("invalid_context")
-            matches = [a for a in message["assets"] if type(a) is dict and a.get("asset_id") == part.get("asset_id")]
-            if len(matches) != 1 or any(matches[0].get(name) is not None and type(matches[0].get(name)) is not str
-                                        for name in ("filename", "declared_media_type")):
-                raise EvidenceError("invalid_context")
-            asset_key = AssetKey(key.source, key.account_id, key.conversation_id, message.get("message_id"), part.get("asset_id"))
-        except (KeyError, TypeError, ValueError, RecursionError, UnicodeError) as error:
-            if type(error) is EvidenceError:
-                raise
-            raise EvidenceError("invalid_context") from None
-        return part, matches[0], asset_key
 
     @staticmethod
     def _asset_failure(error):
